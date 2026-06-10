@@ -12,7 +12,7 @@ public class HeaderSpecTest {
     public void validatesRequiredHeaders() {
         HeaderSpec spec = new HeaderSpec(Arrays.asList(
                 "序号", "设备名称", "设备类型", "设备型号", "所属机构",
-                "详细地点", "放置地点", "资产状态", "电子标签"));
+                "详细地点", "放置地点", "资产状态", "固资编号"));
         assertTrue(spec.isValid());
     }
 
@@ -20,13 +20,13 @@ public class HeaderSpecTest {
     public void reportsMissingHeaders() {
         HeaderSpec spec = new HeaderSpec(Arrays.asList("序号", "设备名称"));
         assertEquals(7, spec.missingHeaders().size());
-        assertTrue(spec.missingHeaders().contains("电子标签"));
+        assertTrue(spec.missingHeaders().contains("固资编号"));
     }
 
     @Test
     public void epcColumnIndex_found() {
         HeaderSpec spec = new HeaderSpec(Arrays.asList(
-                "序号", "电子标签", "设备名称"));
+                "序号", "固资编号", "设备名称"));
         assertEquals(1, spec.epcColumnIndex());
     }
 
@@ -34,5 +34,13 @@ public class HeaderSpecTest {
     public void epcColumnIndex_throwsWhenMissing() {
         HeaderSpec spec = new HeaderSpec(Arrays.asList("序号", "设备名称"));
         assertThrows(IllegalStateException.class, spec::epcColumnIndex);
+    }
+
+    @Test
+    public void epcColumnIndex_findsAssetCode() {
+        // 验证列查找走"固资编号"名称, 即使表头顺序不同也能找到
+        HeaderSpec spec = new HeaderSpec(Arrays.asList(
+                "设备名称", "所属机构", "固资编号", "设备型号"));
+        assertEquals(2, spec.epcColumnIndex());
     }
 }
