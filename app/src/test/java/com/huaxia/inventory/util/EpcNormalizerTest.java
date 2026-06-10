@@ -8,22 +8,12 @@ public class EpcNormalizerTest {
 
     @Test
     public void trimsWhitespace() {
-        assertEquals("3034A1B2", EpcNormalizer.normalize(" 3034A1B2 "));
+        assertEquals("3500309099027210", EpcNormalizer.normalize(" 3500309099027210 "));
     }
 
     @Test
-    public void uppercasesHex() {
-        assertEquals("3034A1B2", EpcNormalizer.normalize("3034a1b2"));
-    }
-
-    @Test
-    public void rejectsOddLength() {
-        assertNull(EpcNormalizer.normalize("3034A1B"));
-    }
-
-    @Test
-    public void rejectsNonHex() {
-        assertNull(EpcNormalizer.normalize("3034G1B2"));
+    public void accepts16Digits() {
+        assertEquals("3500309099027210", EpcNormalizer.normalize("3500309099027210"));
     }
 
     @Test
@@ -37,8 +27,28 @@ public class EpcNormalizerTest {
     }
 
     @Test
-    public void accepts24Hex() {
-        assertEquals("3034A1B23034A1B23034A1B2",
-                EpcNormalizer.normalize("3034a1b23034a1b23034a1b2"));
+    public void rejectsShort() {
+        assertNull(EpcNormalizer.normalize("350030909902721"));
+    }
+
+    @Test
+    public void rejectsLong() {
+        assertNull(EpcNormalizer.normalize("35003090990272100"));
+    }
+
+    @Test
+    public void rejectsLetters() {
+        assertNull(EpcNormalizer.normalize("3500309099027ABC"));
+    }
+
+    @Test
+    public void rejectsHexChars() {
+        // 即使看似 hex 也拒绝, 本合约只认十进制
+        assertNull(EpcNormalizer.normalize("FFFFFFFFFFFFFFFF"));
+    }
+
+    @Test
+    public void rejectsWhitespaceInside() {
+        assertNull(EpcNormalizer.normalize("3500 309099027210"));
     }
 }

@@ -8,16 +8,22 @@ public final class EpcNormalizer {
 
     private EpcNormalizer() {}
 
+    /**
+     * Validate and normalize a raw asset-code string into its canonical form:
+     * a 16-digit decimal string (the "固资编号" / unified asset code).
+     *
+     * @param raw input from Excel cell, RFID scan, or user entry
+     * @return the trimmed 16-digit decimal string, or {@code null} if invalid
+     */
     public static String normalize(String raw) {
         if (raw == null) return null;
-        String s = raw.trim().toUpperCase(Locale.ROOT);
-        if (s.isEmpty()) return null;
-        if (s.length() % 4 != 0) {
-            Log.w(TAG, "EPC length not multiple of 4: " + s);
+        String s = raw.trim();
+        if (s.length() != 16) {
+            Log.w(TAG, "asset code length != 16: " + s);
             return null;
         }
-        if (!s.matches("[0-9A-F]+")) {
-            Log.w(TAG, "EPC not hex: " + s);
+        if (!s.matches("[0-9]+")) {
+            Log.w(TAG, "asset code not 16 decimal digits: " + s);
             return null;
         }
         return s;
