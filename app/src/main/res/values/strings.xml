@@ -32,8 +32,10 @@
     <string name="result_tab_found">已盘</string>
     <string name="result_tab_missing">盘亏</string>
     <string name="result_tab_extra">盘盈</string>
-    <string name="result_search_hint">搜索设备名/EPC/位置</string>
+    <string name="result_search_hint">搜索设备名/固资编号/位置</string>
     <string name="result_status_found">已盘</string>
     <string name="result_status_missing">盘亏</string>
     <string name="result_status_extra">盘盈</string>
+
+    <string name="label_asset_code">固资编号</string>
 </resources>
