@@ -2,6 +2,7 @@ package com.huaxia.inventory.excel;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huaxia.inventory.data.entity.Asset;
+import com.huaxia.inventory.util.EpcNormalizer;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -56,16 +57,19 @@ public final class ExcelImporter {
                 Row row = rows.next();
                 try {
                     List<String> cells = readRow(row);
-                    String epc = cells.size() > epcIdx ? cells.get(epcIdx) : "";
-                    if (epc == null || epc.trim().isEmpty()) {
-                        errors.add("Row " + excelRow + ": empty EPC, skipped");
+                    String rawCode = cells.size() > epcIdx ? cells.get(epcIdx) : "";
+                    String code = EpcNormalizer.normalize(rawCode);
+                    if (code == null) {
+                        errors.add("Row " + excelRow + ": invalid 固资编号 '"
+                                + (rawCode == null ? "" : rawCode)
+                                + "' (需 16 位十进制), skipped");
                         excelRow++;
                         continue;
                     }
                     Asset a = new Asset();
                     a.taskId = taskId;
                     a.excelRowIndex = excelRow;
-                    a.epc = epc.trim();
+                    a.epc = code;
                     a.assetName = pick(cells, headers, "设备名称");
                     a.assetType = pick(cells, headers, "设备类型");
                     a.assetModel = pick(cells, headers, "设备型号");
