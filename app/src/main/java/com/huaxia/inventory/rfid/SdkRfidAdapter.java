@@ -216,7 +216,7 @@ public class SdkRfidAdapter {
      * reference (e.g. {@code setEpc} / {@code writeEpc}). This placeholder
      * throws so callers (and tests) can detect the unimplemented path.</p>
      *
-     * @param hex16 16-character uppercase hex string (e.g. "0C72C8A220BB2A6A")
+     * @param hex16 16-character uppercase hex string (e.g. "000C6F8338739B0A")
      * @return {@code 0} on success, non-zero on failure
      */
     public int writeEpc(String hex16) {
