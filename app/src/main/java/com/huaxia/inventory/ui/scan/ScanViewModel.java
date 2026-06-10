@@ -57,8 +57,15 @@ public class ScanViewModel extends AndroidViewModel {
         });
     }
 
-    public void onEpcScanned(String rawEpc, String tid, String rssi) {
-        String epc = EpcNormalizer.normalize(rawEpc);
+    /**
+     * 处理一个扫描到的标签, 用归一化后的 16 位十进制固资编号匹配资产。
+     *
+     * @param rawCode 已归一化的 16 位十进制字符串 (由 ScanFragment 从 SDK hex 转换得到)
+     * @param tid     SDK 报告的 TID, 透传存入 ScanRecord
+     * @param rssi    SDK 报告的 RSSI, 透传存入 ScanRecord
+     */
+    public void onEpcScanned(String rawCode, String tid, String rssi) {
+        String epc = EpcNormalizer.normalize(rawCode);
         if (epc == null) return;
         if (scannedEpcSet.contains(epc)) {
             latestScan.postValue(makeUnmatchedRecord(epc, tid, rssi));

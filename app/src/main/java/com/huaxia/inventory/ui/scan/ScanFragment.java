@@ -16,6 +16,8 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
 import com.huaxia.inventory.rfid.SdkRfidAdapter;
+import com.huaxia.inventory.util.EpcCodec;
+import com.huaxia.inventory.util.EpcNormalizer;
 
 public class ScanFragment extends Fragment {
 
@@ -26,8 +28,15 @@ public class ScanFragment extends Fragment {
     private FloatingActionButton viewResultFab;
     private RecentScanAdapter adapter;
 
-    private final SdkRfidAdapter.TagListener rfidCallback = (epc, tid, rssi) ->
-            vm.onEpcScanned(epc, tid, rssi);
+    private final SdkRfidAdapter.TagListener rfidCallback = (epcHex, tid, rssi) -> {
+        // SDK 返回的是 16 字符 hex (8 字节整数) — 转换为 16 位十进制
+        // 固资编号, 再交给 ViewModel 做匹配
+        String decimal = EpcCodec.fromHex(epcHex);
+        if (decimal == null) return;
+        String normalized = EpcNormalizer.normalize(decimal);
+        if (normalized == null) return;
+        vm.onEpcScanned(normalized, tid, rssi);
+    };
 
     @Nullable
     @Override
