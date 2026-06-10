@@ -1,0 +1,6 @@
+<resources>
+    <dimen name="cardMargin">12dp</dimen>
+    <dimen name="cardPadding">16dp</dimen>
+    <dimen name="textSizeTitle">20sp</dimen>
+    <dimen name="textSizeBody">14sp</dimen>
+</resources>
