@@ -204,6 +204,29 @@ public class SdkRfidAdapter {
         powered.set(false);
     }
 
+    /**
+     * Write a new EPC to the next tag observed by the reader.
+     *
+     * <p>Returns {@code 0} on success, non-zero on failure. The input must be
+     * exactly 16 hex characters (8 bytes) representing the asset code in
+     * big-endian integer form.</p>
+     *
+     * <p><b>TODO:</b> real integration with the rscja DeviceAPI is pending.
+     * See {@code uhf-uart-demo/uhf-uart-demo/app/src/main/} for the SDK
+     * reference (e.g. {@code setEpc} / {@code writeEpc}). This placeholder
+     * throws so callers (and tests) can detect the unimplemented path.</p>
+     *
+     * @param hex16 16-character uppercase hex string (e.g. "0C72C8A220BB2A6A")
+     * @return {@code 0} on success, non-zero on failure
+     */
+    public int writeEpc(String hex16) {
+        if (hex16 == null || hex16.length() != 16) return -1;
+        if (!hex16.matches("[0-9A-Fa-f]+")) return -1;
+        // TODO: integrate with rscja DeviceAPI
+        throw new UnsupportedOperationException(
+                "SdkRfidAdapter.writeEpc not yet implemented; see uhf-uart-demo");
+    }
+
     private void pollLoop() {
         RFIDWithUHFUART r = requireReader();
         while (scanning.get()) {

@@ -2,6 +2,8 @@ package com.huaxia.inventory.rfid;
 
 import android.content.Context;
 
+import com.huaxia.inventory.util.EpcCodec;
+
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -101,6 +103,34 @@ public class RfidController {
         if (state != State.SCANNING) return;
         adapter.stopInventory();
         state = State.READY;
+    }
+
+    /**
+     * Write a unified asset code (16-digit decimal) to a tag's EPC memory.
+     *
+     * <p>No-op unless the controller is in {@link State#READY} or
+     * {@link State#SCANNING}.</p>
+     *
+     * @param decimal16 16-digit decimal string (e.g. "3500309099027210")
+     * @return {@code true} on success, {@code false} on any failure
+     *         (illegal state, codec failure, or SDK non-zero return)
+     */
+    public boolean writeEpc(String decimal16) {
+        if (state != State.READY && state != State.SCANNING) return false;
+        String hex = EpcCodec.toHex(decimal16);
+        if (hex == null) return false;
+        try {
+            int rc = adapter.writeEpc(hex);
+            if (rc != 0) {
+                android.util.Log.w("RfidController", "writeEpc failed rc=" + rc);
+                return false;
+            }
+            return true;
+        } catch (UnsupportedOperationException uoe) {
+            // SDK 集成未完成 — 当前是占位
+            android.util.Log.w("RfidController", "writeEpc not implemented");
+            return false;
+        }
     }
 
     /** Power the RFID module off (does not release the SDK). */

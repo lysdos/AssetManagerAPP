@@ -139,4 +139,51 @@ public class RfidControllerTest {
         c.release();
         verify(realAdapter, times(1)).release();
     }
+
+    @Test
+    public void writeEpc_delegatesHexToAdapter() {
+        // 把控制器推到 READY
+        SdkRfidAdapter realAdapter = new SdkRfidAdapter() {
+            @Override
+            public void init(Context ignored, Callback c) {
+                c.onStatus(true);
+            }
+        };
+        when(realAdapter.writeEpc(any(String.class))).thenReturn(0);
+        RfidController c = new RfidController(realAdapter);
+        c.init(null, null);
+
+        // 3500309099027210 -> 0C72C8A220BB2A6A
+        boolean ok = c.writeEpc("3500309099027210");
+
+        assertTrue(ok);
+        verify(realAdapter, times(1)).writeEpc("0C72C8A220BB2A6A");
+    }
+
+    @Test
+    public void writeEpc_returnsFalseWhenNotReady() {
+        // setup() 创建的 controller 处于 IDLE
+        boolean ok = controller.writeEpc("3500309099027210");
+
+        assertFalse(ok);
+        verify(adapter, never()).writeEpc(any(String.class));
+    }
+
+    @Test
+    public void writeEpc_returnsFalseOnCodecFailure() {
+        SdkRfidAdapter realAdapter = new SdkRfidAdapter() {
+            @Override
+            public void init(Context ignored, Callback c) {
+                c.onStatus(true);
+            }
+        };
+        RfidController c = new RfidController(realAdapter);
+        c.init(null, null);
+
+        // 非 16 位数字 — codec 失败
+        boolean ok = c.writeEpc("123");
+
+        assertFalse(ok);
+        verify(realAdapter, never()).writeEpc(any(String.class));
+    }
 }
