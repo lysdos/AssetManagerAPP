@@ -153,11 +153,11 @@ public class RfidControllerTest {
         RfidController c = new RfidController(realAdapter);
         c.init(null, null);
 
-        // 3500309099027210 -> 0C72C8A220BB2A6A
+        // 3500309099027210 -> 000C6F8338739B0A
         boolean ok = c.writeEpc("3500309099027210");
 
         assertTrue(ok);
-        verify(realAdapter, times(1)).writeEpc("0C72C8A220BB2A6A");
+        verify(realAdapter, times(1)).writeEpc("000C6F8338739B0A");
     }
 
     @Test

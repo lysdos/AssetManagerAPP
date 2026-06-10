@@ -8,12 +8,12 @@ public class EpcCodecTest {
 
     @Test
     public void decimalToHex_basic() {
-        assertEquals("0C72C8A220BB2A6A", EpcCodec.toHex("3500309099027210"));
+        assertEquals("000C6F8338739B0A", EpcCodec.toHex("3500309099027210"));
     }
 
     @Test
     public void decimalToHex_maxValue() {
-        assertEquals("DE0B6B3A76400000", EpcCodec.toHex("9999999999999999"));
+        assertEquals("002386F26FC0FFFF", EpcCodec.toHex("9999999999999999"));
     }
 
     @Test
@@ -33,12 +33,12 @@ public class EpcCodecTest {
 
     @Test
     public void hexToDecimal_basic() {
-        assertEquals("3500309099027210", EpcCodec.fromHex("0C72C8A220BB2A6A"));
+        assertEquals("3500309099027210", EpcCodec.fromHex("000C6F8338739B0A"));
     }
 
     @Test
     public void hexToDecimal_maxValue() {
-        assertEquals("9999999999999999", EpcCodec.fromHex("DE0B6B3A76400000"));
+        assertEquals("9999999999999999", EpcCodec.fromHex("002386F26FC0FFFF"));
     }
 
     @Test
