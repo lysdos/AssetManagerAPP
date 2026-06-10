@@ -59,13 +59,14 @@
 | Excel | Apache POI 5.2.5 (`poi-ooxml`) | ~3.5 MB |
 | JSON | Jackson Databind 2.17.0 | 用于 rawRowJson 序列化 |
 | 文件 | Storage Access Framework (SAF) | 无需 `READ_EXTERNAL_STORAGE` 权限 |
-| RFID | `URFIDLibrary-v2.4.1226.aar` (厂商 AAR) | 厂商 SDK |
+| RFID | `DeviceAPI_ver20230301_release.aar` (rscja DeviceAPI) | 厂商 SDK（同步轮询模型） |
 
 ### 3.2 模块布局
 
 ```
 huaxiaapp/
-├── libs/URFIDLibrary-v2.4.1226.aar        # 厂商 SDK
+├── libs/DeviceAPI_ver20230301_release.aar  # 厂商 SDK（rscja DeviceAPI）
+├── uhf-uart-demo/uhf-uart-demo/            # 厂商 demo 源码（API 调用参考）
 ├── app/
 │   ├── build.gradle
 │   └── src/main/
@@ -85,6 +86,7 @@ huaxiaapp/
 │       │   │       ├── AssetDao.java
 │       │   │       └── ScanRecordDao.java
 │       │   ├── rfid/
+│       │   │   ├── SdkRfidAdapter.java        # 适配 rscja 同步轮询 SDK
 │       │   │   └── RfidController.java        # 封装 SDK 生命周期
 │       │   ├── excel/
 │       │   │   ├── ExcelImporter.java
@@ -369,8 +371,8 @@ public class RfidController {
     public enum State { IDLE, INITIALIZING, READY, SCANNING, ERROR }
 
     public void init(Context appCtx, Callback<Boolean> onReady);
-    public void registerCallback(IRfidCallback cb);  // 转发到 SDK
-    public void unregisterCallback(IRfidCallback cb);
+    public void registerCallback(SdkRfidAdapter.TagListener cb);  // 转发到 SDK
+    public void unregisterCallback(SdkRfidAdapter.TagListener cb);
     public void startInventory();
     public void stopInventory();
     public void powerOff();
@@ -382,9 +384,10 @@ public class RfidController {
 
 **关键不变量**:
 - `init` 只在第一次调用时执行；后续调用直接返回当前状态
-- `registerCallback` / `unregisterCallback` 维护内部 `Set<IRfidCallback>`，支持多订阅者
+- `registerCallback` / `unregisterCallback` 维护内部 `Set<SdkRfidAdapter.TagListener>`，支持多订阅者
 - `startInventory` 内部检查状态：`IDLE/READY → startRead()`；`SCANNING → no-op`；`ERROR → 拒绝并提示`
 - `release` 幂等：第二次调用不抛异常
+- 新 SDK 内部使用 `SdkRfidAdapter` 启动一个守护 `rfid-poll` 线程桥接同步轮询，转发为 `TagListener.onTag(epc, tid, rssi)` 回调
 
 ### 6.2 生命周期归属
 
@@ -400,31 +403,33 @@ public class RfidController {
 
 ### 6.3 线程模型
 
+rscja DeviceAPI 是**同步轮询**模型：调用 `startInventoryTag()` 启动扫描后，调用方需在自有线程里循环调用 `readTagFromBuffer()` 拉取结果。本项目在 `SdkRfidAdapter` 内启动一个守护线程 `rfid-poll` 桥接，再以 `TagListener` 回调对外暴露（与 UI 期望的事件模型对齐）。
+
 ```
-┌──────────────────┐  onInventoryTag(epc,tid,rssi)  ┌──────────────────┐
-│  RFID 硬件线程   │ ──────────────────────────────► │ RfidController   │
-│ (SDK 内部)        │                                 │  (handler.post)  │
-└──────────────────┘                                 └────────┬─────────┘
-                                                                │ 主线程
-                                                                ▼
-                                                       ┌──────────────────┐
-                                                       │ ScanViewModel    │
-                                                       │ .onEpcScanned()  │
-                                                       └────────┬─────────┘
-                                                                │ 提交到 diskIO
-                                                                ▼
-                                                       ┌──────────────────┐
-                                                       │  Room DAO        │
-                                                       │  (background)    │
-                                                       └────────┬─────────┘
-                                                                │ 完成后
-                                                                ▼
-                                                       ┌──────────────────┐
-                                                       │ LiveData 更新    │
-                                                       │ (postValue)      │
-                                                       └────────┬─────────┘
-                                                                ▼
-                                                          UI 刷新
+┌──────────────────┐  readTagFromBuffer()  ┌──────────────────┐  onTag(epc,tid,rssi)  ┌──────────────────┐
+│  RFID 硬件       │ ◄─────────────────── │ SdkRfidAdapter   │ ────────────────────► │ RfidController   │
+│  (rscja SDK)     │   每 20ms 轮询        │ rfid-poll 线程   │  fan-out 到所有订阅者  │ (handler.post)   │
+└──────────────────┘                       └──────────────────┘                       └────────┬─────────┘
+                                                                                               │ 主线程
+                                                                                               ▼
+                                                                                      ┌──────────────────┐
+                                                                                      │ ScanViewModel    │
+                                                                                      │ .onEpcScanned()  │
+                                                                                      └────────┬─────────┘
+                                                                                               │ 提交到 diskIO
+                                                                                               ▼
+                                                                                      ┌──────────────────┐
+                                                                                      │  Room DAO        │
+                                                                                      │  (background)    │
+                                                                                      └────────┬─────────┘
+                                                                                               │ 完成后
+                                                                                               ▼
+                                                                                      ┌──────────────────┐
+                                                                                      │ LiveData 更新    │
+                                                                                      │ (postValue)      │
+                                                                                      └────────┬─────────┘
+                                                                                               ▼
+                                                                                            UI 刷新
 ```
 
 **`AppExecutors.java`**:

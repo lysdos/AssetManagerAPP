@@ -15,7 +15,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
-import com.ubx.usdk.rfid.aidl.IRfidCallback;
+import com.huaxia.inventory.rfid.SdkRfidAdapter;
 
 public class ScanFragment extends Fragment {
 
@@ -26,12 +26,8 @@ public class ScanFragment extends Fragment {
     private FloatingActionButton viewResultFab;
     private RecentScanAdapter adapter;
 
-    private final IRfidCallback rfidCallback = new IRfidCallback() {
-        @Override public void onInventoryTag(String epc, String tid, String rssi) {
+    private final SdkRfidAdapter.TagListener rfidCallback = (epc, tid, rssi) ->
             vm.onEpcScanned(epc, tid, rssi);
-        }
-        @Override public void onInventoryTagEnd() {}
-    };
 
     @Nullable
     @Override

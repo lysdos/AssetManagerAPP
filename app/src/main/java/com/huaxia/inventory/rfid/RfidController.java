@@ -2,8 +2,6 @@ package com.huaxia.inventory.rfid;
 
 import android.content.Context;
 
-import com.ubx.usdk.rfid.aidl.IRfidCallback;
-
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -35,7 +33,7 @@ public class RfidController {
 
     private final SdkRfidAdapter adapter;
     private volatile State state = State.IDLE;
-    private final Set<IRfidCallback> callbacks = new CopyOnWriteArraySet<>();
+    private final Set<SdkRfidAdapter.TagListener> callbacks = new CopyOnWriteArraySet<>();
 
     public RfidController() {
         this(new SdkRfidAdapter());
@@ -74,14 +72,14 @@ public class RfidController {
      * Register a callback. If the SDK is already initialized, the callback is
      * registered with the SDK immediately.
      */
-    public void registerCallback(IRfidCallback cb) {
+    public void registerCallback(SdkRfidAdapter.TagListener cb) {
         if (callbacks.add(cb) && state != State.IDLE) {
             adapter.registerCallback(cb);
         }
     }
 
     /** Unregister a previously-registered callback. */
-    public void unregisterCallback(IRfidCallback cb) {
+    public void unregisterCallback(SdkRfidAdapter.TagListener cb) {
         if (callbacks.remove(cb)) {
             adapter.unregisterCallback(cb);
         }

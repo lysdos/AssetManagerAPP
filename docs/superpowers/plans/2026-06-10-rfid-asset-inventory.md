@@ -4,13 +4,13 @@
 
 **Goal:** Build a native Android asset-inventory app for UROVO RFID PDA that imports an Excel list, scans tags, and exports scan results — all offline with local Room storage.
 
-**Architecture:** Single `MainActivity` hosts 3 Fragments (Import / Scan / Result) switched via `BottomNavigationView`. Java + traditional XML Views + Room + Apache POI. UROVO RFID SDK wrapped behind a `RfidController` for testability.
+**Architecture:** Single `MainActivity` hosts 3 Fragments (Import / Scan / Result) switched via `BottomNavigationView`. Java + traditional XML Views + Room + Apache POI. UROVO RFID SDK (rscja DeviceAPI, polling model) wrapped behind `SdkRfidAdapter` + `RfidController` for testability; the adapter's `rfid-poll` daemon thread bridges the SDK's synchronous `readTagFromBuffer()` to a `TagListener` fan-out.
 
 **Tech Stack:** Java 11 · AndroidX (minSdk 24, targetSdk 34) · Room 2.6 · Apache POI 5.2.5 · Jackson 2.17 · Robolectric 4.11 · JUnit 4 · Gradle 8.4 · Android Gradle Plugin 8.2
 
 **Reference spec:** `docs/superpowers/specs/2026-06-10-rfid-asset-inventory-design.md`
 
-**Reference SDK:** `RFID 开发文档 v2.4.1228/libs/URFIDLibrary-v2.4.1226.aar`
+**Reference SDK:** `uhf-uart-demo/uhf-uart-demo/app/libs/DeviceAPI_ver20230301_release.aar` (同步轮询模型；源码参考见 `uhf-uart-demo/uhf-uart-demo/app/src/main/`)
 
 ---
 
@@ -27,7 +27,7 @@ huaxiaapp/
 ├── app/
 │   ├── build.gradle                      (module)
 │   ├── proguard-rules.pro
-│   ├── libs/URFIDLibrary-v2.4.1226.aar   (copy from 项目根)
+│   ├── libs/DeviceAPI_ver20230301_release.aar  (厂商 SDK)
 │   └── src/
 │       ├── main/
 │       │   ├── AndroidManifest.xml
@@ -175,7 +175,7 @@ dependencies {
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
 
-    implementation files('libs/URFIDLibrary-v2.4.1226.aar')
+    implementation files('libs/DeviceAPI_ver20230301_release.aar')
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.assertj:assertj-core:3.25.1'
@@ -193,8 +193,8 @@ dependencies {
 # Apache POI
 -keep class org.apache.poi.** { *; }
 -keep class com.fasterxml.jackson.** { *; }
-# UROVO SDK
--keep class com.ubx.usdk.rfid.** { *; }
+# rscja UHF SDK
+-keep class com.rscja.deviceapi.** { *; }
 ```
 
 - [ ] **Step 3: Create AndroidManifest.xml**
@@ -280,8 +280,8 @@ public class MainActivity extends AppCompatActivity {
 
 In bash (Git Bash on Windows):
 ```bash
-cp "RFID 开发文档 v2.4.1228/libs/URFIDLibrary-v2.4.1226.aar" "app/libs/"
-ls app/libs/URFIDLibrary-v2.4.1226.aar
+cp "uhf-uart-demo/uhf-uart-demo/app/libs/DeviceAPI_ver20230301_release.aar" "app/libs/"
+ls app/libs/DeviceAPI_ver20230301_release.aar
 ```
 
 - [ ] **Step 6: Create `.gitignore`**
@@ -1744,55 +1744,140 @@ Open `RFID 开发文档 v2.4.1228/RFID开发文档v2.13.pdf` and verify the API 
 package com.huaxia.inventory.rfid;
 
 import android.content.Context;
-import com.ubx.usdk.rfid.aidl.IRfidCallback;
-import com.ubx.usdk.rfid.RFIDSDKManager;
+import android.util.Log;
 
+import com.rscja.deviceapi.RFIDWithUHFUART;
+import com.rscja.deviceapi.entity.UHFTAGInfo;
+
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * Thin adapter over the rscja DeviceAPI UHF SDK. The underlying SDK is a
+ * polling model — this adapter bridges it to a fan-out {@link TagListener}
+ * API by running one polling worker thread while inventory is active.
+ */
 public class SdkRfidAdapter {
+
+    private static final String TAG = "SdkRfidAdapter";
+    private static final long POLL_IDLE_SLEEP_MS = 20L;
+
+    private RFIDWithUHFUART reader;
+    private final AtomicBoolean powered = new AtomicBoolean(false);
+    private final AtomicBoolean scanning = new AtomicBoolean(false);
+    private final Set<TagListener> listeners = new CopyOnWriteArraySet<>();
+    private volatile Thread pollThread;
+
     public interface Callback {
         void onStatus(boolean ready);
     }
 
+    public interface TagListener {
+        void onTag(String epc, String tid, String rssi);
+    }
+
+    public boolean isPowered() { return powered.get(); }
+
     public void init(Context appCtx, Callback cb) {
-        RFIDSDKManager.getInstance().init(b -> {
-            if (cb != null) cb.onStatus(b);
-        });
+        boolean ok = false;
+        try {
+            ok = requireReader().init();
+        } catch (Throwable t) {
+            Log.w(TAG, "init() failed", t);
+        }
+        powered.set(ok);
+        if (cb != null) cb.onStatus(ok);
     }
 
     public boolean isConnected() {
-        return RFIDSDKManager.getInstance().getRfidManager().isConnected();
+        return reader != null && powered.get();
     }
 
-    public void registerCallback(IRfidCallback cb) {
-        RFIDSDKManager.getInstance().getRfidManager().registerCallback(cb);
-    }
-
-    public void unregisterCallback(IRfidCallback cb) {
-        RFIDSDKManager.getInstance().getRfidManager().unregisterCallback(cb);
-    }
+    public void registerCallback(TagListener l) { listeners.add(l); }
+    public void unregisterCallback(TagListener l) { listeners.remove(l); }
 
     public int startInventory() {
-        return RFIDSDKManager.getInstance().getRfidManager().startInventory(0);
+        if (scanning.get()) return 0;
+        boolean started;
+        try {
+            started = requireReader().startInventoryTag();
+        } catch (Throwable t) {
+            Log.w(TAG, "startInventoryTag() failed", t);
+            return -1;
+        }
+        if (!started) return -1;
+        scanning.set(true);
+        Thread t = new Thread(this::pollLoop, "rfid-poll");
+        t.setDaemon(true);
+        pollThread = t;
+        t.start();
+        return 0;
     }
 
     public int stopInventory() {
-        return RFIDSDKManager.getInstance().getRfidManager().stopInventory();
+        if (!scanning.compareAndSet(true, false)) return 0;
+        Thread t = pollThread;
+        pollThread = null;
+        try { requireReader().stopInventory(); }
+        catch (Throwable ex) { Log.w(TAG, "stopInventory() failed", ex); }
+        if (t != null) {
+            try { t.join(500); }
+            catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+        }
+        return 0;
     }
 
-    public void disConnect() {
-        RFIDSDKManager.getInstance().getRfidManager().disConnect();
-    }
+    public void disConnect() { /* no-op on rscja SDK */ }
 
     public void power(boolean on) {
-        RFIDSDKManager.getInstance().power(on);
+        try {
+            if (!on) stopInventory();
+            powered.set(on);
+        } catch (Throwable t) { Log.w(TAG, "power() failed", t); }
     }
 
     public void release() {
-        RFIDSDKManager.getInstance().release();
+        stopInventory();
+        try { requireReader().free(); }
+        catch (Throwable t) { Log.w(TAG, "free() failed", t); }
+        powered.set(false);
+    }
+
+    private RFIDWithUHFUART requireReader() {
+        if (reader == null) {
+            try { reader = RFIDWithUHFUART.getInstance(); }
+            catch (Throwable t) {
+                throw new IllegalStateException("UHF reader unavailable", t);
+            }
+            if (reader == null) {
+                throw new IllegalStateException("UHF reader unavailable");
+            }
+        }
+        return reader;
+    }
+
+    private void pollLoop() {
+        RFIDWithUHFUART r = requireReader();
+        while (scanning.get()) {
+            UHFTAGInfo info = null;
+            try { info = r.readTagFromBuffer(); }
+            catch (Throwable t) { Log.w(TAG, "readTagFromBuffer() failed", t); }
+            if (info != null) {
+                for (TagListener l : listeners) {
+                    try { l.onTag(info.getEPC(), info.getTid(), info.getRssi()); }
+                    catch (Throwable t) { Log.w(TAG, "TagListener threw", t); }
+                }
+            } else {
+                try { Thread.sleep(POLL_IDLE_SLEEP_MS); }
+                catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
+            }
+        }
     }
 }
 ```
 
-> **Note:** If SDK method names differ from this, adjust. The PDF section 3.x lists exact names.
+> **Note:** The rscja SDK uses a polling model (`startInventoryTag` + `readTagFromBuffer`), not a callback model. The polling thread is the bridge.
 
 - [ ] **Step 3: Create `RfidController.java`**
 
@@ -1801,7 +1886,6 @@ public class SdkRfidAdapter {
 package com.huaxia.inventory.rfid;
 
 import android.content.Context;
-import com.ubx.usdk.rfid.aidl.IRfidCallback;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -1811,7 +1895,7 @@ public class RfidController {
 
     private final SdkRfidAdapter adapter;
     private volatile State state = State.IDLE;
-    private final Set<IRfidCallback> callbacks = new CopyOnWriteArraySet<>();
+    private final Set<SdkRfidAdapter.TagListener> callbacks = new CopyOnWriteArraySet<>();
 
     public RfidController() {
         this(new SdkRfidAdapter());
@@ -1835,13 +1919,13 @@ public class RfidController {
         });
     }
 
-    public void registerCallback(IRfidCallback cb) {
+    public void registerCallback(SdkRfidAdapter.TagListener cb) {
         if (callbacks.add(cb) && state != State.IDLE) {
             adapter.registerCallback(cb);
         }
     }
 
-    public void unregisterCallback(IRfidCallback cb) {
+    public void unregisterCallback(SdkRfidAdapter.TagListener cb) {
         if (callbacks.remove(cb)) {
             adapter.unregisterCallback(cb);
         }
@@ -1900,7 +1984,7 @@ git commit -m "feat(rfid): add SdkRfidAdapter and RfidController wrapper"
 ```java
 package com.huaxia.inventory.rfid;
 
-import com.ubx.usdk.rfid.aidl.IRfidCallback;
+import android.content.Context;
 import org.junit.Before;
 import org.junit.Test;
 import java.util.ArrayList;
@@ -1971,7 +2055,7 @@ public class RfidControllerTest {
 
     @Test
     public void registerCallback_addsAndPropagates() {
-        IRfidCallback cb = mock(IRfidCallback.class);
+        SdkRfidAdapter.TagListener cb = mock(SdkRfidAdapter.TagListener.class);
         controller.registerCallback(cb);
         // After init, callback should be registered
         assertTrue(true);  // assertions above in state machine
@@ -3224,8 +3308,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
-import com.ubx.usdk.rfid.aidl.IRfidCallback;
-import android.os.RemoteException;
+import com.huaxia.inventory.rfid.SdkRfidAdapter;
 
 public class ScanFragment extends Fragment {
 
@@ -3236,13 +3319,8 @@ public class ScanFragment extends Fragment {
     private FloatingActionButton viewResultFab;
     private RecentScanAdapter adapter;
 
-    private final IRfidCallback rfidCallback = new IRfidCallback.Stub() {
-        @Override public void onInventoryTag(String epc, String tid, String rssi)
-                throws RemoteException {
+    private final SdkRfidAdapter.TagListener rfidCallback = (epc, tid, rssi) ->
             vm.onEpcScanned(epc, tid, rssi);
-        }
-        @Override public void onInventoryTagEnd() throws RemoteException {}
-    };
 
     @Nullable
     @Override
@@ -3932,7 +4010,7 @@ Android RFID 资产盘点应用，运行在 UROVO 工业 PDA 上。
 - Single Activity + 3 Fragments
 - Room 2.6
 - Apache POI 5.2.5
-- UROVO RFID SDK (`libs/URFIDLibrary-v2.4.1226.aar`)
+- UROVO RFID SDK (rscja `libs/DeviceAPI_ver20230301_release.aar`；同步轮询模型，`SdkRfidAdapter` 内守护线程桥接)
 
 ## 项目结构
 

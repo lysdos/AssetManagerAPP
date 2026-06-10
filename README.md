@@ -17,7 +17,7 @@ Android RFID 资产盘点应用，运行在 UROVO 工业 PDA 上。
 - Room 2.6 (本地数据库)
 - Apache POI 5.2.5 (Excel 解析)
 - Jackson 2.17 (JSON)
-- UROVO RFID SDK (`libs/URFIDLibrary-v2.4.1226.aar`)
+- UROVO RFID SDK (rscja `DeviceAPI_ver20230301_release.aar`，见 `app/libs/`)
 - JUnit 4 + Robolectric (单元测试)
 
 ## 项目结构

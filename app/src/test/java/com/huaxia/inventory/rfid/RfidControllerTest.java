@@ -2,8 +2,6 @@ package com.huaxia.inventory.rfid;
 
 import android.content.Context;
 
-import com.ubx.usdk.rfid.aidl.IRfidCallback;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -103,12 +101,12 @@ public class RfidControllerTest {
 
     @Test
     public void registerCallback_addsAndPropagates() {
-        IRfidCallback cb = mock(IRfidCallback.class);
+        SdkRfidAdapter.TagListener cb = mock(SdkRfidAdapter.TagListener.class);
 
         // In IDLE state, registerCallback should not yet push the callback
         // down to the SDK — that only happens after init.
         controller.registerCallback(cb);
-        verify(adapter, never()).registerCallback(any(IRfidCallback.class));
+        verify(adapter, never()).registerCallback(any(SdkRfidAdapter.TagListener.class));
 
         // After init succeeds, the buffered callback should be propagated.
         SdkRfidAdapter realAdapter = new SdkRfidAdapter() {
@@ -125,11 +123,20 @@ public class RfidControllerTest {
 
     @Test
     public void release_isIdempotent() {
-        when(adapter.isConnected()).thenReturn(true);
-        controller.release();
-        // Second call must not throw and must not re-invoke release()
-        // (release() short-circuits on IDLE state).
-        controller.release();
-        verify(adapter, times(1)).release();
+        // Drive the controller to READY so release() actually tears down.
+        SdkRfidAdapter realAdapter = new SdkRfidAdapter() {
+            @Override
+            public void init(Context ignored, Callback c) {
+                c.onStatus(true);
+            }
+        };
+        RfidController c = new RfidController(realAdapter);
+        c.init(null, null);
+
+        // First release: teardown happens.
+        c.release();
+        // Second release: short-circuits because state is IDLE again.
+        c.release();
+        verify(realAdapter, times(1)).release();
     }
 }
