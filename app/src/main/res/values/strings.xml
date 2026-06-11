@@ -15,7 +15,6 @@
     <string name="import_errors_label">解析问题</string>
 
     <!-- Scan -->
-    <string name="scan_title">盘点扫描</string>
     <string name="scan_start">开始扫描</string>
     <string name="scan_stop">停止扫描</string>
     <string name="scan_recent">最近扫描</string>
@@ -26,7 +25,6 @@
     <string name="scan_stats_scanned">已扫</string>
 
     <!-- Result -->
-    <string name="result_title">盘点结果</string>
     <string name="result_export">导出 Excel</string>
     <string name="result_tab_all">全部</string>
     <string name="result_tab_found">已盘</string>
