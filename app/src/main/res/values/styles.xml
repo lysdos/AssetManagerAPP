@@ -1,0 +1,32 @@
+<resources>
+    <style name="Huaxia.Card" parent="Widget.MaterialComponents.CardView">
+        <item name="cardCornerRadius">@dimen/cardCornerRadius</item>
+        <item name="cardElevation">@dimen/cardElevation</item>
+        <item name="cardBackgroundColor">@color/cardCorner</item>
+    </style>
+
+    <style name="Huaxia.Toolbar" parent="Widget.MaterialComponents.Toolbar.Primary">
+        <item name="android:background">@color/colorPrimary</item>
+        <item name="titleTextColor">@android:color/white</item>
+        <item name="subtitleTextColor">@android:color/white</item>
+        <item name="android:elevation">4dp</item>
+    </style>
+
+    <style name="Huaxia.StatNumber">
+        <item name="android:textSize">@dimen/statNumberSize</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:gravity">center</item>
+    </style>
+
+    <style name="Huaxia.StatLabel">
+        <item name="android:textSize">@dimen/textSizeLabel</item>
+        <item name="android:textColor">#888888</item>
+        <item name="android:gravity">center</item>
+    </style>
+
+    <style name="Huaxia.StatSub">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">#AAAAAA</item>
+        <item name="android:gravity">center</item>
+    </style>
+</resources>
