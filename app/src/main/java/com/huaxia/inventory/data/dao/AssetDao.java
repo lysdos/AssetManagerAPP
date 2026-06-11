@@ -33,4 +33,9 @@ public interface AssetDao {
            "(SELECT matchedAssetId FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NOT NULL) " +
            "ORDER BY excelRowIndex ASC")
     List<Asset> findFound(long taskId);
+
+    @Query("SELECT assetType as category, COUNT(*) as count FROM Asset " +
+           "WHERE taskId = :taskId AND assetType IS NOT NULL " +
+           "GROUP BY assetType ORDER BY count DESC")
+    java.util.List<CategoryCount> countByCategory(long taskId);
 }
