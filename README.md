@@ -94,6 +94,49 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 - 物理 PDA 扫描枪按键需在真机确认 (F1 / KEYCODE_BUTTON_R1 / 其他)
 - 1.0 不实现历史任务列表页 (OQ5)
 
+## 2026-06-11 UI 重构
+
+### 概述
+全面对齐 `资产管理系统HTML界面.html` 设计稿（480px 移动端 H5 模板），三页（导入/扫描/结果）UI 资源 + 组件化重构。
+
+### 改动范围
+- 25 个 commit，5 阶段渐进式迁移
+- 通用组件：`view_stat_card` / `view_tag_pill` / `view_info_card` / `view_asset_row`
+- 颜色/尺寸/主题统一（圆角 12dp、状态色 #2E7D32/#C62828/#EF6C00）
+- AppBar 蓝底白字"📦 资产管家"
+- 底导 emoji 三 tab（📥 导入 / 🔍 扫描 / 📊 结果）
+- 导入页：虚线大上传区 + tip box，去掉预览列表
+- 扫描页：3 统计卡 + 3 说明卡 + OutlinedButton，去掉最近扫描列表与 FAB
+- 结果页：2x2 宫格点击筛选 + 6 条/页分页，去掉 Tab/搜索框
+
+### 新增资源
+- `colors.xml`：21 项（含 13 项新增：tag*Bg/Fg, tip*Bg/Fg, statScanned, statTotal, borderDashed, bgSurface, cardCorner）
+- `dimens.xml`：13 项（含 9 项新增：cardCornerRadius, cardElevation, textSizeLabel, statNumberSize, tagPaddingH/V, bottomNavHeight, appBarHeight, uploadAreaHeight）
+- `attrs.xml`：StatCard / TagPill declare-styleable
+- `styles.xml`：Huaxia.Card / Huaxia.Toolbar / Huaxia.StatNumber / StatLabel / StatSub
+- `themes.xml`：Theme.HuaxiaInventory（蓝底白字 + 状态栏沉浸 + windowLightStatusBar=false）
+- 7 个 shape drawable：bg_dashed_border / bg_tag_{blue,green,orange,red} / bg_tip_box / bg_file_info
+- 4 个矢量图标：ic_import / ic_scan / ic_result / ic_export
+
+### 新增 DAO 方法
+- `AssetDao.countByCategory` / `countFound` / `countMissing` / `pageAll` / `pageFound` / `pageMissing`
+- `ScanRecordDao.countExtras` / `pageExtra`
+
+### 文件变更
+- 修改：layout/activity_main, fragment_import, fragment_scan, fragment_result, menu/bottom_nav; colors/dimens/strings/themes; MainActivity.java; ScanViewModel.java; ResultViewModel.java; ScanFragment.java; ResultFragment.java; ImportFragment.java; ImportViewModel.java; AssetResultAdapter.java; AssetDao.java; ScanRecordDao.java
+- 新建：view_stat_card / view_tag_pill / view_info_card / view_asset_row; menu_main; CategoryCount.java
+- 删除：AssetPreviewAdapter.java / item_asset_preview.xml / RecentScanAdapter.java / item_recent_scan.xml / item_asset_result.xml
+
+### 已知限制 / 后续迭代
+- `Asset.createdAt` 字段未实现，"今日新增"统计暂显示 0（占位）
+- `lastInventoryAt` 当前用 `InventoryTask.importedAt` 作代理（非真正"最后扫描时间"）
+- EXTRA 模式下 `vm.extras().observe` 是空 body（仅 assets observer 渲染；后续迭代可加 ScanRecord 专用 Adapter）
+- 深色模式未做专项优化（沿用系统 DayNight）
+
+### 文档
+- 设计文档：`docs/superpowers/specs/2026-06-11-ui-redesign-html-mockup-alignment-design.md`
+- 实施计划：`docs/superpowers/plans/2026-06-11-ui-redesign-html-mockup-alignment.md`
+
 ## 验证
 
 实施过程中所有代码均通过 spec compliance + code quality review 通过。所有单元测试代码已就位但未在本地执行 (无 gradle wrapper)。建议在真机部署前先在 IDE / 真机环境中跑一次 `./gradlew test`。
