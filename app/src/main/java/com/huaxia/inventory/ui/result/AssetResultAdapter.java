@@ -37,7 +37,7 @@ public class AssetResultAdapter extends RecyclerView.Adapter<AssetResultAdapter.
                 (a.assetModel == null ? "" : a.assetModel));
         h.org.setText("所属: " + (a.org == null ? "" : a.org));
         h.location.setText("地点: " + (a.detailedLocation == null ? "" : a.detailedLocation));
-        h.epc.setText("EPC: " + (a.epc == null ? "" : a.epc));
+        h.epc.setText(a.epc == null ? "" : a.epc);
         boolean matched = matchedIds.contains(a.id);
         StatusDerivation.Status s = StatusDerivation.classify(matched, false);
         h.status.setText(label(s));

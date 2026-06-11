@@ -1,6 +1,7 @@
 package com.huaxia.inventory.ui.scan;
 
 import android.app.Application;
+import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
@@ -10,13 +11,14 @@ import com.huaxia.inventory.data.AppDatabase;
 import com.huaxia.inventory.data.StatusDerivation;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.ScanRecord;
-import com.huaxia.inventory.util.EpcNormalizer;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
 public class ScanViewModel extends AndroidViewModel {
+
+    private static final String TAG = "ScanViewModel";
 
     public static class Stats {
         public final int expected;
@@ -65,20 +67,22 @@ public class ScanViewModel extends AndroidViewModel {
      * @param rssi    SDK 报告的 RSSI, 透传存入 ScanRecord
      */
     public void onEpcScanned(String rawCode, String tid, String rssi) {
-        String epc = EpcNormalizer.normalize(rawCode);
-        if (epc == null) return;
-        if (scannedEpcSet.contains(epc)) {
-            latestScan.postValue(makeUnmatchedRecord(epc, tid, rssi));
+        if (rawCode == null || rawCode.isEmpty()) {
+            Log.w(TAG, "onEpcScanned called with null/empty code");
             return;
         }
-        scannedEpcSet.add(epc);
+        if (scannedEpcSet.contains(rawCode)) {
+            latestScan.postValue(makeUnmatchedRecord(rawCode, tid, rssi));
+            return;
+        }
+        scannedEpcSet.add(rawCode);
 
         long taskId = currentTaskId;
         diskIO.execute(() -> {
-            Asset matched = db.assetDao().findByEpc(taskId, epc);
+            Asset matched = db.assetDao().findByEpc(taskId, rawCode);
             ScanRecord rec = new ScanRecord();
             rec.taskId = taskId;
-            rec.epc = epc;
+            rec.epc = rawCode;
             rec.tid = tid;
             rec.rssi = rssi;
             rec.scannedAt = System.currentTimeMillis();

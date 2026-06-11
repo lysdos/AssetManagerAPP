@@ -1,7 +1,6 @@
 package com.huaxia.inventory.util;
 
 import android.util.Log;
-import java.util.Locale;
 
 public final class EpcNormalizer {
     private static final String TAG = "EpcNormalizer";

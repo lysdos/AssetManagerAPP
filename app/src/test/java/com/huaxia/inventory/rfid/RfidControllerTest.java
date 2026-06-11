@@ -18,10 +18,11 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Unit tests for {@link RfidController}.
@@ -109,25 +110,35 @@ public class RfidControllerTest {
         verify(adapter, never()).registerCallback(any(SdkRfidAdapter.TagListener.class));
 
         // After init succeeds, the buffered callback should be propagated.
+        AtomicBoolean cbRegistered = new AtomicBoolean(false);
         SdkRfidAdapter realAdapter = new SdkRfidAdapter() {
             @Override
             public void init(Context ignored, Callback c) {
                 c.onStatus(true);
             }
+            @Override
+            public void registerCallback(SdkRfidAdapter.TagListener listener) {
+                cbRegistered.set(true);
+            }
         };
         RfidController c = new RfidController(realAdapter);
         c.init(null, null);
         c.registerCallback(cb);
-        verify(realAdapter, times(1)).registerCallback(cb);
+        assertTrue("registerCallback should have been delegated to adapter", cbRegistered.get());
     }
 
     @Test
     public void release_isIdempotent() {
         // Drive the controller to READY so release() actually tears down.
+        AtomicInteger releaseCount = new AtomicInteger(0);
         SdkRfidAdapter realAdapter = new SdkRfidAdapter() {
             @Override
             public void init(Context ignored, Callback c) {
                 c.onStatus(true);
+            }
+            @Override
+            public void release() {
+                releaseCount.incrementAndGet();
             }
         };
         RfidController c = new RfidController(realAdapter);
@@ -137,19 +148,24 @@ public class RfidControllerTest {
         c.release();
         // Second release: short-circuits because state is IDLE again.
         c.release();
-        verify(realAdapter, times(1)).release();
+        assertEquals("release() should be called exactly once", 1, releaseCount.get());
     }
 
     @Test
     public void writeEpc_delegatesHexToAdapter() {
         // 把控制器推到 READY
+        AtomicReference<String> capturedHex = new AtomicReference<>();
         SdkRfidAdapter realAdapter = new SdkRfidAdapter() {
             @Override
             public void init(Context ignored, Callback c) {
                 c.onStatus(true);
             }
+            @Override
+            public int writeEpc(String hex) {
+                capturedHex.set(hex);
+                return 0;
+            }
         };
-        when(realAdapter.writeEpc(any(String.class))).thenReturn(0);
         RfidController c = new RfidController(realAdapter);
         c.init(null, null);
 
@@ -157,7 +173,7 @@ public class RfidControllerTest {
         boolean ok = c.writeEpc("3500309099027210");
 
         assertTrue(ok);
-        verify(realAdapter, times(1)).writeEpc("000C6F8338739B0A");
+        assertEquals("000C6F8338739B0A", capturedHex.get());
     }
 
     @Test
@@ -171,10 +187,16 @@ public class RfidControllerTest {
 
     @Test
     public void writeEpc_returnsFalseOnCodecFailure() {
+        AtomicBoolean writeEpcCalled = new AtomicBoolean(false);
         SdkRfidAdapter realAdapter = new SdkRfidAdapter() {
             @Override
             public void init(Context ignored, Callback c) {
                 c.onStatus(true);
+            }
+            @Override
+            public int writeEpc(String hex) {
+                writeEpcCalled.set(true);
+                return 0;
             }
         };
         RfidController c = new RfidController(realAdapter);
@@ -184,6 +206,6 @@ public class RfidControllerTest {
         boolean ok = c.writeEpc("123");
 
         assertFalse(ok);
-        verify(realAdapter, never()).writeEpc(any(String.class));
+        assertFalse("adapter.writeEpc should not be called on codec failure", writeEpcCalled.get());
     }
 }

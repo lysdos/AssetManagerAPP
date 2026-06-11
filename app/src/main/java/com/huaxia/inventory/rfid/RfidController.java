@@ -33,6 +33,8 @@ public class RfidController {
     /** High-level controller state. */
     public enum State { IDLE, INITIALIZING, READY, SCANNING, ERROR }
 
+    private static final String TAG = "RfidController";
+
     private final SdkRfidAdapter adapter;
     private volatile State state = State.IDLE;
     private final Set<SdkRfidAdapter.TagListener> callbacks = new CopyOnWriteArraySet<>();
@@ -122,13 +124,13 @@ public class RfidController {
         try {
             int rc = adapter.writeEpc(hex);
             if (rc != 0) {
-                android.util.Log.w("RfidController", "writeEpc failed rc=" + rc);
+                android.util.Log.w(TAG, "writeEpc failed rc=" + rc);
                 return false;
             }
             return true;
         } catch (UnsupportedOperationException uoe) {
             // SDK 集成未完成 — 当前是占位
-            android.util.Log.w("RfidController", "writeEpc not implemented");
+            android.util.Log.w(TAG, "writeEpc not implemented");
             return false;
         }
     }

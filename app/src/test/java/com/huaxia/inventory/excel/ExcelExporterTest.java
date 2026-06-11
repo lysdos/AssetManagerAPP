@@ -31,7 +31,7 @@ public class ExcelExporterTest {
                 scan(1L, "EPC1", 100L),
                 scan(3L, "EPC3", 101L));  // EPC3 has no asset = EXTRA
         List<String> headers = Arrays.asList(
-                "序号", "设备名称", "电子标签", "盘点状态", "盘点时间", "信号强度");
+                "序号", "设备名称", "固资编号", "盘点状态", "盘点时间", "信号强度");
 
         ExcelExporter.export(out, "测试任务", headers, assets, scans, id -> id == 1L);
 
@@ -58,14 +58,14 @@ public class ExcelExporterTest {
         // Build a synthetic workbook with one row, export it, re-parse, ensure data preserved
         Map<String, String> raw = new HashMap<>();
         raw.put("设备名称", "测试设备");
-        raw.put("电子标签", "3034A1B2");
+        raw.put("固资编号", "3500309099027210");
         String json = new ObjectMapper().writeValueAsString(raw);
 
         Asset a = new Asset();
         a.id = 1L;
         a.taskId = 1L;
         a.excelRowIndex = 4;
-        a.epc = "3034A1B2";
+        a.epc = "3500309099027210";
         a.assetName = "测试设备";
         a.rawRowJson = json;
 
@@ -79,7 +79,7 @@ public class ExcelExporterTest {
             Sheet s = wb.getSheetAt(0);
             Row row = s.getRow(4);
             assertEquals("测试设备", row.getCell(0).getStringCellValue());
-            assertEquals("3034A1B2", row.getCell(1).getStringCellValue());
+            assertEquals("3500309099027210", row.getCell(1).getStringCellValue());
         }
     }
 
