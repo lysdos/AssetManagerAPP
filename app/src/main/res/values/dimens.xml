@@ -1,6 +1,15 @@
 <resources>
     <dimen name="cardMargin">12dp</dimen>
     <dimen name="cardPadding">16dp</dimen>
+    <dimen name="cardCornerRadius">12dp</dimen>
+    <dimen name="cardElevation">2dp</dimen>
     <dimen name="textSizeTitle">20sp</dimen>
     <dimen name="textSizeBody">14sp</dimen>
+    <dimen name="textSizeLabel">12sp</dimen>
+    <dimen name="statNumberSize">26sp</dimen>
+    <dimen name="tagPaddingH">12dp</dimen>
+    <dimen name="tagPaddingV">4dp</dimen>
+    <dimen name="bottomNavHeight">56dp</dimen>
+    <dimen name="appBarHeight">56dp</dimen>
+    <dimen name="uploadAreaHeight">200dp</dimen>
 </resources>
