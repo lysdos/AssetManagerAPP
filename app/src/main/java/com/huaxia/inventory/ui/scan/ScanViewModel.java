@@ -9,6 +9,7 @@ import androidx.lifecycle.MutableLiveData;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.data.AppDatabase;
 import com.huaxia.inventory.data.StatusDerivation;
+import com.huaxia.inventory.data.dao.CategoryCount;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.ScanRecord;
 import java.util.HashSet;
@@ -21,12 +22,23 @@ public class ScanViewModel extends AndroidViewModel {
     private static final String TAG = "ScanViewModel";
 
     public static class Stats {
-        public final int expected;
+        public final int inStock;
+        public final int scanned;
+        public final int anomaly;
+        public final int todayAdded;
         public final int found;
         public final int missing;
         public final int extra;
-        public Stats(int e, int f, int m, int x) {
-            this.expected = e; this.found = f; this.missing = m; this.extra = x;
+        public final List<CategoryCount> categories;
+        public final long lastInventoryAt;
+        public Stats(int inStock, int scanned, int anomaly, int todayAdded,
+                     int found, int missing, int extra,
+                     List<CategoryCount> categories, long lastInventoryAt) {
+            this.inStock = inStock; this.scanned = scanned; this.anomaly = anomaly;
+            this.todayAdded = todayAdded;
+            this.found = found; this.missing = missing; this.extra = extra;
+            this.categories = categories;
+            this.lastInventoryAt = lastInventoryAt;
         }
     }
 
@@ -59,13 +71,6 @@ public class ScanViewModel extends AndroidViewModel {
         });
     }
 
-    /**
-     * 处理一个扫描到的标签, 用归一化后的 16 位十进制固资编号匹配资产。
-     *
-     * @param rawCode 已归一化的 16 位十进制字符串 (由 ScanFragment 从 SDK hex 转换得到)
-     * @param tid     SDK 报告的 TID, 透传存入 ScanRecord
-     * @param rssi    SDK 报告的 RSSI, 透传存入 ScanRecord
-     */
     public void onEpcScanned(String rawCode, String tid, String rssi) {
         if (rawCode == null || rawCode.isEmpty()) {
             Log.w(TAG, "onEpcScanned called with null/empty code");
@@ -105,7 +110,16 @@ public class ScanViewModel extends AndroidViewModel {
             }
             int extras = db.scanRecordDao().findExtras(taskId).size();
             StatusDerivation.Stats s = StatusDerivation.compute(expectedCount, matched, extras);
-            stats.postValue(new Stats(expectedCount, s.found, s.missing, s.extra));
+
+            int scanned = matched.size();
+            int anomaly = Math.max(0, expectedCount - scanned);
+            int todayAdded = 0; // 首版占位 — Asset 实体无 createdAt 字段
+            List<CategoryCount> categories = db.assetDao().countByCategory(taskId);
+            if (categories.size() > 3) categories = categories.subList(0, 3);
+            long lastAt = db.inventoryTaskDao().findById(taskId).importedAt;
+
+            stats.postValue(new Stats(expectedCount, scanned, anomaly, todayAdded,
+                    s.found, s.missing, s.extra, categories, lastAt));
         });
     }
 
