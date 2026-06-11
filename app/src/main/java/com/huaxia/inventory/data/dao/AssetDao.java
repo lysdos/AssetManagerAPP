@@ -38,4 +38,30 @@ public interface AssetDao {
            "WHERE taskId = :taskId AND assetType IS NOT NULL " +
            "GROUP BY assetType ORDER BY count DESC")
     java.util.List<CategoryCount> countByCategory(long taskId);
+
+    @Query("SELECT COUNT(*) FROM Asset WHERE taskId = :taskId AND id IN " +
+           "(SELECT matchedAssetId FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NOT NULL)")
+    int countFound(long taskId);
+
+    @Query("SELECT COUNT(*) FROM Asset WHERE taskId = :taskId AND id NOT IN " +
+           "(SELECT matchedAssetId FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NOT NULL)")
+    int countMissing(long taskId);
+
+    @Query("SELECT * FROM Asset WHERE taskId = :taskId ORDER BY excelRowIndex ASC " +
+           "LIMIT :limit OFFSET :offset")
+    List<Asset> pageAll(long taskId, int limit, int offset);
+
+    @Query("SELECT * FROM Asset WHERE taskId = :taskId AND id IN " +
+           "(SELECT matchedAssetId FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NOT NULL) " +
+           "ORDER BY excelRowIndex ASC LIMIT :limit OFFSET :offset")
+    List<Asset> pageFound(long taskId, int limit, int offset);
+
+    @Query("SELECT * FROM Asset WHERE taskId = :taskId AND id NOT IN " +
+           "(SELECT matchedAssetId FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NOT NULL) " +
+           "ORDER BY excelRowIndex ASC LIMIT :limit OFFSET :offset")
+    List<Asset> pageMissing(long taskId, int limit, int offset);
+
+    @Query("SELECT * FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NULL " +
+           "ORDER BY scannedAt DESC LIMIT :limit OFFSET :offset")
+    List<ScanRecord> pageExtra(long taskId, int limit, int offset);
 }

@@ -27,4 +27,7 @@ public interface ScanRecordDao {
 
     @Query("SELECT COUNT(*) FROM ScanRecord WHERE taskId = :taskId")
     int countByTask(long taskId);
+
+    @Query("SELECT COUNT(*) FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NULL")
+    int countExtras(long taskId);
 }
