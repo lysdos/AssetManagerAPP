@@ -1,3 +1,11 @@
 <resources>
-    <style name="Theme.HuaxiaInventory" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+    <style name="Theme.HuaxiaInventory" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="android:statusBarColor">@color/colorPrimary</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="toolbarStyle">@style/Huaxia.Toolbar</item>
+    </style>
 </resources>
