@@ -30,4 +30,8 @@ public interface ScanRecordDao {
 
     @Query("SELECT COUNT(*) FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NULL")
     int countExtras(long taskId);
+
+    @Query("SELECT * FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NULL " +
+           "ORDER BY scannedAt DESC LIMIT :limit OFFSET :offset")
+    List<ScanRecord> pageExtra(long taskId, int limit, int offset);
 }
