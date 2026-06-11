@@ -30,6 +30,7 @@ public class ImportViewModel extends AndroidViewModel {
     private final Executor diskIO;
     private final AppDatabase db;
     private final MutableLiveData<ParsedFile> parsedFile = new MutableLiveData<>();
+    private final MutableLiveData<String> parseError = new MutableLiveData<>();
     public List<Asset> lastParsedAssets;
 
     public ImportViewModel(@NonNull Application app) {
@@ -40,6 +41,7 @@ public class ImportViewModel extends AndroidViewModel {
     }
 
     public LiveData<ParsedFile> parsedFile() { return parsedFile; }
+    public LiveData<String> parseError() { return parseError; }
 
     public void parseFile(Uri uri, String displayName) {
         diskIO.execute(() -> {
@@ -49,6 +51,7 @@ public class ImportViewModel extends AndroidViewModel {
                 lastParsedAssets = result.assets;
                 parsedFile.postValue(new ParsedFile(displayName, result.success, result.errors, preview));
             } catch (Exception e) {
+                parseError.postValue(e.getMessage());
                 parsedFile.postValue(new ParsedFile(displayName, 0,
                         java.util.Collections.singletonList("Parse error: " + e.getMessage()),
                         java.util.Collections.emptyList()));
