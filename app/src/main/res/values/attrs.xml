@@ -1,0 +1,14 @@
+<resources>
+    <declare-styleable name="StatCard">
+        <attr name="statNumber" format="integer|string" />
+        <attr name="statNumberColor" format="color" />
+        <attr name="statLabel" format="string" />
+        <attr name="statSub" format="string" />
+    </declare-styleable>
+
+    <declare-styleable name="TagPill">
+        <attr name="tagText" format="string" />
+        <attr name="tagBg" format="color" />
+        <attr name="tagFg" format="color" />
+    </declare-styleable>
+</resources>
