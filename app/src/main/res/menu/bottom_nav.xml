@@ -1,5 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/nav_import" android:title="@string/nav_import" />
-    <item android:id="@+id/nav_scan"   android:title="@string/nav_scan" />
-    <item android:id="@+id/nav_result" android:title="@string/nav_result" />
+    <item
+        android:id="@+id/nav_import"
+        android:icon="@drawable/ic_import"
+        android:title="@string/nav_import" />
+    <item
+        android:id="@+id/nav_scan"
+        android:icon="@drawable/ic_scan"
+        android:title="@string/nav_scan" />
+    <item
+        android:id="@+id/nav_result"
+        android:icon="@drawable/ic_result"
+        android:title="@string/nav_result" />
 </menu>
