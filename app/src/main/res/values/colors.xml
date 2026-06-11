@@ -2,8 +2,22 @@
     <color name="colorPrimary">#1976D2</color>
     <color name="colorPrimaryDark">#0D47A1</color>
     <color name="colorAccent">#FF9800</color>
-    <color name="statusFound">#4CAF50</color>
-    <color name="statusMissing">#F44336</color>
-    <color name="statusExtra">#FF9800</color>
-    <color name="bgLight">#F5F5F5</color>
+    <color name="statusFound">#2E7D32</color>
+    <color name="statusMissing">#C62828</color>
+    <color name="statusExtra">#EF6C00</color>
+    <color name="bgSurface">#F5F5F5</color>
+    <color name="cardCorner">#FFFFFF</color>
+    <color name="tagBlueBg">#E3F2FD</color>
+    <color name="tagBlueFg">#1565C0</color>
+    <color name="tagGreenBg">#E8F5E9</color>
+    <color name="tagGreenFg">#2E7D32</color>
+    <color name="tagOrangeBg">#FFF3E0</color>
+    <color name="tagOrangeFg">#EF6C00</color>
+    <color name="tagRedBg">#FFEBEE</color>
+    <color name="tagRedFg">#C62828</color>
+    <color name="tipBg">#E3F2FD</color>
+    <color name="tipFg">#1565C0</color>
+    <color name="statScanned">#1565C0</color>
+    <color name="statTotal">#9C27B0</color>
+    <color name="borderDashed">#BDBDBD</color>
 </resources>
