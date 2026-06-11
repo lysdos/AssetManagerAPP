@@ -9,6 +9,7 @@ import androidx.fragment.app.FragmentTransaction;
 import com.huaxia.inventory.ui.import_.ImportFragment;
 import com.huaxia.inventory.ui.result.ResultFragment;
 import com.huaxia.inventory.ui.scan.ScanFragment;
+import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class MainActivity extends AppCompatActivity {
@@ -20,6 +21,19 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        toolbar.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == R.id.action_export) {
+                Fragment current = getSupportFragmentManager().findFragmentById(R.id.fragmentContainer);
+                if (current instanceof ResultFragment) {
+                    ((ResultFragment) current).onExportClicked();
+                    return true;
+                }
+            }
+            return false;
+        });
 
         BottomNavigationView nav = findViewById(R.id.bottomNav);
         nav.setOnItemSelectedListener(item -> {
