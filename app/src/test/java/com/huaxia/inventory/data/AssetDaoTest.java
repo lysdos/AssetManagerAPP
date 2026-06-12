@@ -70,17 +70,17 @@ public class AssetDaoTest {
     @Test
     public void countByCategory_groupsAndOrders() {
         dao.insertAll(Arrays.asList(
-                newAsset(1, "EPC1", "Computer", "电脑"),
-                newAsset(1, "EPC2", "Computer", "电脑"),
-                newAsset(1, "EPC3", "Furniture", "家具"),
-                newAsset(1, "EPC4", "Instrument", "仪器")
+                newAsset(1, "EPC1", "Computer A", "电脑"),
+                newAsset(1, "EPC2", "Computer B", "电脑"),
+                newAsset(1, "EPC3", "Furniture A", "家具"),
+                newAsset(1, "EPC4", "Instrument A", "仪器")
         ));
         java.util.List<com.huaxia.inventory.data.dao.CategoryCount> cats = dao.countByCategory(1);
         assertEquals(3, cats.size());
-        // "Computer" should be first (2 items)
-        assertEquals("Computer", cats.get(0).category);
+        // "电脑" should be first (2 items)
+        assertEquals("电脑", cats.get(0).category);
         assertEquals(2, cats.get(0).count);
-        // "Furniture" and "Instrument" tied at 1 each, order by count DESC then unspecified
+        // "家具" and "仪器" tied at 1 each, order by count DESC then unspecified
         // just verify counts
         int total = 0;
         for (com.huaxia.inventory.data.dao.CategoryCount c : cats) total += c.count;
@@ -89,12 +89,13 @@ public class AssetDaoTest {
 
     @Test
     public void countByCategory_excludesNullType() {
-        Asset a1 = newAsset(1, "EPC1", "Computer", "电脑");
-        Asset a2 = newAsset(1, "EPC2", null, "未知");
+        Asset a1 = newAsset(1, "EPC1", "Computer A", "电脑");
+        Asset a2 = newAsset(1, "EPC2", "Unknown", "未知");
+        a2.assetType = null; // explicitly null
         dao.insertAll(Arrays.asList(a1, a2));
         java.util.List<com.huaxia.inventory.data.dao.CategoryCount> cats = dao.countByCategory(1);
         assertEquals(1, cats.size()); // null type excluded
-        assertEquals("Computer", cats.get(0).category);
+        assertEquals("电脑", cats.get(0).category);
     }
 
     @Test

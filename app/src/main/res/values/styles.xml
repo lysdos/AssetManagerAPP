@@ -12,19 +12,19 @@
         <item name="android:elevation">4dp</item>
     </style>
 
-    <style name="Huaxia.StatNumber">
+    <style name="Huaxia.StatNumber" parent="">
         <item name="android:textSize">@dimen/statNumberSize</item>
         <item name="android:textStyle">bold</item>
         <item name="android:gravity">center</item>
     </style>
 
-    <style name="Huaxia.StatLabel">
+    <style name="Huaxia.StatLabel" parent="">
         <item name="android:textSize">@dimen/textSizeLabel</item>
         <item name="android:textColor">@color/textHint</item>
         <item name="android:gravity">center</item>
     </style>
 
-    <style name="Huaxia.StatSub">
+    <style name="Huaxia.StatSub" parent="">
         <item name="android:textSize">11sp</item>
         <item name="android:textColor">@color/textLightHint</item>
         <item name="android:gravity">center</item>

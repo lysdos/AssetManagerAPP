@@ -16,3 +16,4 @@ app/release/
 .reasonix/
 reasonix.toml
 .claude/settings.local.json
+local.properties

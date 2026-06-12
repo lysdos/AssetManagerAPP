@@ -20,8 +20,8 @@ public class ExcelImporterTest {
         try (java.io.InputStream in = getClass().getResourceAsStream("/sample-assets.xlsx")) {
             ExcelImporter.Result r = ExcelImporter.parse(in, /* taskId */ 1L);
             assertEquals(0, r.success);
-            assertTrue(r.errors.size() > 100,
-                    "Expected many empty-EPC errors; got " + r.errors.size());
+            assertTrue("Expected many empty-EPC errors; got " + r.errors.size(),
+                    r.errors.size() > 100);
         }
     }
 
