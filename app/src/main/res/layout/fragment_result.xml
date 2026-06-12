@@ -15,6 +15,18 @@
         android:textSize="@dimen/textSizeTitle"
         android:textStyle="bold" />
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/exportBtn"
+        style="@style/Widget.MaterialComponents.Button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/cardPadding"
+        android:layout_marginEnd="@dimen/cardPadding"
+        android:layout_marginBottom="12dp"
+        android:text="@string/result_export_btn"
+        app:icon="@drawable/ic_export"
+        app:iconTint="@android:color/white" />
+
     <GridLayout
         android:id="@+id/statGrid"
         android:layout_width="match_parent"

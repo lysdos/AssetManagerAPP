@@ -90,12 +90,16 @@ public class ResultFragment extends Fragment {
         prevBtn.setOnClickListener(btn -> vm.prevPage());
         nextBtn.setOnClickListener(btn -> vm.nextPage());
 
+        MaterialButton exportBtn = v.findViewById(R.id.exportBtn);
+        exportBtn.setOnClickListener(btn -> onExportClicked());
+
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         Long taskId = app.session.getCurrentTaskId();
         if (taskId == null) {
             emptyTv.setVisibility(View.VISIBLE);
             rv.setVisibility(View.GONE);
             paginationInfoTv.setText("");
+            exportBtn.setEnabled(false);
             return;
         }
         currentTaskId = taskId;

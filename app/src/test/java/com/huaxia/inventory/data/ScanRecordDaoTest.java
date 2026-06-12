@@ -85,6 +85,16 @@ public class ScanRecordDaoTest {
         assertEquals("EXTRA_6", page2.get(0).epc);
     }
 
+    @Test public void deleteByTask_removesOnlyMatchingTask() {
+        dao.insert(newRec(1, "EPC1", null));
+        dao.insert(newRec(1, "EPC2", null));
+        dao.insert(newRec(2, "EPC3", null));
+        int deleted = dao.deleteByTask(1);
+        assertEquals(2, deleted);
+        assertEquals(0, dao.countByTask(1));
+        assertEquals(1, dao.countByTask(2));
+    }
+
     private com.huaxia.inventory.data.entity.Asset makeAsset(long taskId, String epc) {
         com.huaxia.inventory.data.entity.Asset a = new com.huaxia.inventory.data.entity.Asset();
         a.taskId = taskId;

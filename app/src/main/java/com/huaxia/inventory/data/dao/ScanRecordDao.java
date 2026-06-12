@@ -34,4 +34,7 @@ public interface ScanRecordDao {
     @Query("SELECT * FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NULL " +
            "ORDER BY scannedAt DESC LIMIT :limit OFFSET :offset")
     List<ScanRecord> pageExtra(long taskId, int limit, int offset);
+
+    @Query("DELETE FROM ScanRecord WHERE taskId = :taskId")
+    int deleteByTask(long taskId);
 }

@@ -8,9 +8,11 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.snackbar.Snackbar;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
 import com.huaxia.inventory.data.dao.CategoryCount;
@@ -23,6 +25,7 @@ public class ScanFragment extends Fragment {
 
     private ScanViewModel vm;
     private MaterialButton scanBtn;
+    private MaterialButton clearTaskBtn;
     private TextView deviceStatusTv;
     private TextView inStockNumber, scannedNumber, anomalyNumber;
     private TextView inStockSub, scannedSub, anomalySub;
@@ -50,6 +53,7 @@ public class ScanFragment extends Fragment {
         vm = new ViewModelProvider(this).get(ScanViewModel.class);
 
         scanBtn = v.findViewById(R.id.scanBtn);
+        clearTaskBtn = v.findViewById(R.id.clearTaskBtn);
         deviceStatusTv = v.findViewById(R.id.deviceStatusTv);
 
         // Bind stat card labels + sub texts (default values; will be updated when stats observe)
@@ -90,6 +94,7 @@ public class ScanFragment extends Fragment {
         recentCardTitle.setText(R.string.scan_info_recent);
 
         scanBtn.setOnClickListener(btn -> toggleScan());
+        clearTaskBtn.setOnClickListener(btn -> confirmClearTask());
 
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         Long taskId = app.session.getCurrentTaskId();
@@ -124,6 +129,43 @@ public class ScanFragment extends Fragment {
                 || app.rfid.getState() == com.huaxia.inventory.rfid.RfidController.State.SCANNING
                 ? getString(R.string.scan_status_ready)
                 : getString(R.string.scan_status_not_ready)));
+
+        vm.clearResult().observe(getViewLifecycleOwner(), result -> {
+            if (result == null) return;
+            if (result.isError()) {
+                Snackbar.make(requireView(),
+                        getString(R.string.scan_clear_task_failed, result.error),
+                        Snackbar.LENGTH_LONG).show();
+            } else {
+                Snackbar.make(requireView(),
+                        getString(R.string.scan_clear_task_done, result.assets, result.scans),
+                        Snackbar.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void confirmClearTask() {
+        InventoryApp app = (InventoryApp) requireActivity().getApplication();
+        Long taskId = app.session.getCurrentTaskId();
+        if (taskId == null) {
+            Snackbar.make(requireView(), R.string.scan_clear_task_failed,
+                    Snackbar.LENGTH_SHORT).show();
+            return;
+        }
+        long tid = taskId;
+        app.executors.diskIO.execute(() -> {
+            int assets = app.db.assetDao().countByTask(tid);
+            int scans = app.db.scanRecordDao().countByTask(tid);
+            requireActivity().runOnUiThread(() -> {
+                new AlertDialog.Builder(requireContext())
+                        .setTitle(R.string.scan_clear_task_confirm_title)
+                        .setMessage(getString(R.string.scan_clear_task_confirm_msg, assets, scans))
+                        .setPositiveButton(R.string.scan_clear_task_confirm_ok,
+                                (d, w) -> vm.clearCurrentTask())
+                        .setNegativeButton(R.string.scan_clear_task_confirm_cancel, null)
+                        .show();
+            });
+        });
     }
 
     private void bindStatCard(View root, int includeId, int labelRes, int colorRes, String sub) {

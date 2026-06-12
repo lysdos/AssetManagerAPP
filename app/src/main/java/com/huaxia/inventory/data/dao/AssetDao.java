@@ -60,4 +60,7 @@ public interface AssetDao {
            "(SELECT matchedAssetId FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NOT NULL) " +
            "ORDER BY excelRowIndex ASC LIMIT :limit OFFSET :offset")
     List<Asset> pageMissing(long taskId, int limit, int offset);
+
+    @Query("DELETE FROM Asset WHERE taskId = :taskId")
+    int deleteByTask(long taskId);
 }

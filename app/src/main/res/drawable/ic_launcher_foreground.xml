@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自适应图标前景：108x108 视口。
+  居中安全区 66x66（中心 ±33），外圈 18 像素会被遮罩。
+  主体：白色库存箱（梯形箱体 + 箱盖 + RFID 波纹）。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 箱体（梯形，正面微立体） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,46 L78,46 L82,86 L26,86 Z" />
+
+    <!-- 箱盖（深蓝顶面，营造层次） -->
+    <path
+        android:fillColor="#0D47A1"
+        android:pathData="M28,46 L80,46 L74,38 L34,38 Z" />
+
+    <!-- 箱体正面中线（描边分隔上下） -->
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M28,64 L80,64 L80,66 L28,66 Z" />
+
+    <!-- 把手（小矩形） -->
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M48,58 L60,58 L60,62 L48,62 Z" />
+
+    <!-- RFID 波纹（左上，3 圈） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M22,30 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.6"
+        android:fillColor="#00000000"
+        android:pathData="M22,30 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.6"
+        android:fillColor="#00000000"
+        android:pathData="M22,30 m-11,0 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0" />
+</vector>

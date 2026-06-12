@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">固定资产盘点</string>
+    <string name="app_name">华夏资产管家</string>
 
     <!-- Bottom nav -->
     <string name="nav_import">📥 导入</string>
@@ -15,7 +15,7 @@
     <string name="scan_status_ready">设备就绪</string>
     <string name="scan_status_not_ready">设备未就绪</string>
 
-    <string name="app_brand">📦 资产管家</string>
+    <string name="app_brand">📦 华夏资产管家</string>
     <string name="import_title">📥 导入资产数据</string>
     <string name="import_upload_hint">拖拽或 点击浏览</string>
     <string name="import_upload_format">支持 .xlsx / .xls</string>
@@ -35,8 +35,16 @@
     <string name="scan_info_recent">📋 最近盘点结果</string>
     <string name="scan_info_recent_desc">正常 %1$d 台，盘亏 %2$d 台，盘盈 %3$d 台。</string>
     <string name="scan_start_inventory">➕ 开始盘点</string>
+    <string name="scan_clear_task">🗑 清除当前任务</string>
+    <string name="scan_clear_task_confirm_title">清除当前任务？</string>
+    <string name="scan_clear_task_confirm_msg">将删除当前任务下全部 %1$d 条资产和 %2$d 条扫描记录，操作不可撤销。</string>
+    <string name="scan_clear_task_confirm_ok">确认清除</string>
+    <string name="scan_clear_task_confirm_cancel">取消</string>
+    <string name="scan_clear_task_done">已清除 %1$d 条资产 / %2$d 条扫描记录</string>
+    <string name="scan_clear_task_failed">清除失败：%1$s</string>
     <string name="scan_device_status">设备状态：%1$s</string>
     <string name="result_title">📊 盘点结果</string>
+    <string name="result_export_btn">📤 导出结果</string>
     <string name="result_stat_all">全部设备</string>
     <string name="result_stat_found">已盘</string>
     <string name="result_stat_missing">盘亏</string>

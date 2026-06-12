@@ -182,6 +182,18 @@ public class AssetDaoTest {
         assertFalse(epcs.contains("EPC2"));
     }
 
+    @Test
+    public void deleteByTask_removesOnlyMatchingTask() {
+        dao.insertAll(java.util.Arrays.asList(
+                newAsset(1, "EPC1", "A"),
+                newAsset(1, "EPC2", "B"),
+                newAsset(2, "EPC3", "C")));
+        int deleted = dao.deleteByTask(1);
+        assertEquals(2, deleted);
+        assertEquals(0, dao.countByTask(1));
+        assertEquals(1, dao.countByTask(2));
+    }
+
     private Asset newAsset(long taskId, String epc, String name) {
         Asset a = new Asset();
         a.taskId = taskId;

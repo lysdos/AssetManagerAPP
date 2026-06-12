@@ -78,5 +78,17 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="@string/scan_start_inventory" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/clearTaskBtn"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/scan_clear_task"
+            android:textColor="@color/statusMissing"
+            app:strokeColor="@color/statusMissing"
+            app:icon="@android:drawable/ic_menu_delete"
+            app:iconTint="@color/statusMissing" />
     </LinearLayout>
 </ScrollView>

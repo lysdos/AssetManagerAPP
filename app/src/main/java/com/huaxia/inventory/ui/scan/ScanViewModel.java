@@ -48,6 +48,7 @@ public class ScanViewModel extends AndroidViewModel {
     private final Set<String> scannedEpcSet = new HashSet<>();
     private final MutableLiveData<Stats> stats = new MutableLiveData<>();
     private final MutableLiveData<ScanRecord> latestScan = new MutableLiveData<>();
+    private final MutableLiveData<ClearResult> clearResult = new MutableLiveData<>();
     private long currentTaskId = -1L;
     private int expectedCount = 0;
 
@@ -60,6 +61,17 @@ public class ScanViewModel extends AndroidViewModel {
 
     public LiveData<Stats> stats() { return stats; }
     public LiveData<ScanRecord> latestScan() { return latestScan; }
+    public LiveData<ClearResult> clearResult() { return clearResult; }
+
+    /** 清除任务结果，assets=被删 Asset 行数，scans=被删 ScanRecord 行数，error=异常消息。 */
+    public static class ClearResult {
+        public final int assets;
+        public final int scans;
+        public final String error;
+        public ClearResult(int assets, int scans) { this.assets = assets; this.scans = scans; this.error = null; }
+        public ClearResult(String error) { this.assets = 0; this.scans = 0; this.error = error; }
+        public boolean isError() { return error != null; }
+    }
 
     public void bindToTask(long taskId) {
         this.currentTaskId = taskId;
@@ -128,5 +140,31 @@ public class ScanViewModel extends AndroidViewModel {
         r.epc = epc; r.tid = tid; r.rssi = rssi;
         r.scannedAt = System.currentTimeMillis();
         return r;
+    }
+
+    /**
+     * 删除当前任务下全部 Asset + ScanRecord 记录，并重置内存中的扫描状态。
+     * 结果通过 {@link #clearResult()} 回调给 UI。
+     */
+    public void clearCurrentTask() {
+        if (currentTaskId == -1L) {
+            clearResult.postValue(new ClearResult("当前无任务"));
+            return;
+        }
+        long taskId = currentTaskId;
+        diskIO.execute(() -> {
+            try {
+                // 先删 ScanRecord（依赖 Asset 外键语义），再删 Asset
+                int scans = db.scanRecordDao().deleteByTask(taskId);
+                int assets = db.assetDao().deleteByTask(taskId);
+                db.inventoryTaskDao().recomputeScannedCount(taskId);
+                scannedEpcSet.clear();
+                recomputeStats();
+                clearResult.postValue(new ClearResult(assets, scans));
+            } catch (Exception e) {
+                Log.e(TAG, "clearCurrentTask failed", e);
+                clearResult.postValue(new ClearResult(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+            }
+        });
     }
 }
