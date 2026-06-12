@@ -23,7 +23,9 @@
         android:layout_marginStart="@dimen/cardPadding"
         android:layout_marginEnd="@dimen/cardPadding"
         android:layout_marginBottom="12dp"
+        android:backgroundTint="@color/colorExport"
         android:text="@string/result_export_btn"
+        android:textColor="@android:color/white"
         app:icon="@drawable/ic_export"
         app:iconTint="@android:color/white" />
 

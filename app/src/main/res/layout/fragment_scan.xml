@@ -86,9 +86,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/scan_clear_task"
-            android:textColor="@color/statusMissing"
-            app:strokeColor="@color/statusMissing"
+            android:textColor="@color/colorReset"
+            app:strokeColor="@color/colorReset"
             app:icon="@android:drawable/ic_menu_delete"
-            app:iconTint="@color/statusMissing" />
+            app:iconTint="@color/colorReset" />
     </LinearLayout>
 </ScrollView>

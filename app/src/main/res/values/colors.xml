@@ -27,4 +27,9 @@
     <color name="textHint">#888888</color>
     <color name="textDisabled">#999999</color>
     <color name="textLightHint">#AAAAAA</color>
+
+    <!-- Action button colors (aligned to HTML mockup btn-reset / btn-export) -->
+    <color name="colorReset">#F44336</color>
+    <color name="colorExport">#4CAF50</color>
+    <color name="colorResetBg">#FFEBEE</color>
 </resources>

@@ -35,7 +35,7 @@
     <string name="scan_info_recent">📋 最近盘点结果</string>
     <string name="scan_info_recent_desc">正常 %1$d 台，盘亏 %2$d 台，盘盈 %3$d 台。</string>
     <string name="scan_start_inventory">➕ 开始盘点</string>
-    <string name="scan_clear_task">🗑 清除当前任务</string>
+    <string name="scan_clear_task">🗑️ 数据重置</string>
     <string name="scan_clear_task_confirm_title">清除当前任务？</string>
     <string name="scan_clear_task_confirm_msg">将删除当前任务下全部 %1$d 条资产和 %2$d 条扫描记录，操作不可撤销。</string>
     <string name="scan_clear_task_confirm_ok">确认清除</string>
