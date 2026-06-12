@@ -9,6 +9,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import com.google.android.material.button.MaterialButton;
@@ -16,6 +17,8 @@ import com.google.android.material.snackbar.Snackbar;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
 import com.huaxia.inventory.rfid.SdkRfidAdapter;
+import com.huaxia.inventory.ui.result.ResultFragment;
+import com.huaxia.inventory.ui.result.ResultTab;
 import com.huaxia.inventory.ui.util.TagPills;
 import com.huaxia.inventory.util.DateUtil;
 import com.huaxia.inventory.util.EpcNormalizer;
@@ -86,6 +89,15 @@ public class ScanFragment extends Fragment {
 
         scanBtn.setOnClickListener(btn -> toggleScan());
         clearTaskBtn.setOnClickListener(btn -> confirmClearTask());
+        applyScanBtnGreen();
+
+        // 点击统计卡片跳转结果页并筛选
+        v.findViewById(R.id.inStockStat).setOnClickListener(
+                card -> navigateToResult(ResultTab.ALL));
+        v.findViewById(R.id.scannedStat).setOnClickListener(
+                card -> navigateToResult(ResultTab.FOUND));
+        v.findViewById(R.id.anomalyStat).setOnClickListener(
+                card -> navigateToResult(ResultTab.MISSING));
 
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         Long taskId = app.session.getCurrentTaskId();
@@ -182,10 +194,40 @@ public class ScanFragment extends Fragment {
         if (state == com.huaxia.inventory.rfid.RfidController.State.SCANNING) {
             app.rfid.stopInventory();
             scanBtn.setText(R.string.scan_start_inventory);
+            applyScanBtnGreen();
         } else {
             app.rfid.startInventory();
             scanBtn.setText(R.string.scan_stop);
+            applyScanBtnRed();
         }
+    }
+
+    private void navigateToResult(ResultTab tab) {
+        ResultFragment fragment = new ResultFragment();
+        Bundle args = new Bundle();
+        args.putString(ResultFragment.ARG_TAB, tab.name());
+        fragment.setArguments(args);
+        requireActivity().getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.fragmentContainer, fragment, "result")
+                .addToBackStack(null)
+                .commit();
+        // 同步底部导航栏视觉选中状态（不触发导航监听器，避免覆盖带参数的 Fragment）
+        com.google.android.material.bottomnavigation.BottomNavigationView nav =
+                requireActivity().findViewById(R.id.bottomNav);
+        nav.getMenu().findItem(R.id.nav_result).setChecked(true);
+    }
+
+    private void applyScanBtnGreen() {
+        int green = ContextCompat.getColor(requireContext(), R.color.statusFound);
+        scanBtn.setTextColor(green);
+        scanBtn.setStrokeColorResource(R.color.statusFound);
+    }
+
+    private void applyScanBtnRed() {
+        int red = ContextCompat.getColor(requireContext(), R.color.colorReset);
+        scanBtn.setTextColor(red);
+        scanBtn.setStrokeColorResource(R.color.colorReset);
     }
 
     @Override
@@ -208,6 +250,8 @@ public class ScanFragment extends Fragment {
         super.onPause();
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         app.rfid.stopInventory();
+        scanBtn.setText(R.string.scan_start_inventory);
+        applyScanBtnGreen();
         app.rfid.unregisterCallback(rfidCallback);
     }
 }

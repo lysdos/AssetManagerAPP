@@ -29,12 +29,13 @@ import java.util.Set;
 
 public class ResultFragment extends Fragment {
 
+    public static final String ARG_TAB = "tab";
+
     private ResultViewModel vm;
     private RecyclerView rv;
     private View emptyTv;
     private TextView paginationInfoTv;
     private MaterialButton prevBtn, nextBtn;
-    private TextView allNumber, foundNumber, missingNumber, extraNumber;
 
     private final Set<Long> matchedIdsCache = new HashSet<>();
     private ActivityResultLauncher<String> exportLauncher;
@@ -68,24 +69,6 @@ public class ResultFragment extends Fragment {
 
         rv.setLayoutManager(new LinearLayoutManager(requireContext()));
 
-        allNumber = v.findViewById(R.id.allStat).findViewById(R.id.statNumberTv);
-        foundNumber = v.findViewById(R.id.foundStat).findViewById(R.id.statNumberTv);
-        missingNumber = v.findViewById(R.id.missingStat).findViewById(R.id.statNumberTv);
-        extraNumber = v.findViewById(R.id.extraStat).findViewById(R.id.statNumberTv);
-        setStatLabel(v.findViewById(R.id.allStat), R.string.result_stat_all);
-        setStatLabel(v.findViewById(R.id.foundStat), R.string.result_stat_found);
-        setStatLabel(v.findViewById(R.id.missingStat), R.string.result_stat_missing);
-        setStatLabel(v.findViewById(R.id.extraStat), R.string.result_stat_extra);
-        setStatNumberColor(allNumber, R.color.statTotal);
-        setStatNumberColor(foundNumber, R.color.statusFound);
-        setStatNumberColor(missingNumber, R.color.statusMissing);
-        setStatNumberColor(extraNumber, R.color.statusExtra);
-
-        bindStatClick(v.findViewById(R.id.allStat), ResultTab.ALL);
-        bindStatClick(v.findViewById(R.id.foundStat), ResultTab.FOUND);
-        bindStatClick(v.findViewById(R.id.missingStat), ResultTab.MISSING);
-        bindStatClick(v.findViewById(R.id.extraStat), ResultTab.EXTRA);
-
         prevBtn.setOnClickListener(btn -> vm.prevPage());
         nextBtn.setOnClickListener(btn -> vm.nextPage());
 
@@ -102,30 +85,27 @@ public class ResultFragment extends Fragment {
             return;
         }
         currentTaskId = taskId;
+
+        // 读取导航参数中的 tab，设置初始筛选
+        if (getArguments() != null) {
+            String tabName = getArguments().getString(ARG_TAB);
+            if (tabName != null) {
+                try {
+                    vm.setTab(ResultTab.valueOf(tabName));
+                } catch (IllegalArgumentException ignored) {}
+            }
+        }
+
         vm.bindToTask(taskId);
 
-        vm.stats().observe(getViewLifecycleOwner(), stats -> {
-            allNumber.setText(String.valueOf(stats.total));
-            foundNumber.setText(String.valueOf(stats.found));
-            missingNumber.setText(String.valueOf(stats.missing));
-            extraNumber.setText(String.valueOf(stats.extra));
-        });
+        vm.currentPage().observe(getViewLifecycleOwner(), page -> updatePagination());
 
-        vm.currentPage().observe(getViewLifecycleOwner(), page -> {
-            int p = page == null ? 0 : page;
-            int total = filterCount();
-            int from = total == 0 ? 0 : p * ResultViewModel.PAGE_SIZE + 1;
-            int to = Math.min((p + 1) * ResultViewModel.PAGE_SIZE, total);
-            paginationInfoTv.setText(getString(R.string.result_pagination, total, from, to));
-            prevBtn.setEnabled(p > 0);
-            nextBtn.setEnabled((p + 1) * ResultViewModel.PAGE_SIZE < total);
-        });
+        vm.stats().observe(getViewLifecycleOwner(), stats -> updatePagination());
 
         vm.assets().observe(getViewLifecycleOwner(), assets -> {
             if (assets == null) return;
             ResultTab tab = vm.activeTab().getValue();
             if (tab == ResultTab.EXTRA) {
-                // extras observer handles EXTRA mode; skip
                 return;
             }
             if (assets.isEmpty()) {
@@ -150,7 +130,7 @@ public class ResultFragment extends Fragment {
             if (extras == null) return;
             ResultTab tab = vm.activeTab().getValue();
             if (tab != ResultTab.EXTRA) {
-                return; // not in EXTRA mode, ignore
+                return;
             }
             if (extras.isEmpty()) {
                 emptyTv.setVisibility(View.VISIBLE);
@@ -161,6 +141,17 @@ public class ResultFragment extends Fragment {
                 rv.setAdapter(new ExtraResultAdapter(extras));
             }
         });
+    }
+
+    private void updatePagination() {
+        Integer page = vm.currentPage().getValue();
+        int p = page == null ? 0 : page;
+        int total = filterCount();
+        int from = total == 0 ? 0 : p * ResultViewModel.PAGE_SIZE + 1;
+        int to = Math.min((p + 1) * ResultViewModel.PAGE_SIZE, total);
+        paginationInfoTv.setText(getString(R.string.result_pagination, total, from, to));
+        prevBtn.setEnabled(p > 0);
+        nextBtn.setEnabled((p + 1) * ResultViewModel.PAGE_SIZE < total);
     }
 
     private int filterCount() {
@@ -174,18 +165,6 @@ public class ResultFragment extends Fragment {
             case EXTRA:   return s.extra;
             default:      return s.total;
         }
-    }
-
-    private void setStatLabel(View card, int labelRes) {
-        ((TextView) card.findViewById(R.id.statLabelTv)).setText(labelRes);
-    }
-
-    private void setStatNumberColor(TextView tv, int colorRes) {
-        tv.setTextColor(androidx.core.content.ContextCompat.getColor(requireContext(), colorRes));
-    }
-
-    private void bindStatClick(View card, ResultTab tab) {
-        card.setOnClickListener(v -> vm.setTab(tab));
     }
 
     public void onExportClicked() {
@@ -204,7 +183,6 @@ public class ResultFragment extends Fragment {
             try {
                 InventoryTask task = app.db.inventoryTaskDao().findById(taskId);
 
-                // 用首条 Asset 的 rawRowJson 推断原始列顺序（仅用于导出表头）
                 List<String> originalHeaders = new ArrayList<>();
                 List<Asset> firstPage = app.db.assetDao().pageAll(taskId, 1, 0);
                 if (!firstPage.isEmpty() && firstPage.get(0).rawRowJson != null) {
@@ -218,7 +196,6 @@ public class ResultFragment extends Fragment {
 
                 try (java.io.OutputStream out =
                         requireContext().getContentResolver().openOutputStream(uri)) {
-                    // 流式导出：分页读 + 立即写，峰值内存 ≈ 1000 行
                     ExcelExporter.exportStreamed(out, task.sourceFileName, originalHeaders,
                             app.db.assetDao(), app.db.scanRecordDao(), taskId);
                 }

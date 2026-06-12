@@ -28,7 +28,7 @@ public class ResultViewModel extends AndroidViewModel {
     private final Executor diskIO;
     private final MutableLiveData<List<Asset>> assets = new MutableLiveData<>();
     private final MutableLiveData<List<ScanRecord>> extras = new MutableLiveData<>();
-    private final MutableLiveData<Stats> stats = new MutableLiveData<>();
+    private final MutableLiveData<Stats> stats = new MutableLiveData<>(new Stats(0, 0, 0, 0));
     private final MutableLiveData<ResultTab> activeTab = new MutableLiveData<>(ResultTab.FOUND);
     private final MutableLiveData<Integer> currentPage = new MutableLiveData<>(0);
     private long currentTaskId = -1L;
@@ -54,7 +54,6 @@ public class ResultViewModel extends AndroidViewModel {
     public void setTab(ResultTab tab) {
         activeTab.setValue(tab);
         currentPage.setValue(0);
-        refresh();
     }
 
     public void nextPage() {

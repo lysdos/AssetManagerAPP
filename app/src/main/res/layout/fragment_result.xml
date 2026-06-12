@@ -15,63 +15,6 @@
         android:textSize="@dimen/textSizeTitle"
         android:textStyle="bold" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/exportBtn"
-        style="@style/Widget.MaterialComponents.Button"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/cardPadding"
-        android:layout_marginEnd="@dimen/cardPadding"
-        android:layout_marginBottom="12dp"
-        android:backgroundTint="@color/colorExport"
-        android:text="@string/result_export_btn"
-        android:textColor="@android:color/white"
-        app:icon="@drawable/ic_export"
-        app:iconTint="@android:color/white" />
-
-    <GridLayout
-        android:id="@+id/statGrid"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:columnCount="2"
-        android:rowCount="2"
-        android:paddingStart="@dimen/cardPadding"
-        android:paddingEnd="@dimen/cardPadding"
-        android:useDefaultMargins="false">
-
-        <include
-            android:id="@+id/allStat"
-            layout="@layout/view_stat_card"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_margin="5dp" />
-
-        <include
-            android:id="@+id/foundStat"
-            layout="@layout/view_stat_card"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_margin="5dp" />
-
-        <include
-            android:id="@+id/missingStat"
-            layout="@layout/view_stat_card"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_margin="5dp" />
-
-        <include
-            android:id="@+id/extraStat"
-            layout="@layout/view_stat_card"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnWeight="1"
-            android:layout_margin="5dp" />
-    </GridLayout>
-
     <TextView
         android:id="@+id/emptyTv"
         android:layout_width="match_parent"
@@ -124,4 +67,18 @@
             android:layout_height="wrap_content"
             android:text="@string/action_next" />
     </LinearLayout>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/exportBtn"
+        style="@style/Widget.MaterialComponents.Button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/cardPadding"
+        android:layout_marginEnd="@dimen/cardPadding"
+        android:layout_marginBottom="12dp"
+        android:backgroundTint="@color/colorExport"
+        android:text="@string/result_export_btn"
+        android:textColor="@android:color/white"
+        app:icon="@drawable/ic_export"
+        app:iconTint="@android:color/white" />
 </LinearLayout>
