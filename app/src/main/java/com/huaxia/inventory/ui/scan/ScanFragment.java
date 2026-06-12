@@ -15,6 +15,7 @@ import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
 import com.huaxia.inventory.data.dao.CategoryCount;
 import com.huaxia.inventory.rfid.SdkRfidAdapter;
+import com.huaxia.inventory.ui.util.TagPills;
 import com.huaxia.inventory.util.DateUtil;
 import com.huaxia.inventory.util.EpcNormalizer;
 
@@ -140,30 +141,18 @@ public class ScanFragment extends Fragment {
         container.removeAllViews();
         if (cats == null || cats.isEmpty()) return;
         for (CategoryCount c : cats) {
-            TextView pill = (TextView) LayoutInflater.from(requireContext())
-                    .inflate(R.layout.view_tag_pill, container, false);
-            pill.setText(getString(R.string.tag_format_count, c.category, c.count));
-            pill.setBackgroundResource(R.drawable.bg_tag_blue);
-            pill.setTextColor(androidx.core.content.ContextCompat.getColor(requireContext(), R.color.tagBlueFg));
-            container.addView(pill);
+            TagPills.bind(container,
+                    getString(R.string.tag_format_count, c.category, c.count),
+                    R.drawable.bg_tag_blue,
+                    R.color.tagBlueFg);
         }
     }
 
     private void renderResultTags(LinearLayout container, ScanViewModel.Stats stats) {
         container.removeAllViews();
-        addPill(container, R.string.tag_found, stats.found, R.drawable.bg_tag_green, R.color.tagGreenFg);
-        addPill(container, R.string.tag_missing, stats.missing, R.drawable.bg_tag_red, R.color.tagRedFg);
-        addPill(container, R.string.tag_extra, stats.extra, R.drawable.bg_tag_orange, R.color.tagOrangeFg);
-    }
-
-    private void addPill(LinearLayout container, int textRes, int count,
-                         int bgRes, int fgRes) {
-        TextView pill = (TextView) LayoutInflater.from(requireContext())
-                .inflate(R.layout.view_tag_pill, container, false);
-        pill.setText(getString(R.string.tag_format_count, getString(textRes), count));
-        pill.setBackgroundResource(bgRes);
-        pill.setTextColor(androidx.core.content.ContextCompat.getColor(requireContext(), fgRes));
-        container.addView(pill);
+        TagPills.bindCount(container, R.string.tag_found, stats.found, R.drawable.bg_tag_green, R.color.tagGreenFg);
+        TagPills.bindCount(container, R.string.tag_missing, stats.missing, R.drawable.bg_tag_red, R.color.tagRedFg);
+        TagPills.bindCount(container, R.string.tag_extra, stats.extra, R.drawable.bg_tag_orange, R.color.tagOrangeFg);
     }
 
     private void toggleScan() {
