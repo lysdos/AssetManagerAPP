@@ -20,10 +20,15 @@ public final class StatusDerivation {
 
     private StatusDerivation() {}
 
-    public static Stats compute(int expectedCount, Set<Long> matchedAssetIds, int extrasCount) {
-        int found = matchedAssetIds.size();
+    public static Stats compute(int expectedCount, int matchedCount, int extrasCount) {
+        int found = matchedCount;
         int missing = Math.max(0, expectedCount - found);
         return new Stats(found, missing, extrasCount);
+    }
+
+    /** 旧签名 — 保留二进制兼容，委托到新 int 版本。 */
+    public static Stats compute(int expectedCount, Set<Long> matchedAssetIds, int extrasCount) {
+        return compute(expectedCount, matchedAssetIds.size(), extrasCount);
     }
 
     public static Status classify(boolean isMatchedAsset, boolean isExtraScan) {

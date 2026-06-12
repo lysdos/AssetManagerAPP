@@ -37,4 +37,21 @@ public interface ScanRecordDao {
 
     @Query("DELETE FROM ScanRecord WHERE taskId = :taskId")
     int deleteByTask(long taskId);
+
+    /**
+     * 单次聚合查询，返回任务下：
+     * <ul>
+     *   <li>matchedCount：成功匹配到 Asset 的不同资产数（COUNT DISTINCT matchedAssetId）</li>
+     *   <li>extraCount：未匹配的扫描记录数（盘盈）</li>
+     *   <li>lastScannedAt：最近一次扫描时间戳（毫秒），无数据时为 0</li>
+     * </ul>
+     * 用于替代 {@code findAllByTask + 内存去重 + findExtras + findById} 多次全表扫描，
+     * 复杂度从 O(n) 降到 O(1)。
+     */
+    @Query("SELECT " +
+           "COUNT(DISTINCT matchedAssetId) AS matchedCount, " +
+           "COALESCE(SUM(CASE WHEN matchedAssetId IS NULL THEN 1 ELSE 0 END), 0) AS extraCount, " +
+           "COALESCE(MAX(scannedAt), 0) AS lastScannedAt " +
+           "FROM ScanRecord WHERE taskId = :taskId")
+    ScanAggregate aggregateStats(long taskId);
 }

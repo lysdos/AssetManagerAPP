@@ -95,6 +95,52 @@ public class ScanRecordDaoTest {
         assertEquals(1, dao.countByTask(2));
     }
 
+    @Test public void aggregateStats_emptyTaskReturnsZeros() {
+        com.huaxia.inventory.data.dao.ScanAggregate a = dao.aggregateStats(999);
+        assertEquals(0, a.matchedCount);
+        assertEquals(0, a.extraCount);
+        assertEquals(0L, a.lastScannedAt);
+    }
+
+    @Test public void aggregateStats_separatesMatchedAndExtras() {
+        long id1 = db.assetDao().insert(makeAsset(1, "EPC_MATCHED_A"));
+        long id2 = db.assetDao().insert(makeAsset(1, "EPC_MATCHED_B"));
+        // 2 个匹配（指向不同 asset）
+        dao.insert(newRecAt(1, "EPC_MATCHED_A", 1_000L, id1));
+        dao.insert(newRecAt(1, "EPC_MATCHED_B", 1_500L, id2));
+        // 1 个盘盈（matchedAssetId=null）
+        dao.insert(newRecAt(1, "EPC_EXTRA", 2_000L, null));
+        com.huaxia.inventory.data.dao.ScanAggregate a = dao.aggregateStats(1);
+        assertEquals(2, a.matchedCount);
+        assertEquals(1, a.extraCount);
+        assertEquals(2_000L, a.lastScannedAt);
+    }
+
+    @Test public void aggregateStats_matchedCountIsDistinct() {
+        long id = db.assetDao().insert(makeAsset(1, "EPC_A"));
+        // 同一 asset 被扫到 3 次（实际只 1 条入库，unique 约束 + OnConflictStrategy.IGNORE）
+        dao.insert(newRecAt(1, "EPC_A", 1_000L, id));
+        com.huaxia.inventory.data.dao.ScanAggregate a = dao.aggregateStats(1);
+        assertEquals(1, a.matchedCount);  // distinct 必然 = 1
+        assertEquals(0, a.extraCount);
+    }
+
+    @Test public void aggregateStats_isolatesByTask() {
+        long id1 = db.assetDao().insert(makeAsset(1, "EPC_T1"));
+        long id2 = db.assetDao().insert(makeAsset(2, "EPC_T2"));
+        dao.insert(newRecAt(1, "EPC_T1", 1_000L, id1));
+        dao.insert(newRecAt(2, "EPC_T2", 2_000L, id2));
+        dao.insert(newRecAt(1, "EPC_EXTRA", 3_000L, null));  // task 1
+        com.huaxia.inventory.data.dao.ScanAggregate a1 = dao.aggregateStats(1);
+        com.huaxia.inventory.data.dao.ScanAggregate a2 = dao.aggregateStats(2);
+        assertEquals(1, a1.matchedCount);
+        assertEquals(1, a1.extraCount);
+        assertEquals(3_000L, a1.lastScannedAt);
+        assertEquals(1, a2.matchedCount);
+        assertEquals(0, a2.extraCount);
+        assertEquals(2_000L, a2.lastScannedAt);
+    }
+
     private com.huaxia.inventory.data.entity.Asset makeAsset(long taskId, String epc) {
         com.huaxia.inventory.data.entity.Asset a = new com.huaxia.inventory.data.entity.Asset();
         a.taskId = taskId;
@@ -106,10 +152,15 @@ public class ScanRecordDaoTest {
     }
 
     private ScanRecord newRec(long taskId, String epc, Long matchedAssetId) {
+        return newRecAt(taskId, epc, System.currentTimeMillis(), matchedAssetId);
+    }
+
+    /** 用于测试显式控制 scannedAt，避免 System.currentTimeMillis() 的不确定性。 */
+    private ScanRecord newRecAt(long taskId, String epc, long scannedAt, Long matchedAssetId) {
         ScanRecord r = new ScanRecord();
         r.taskId = taskId;
         r.epc = epc;
-        r.scannedAt = System.currentTimeMillis();
+        r.scannedAt = scannedAt;
         r.rssi = "-50";
         r.matchedAssetId = matchedAssetId;
         return r;

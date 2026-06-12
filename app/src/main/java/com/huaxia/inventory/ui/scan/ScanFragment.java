@@ -108,7 +108,7 @@ public class ScanFragment extends Fragment {
             anomalySub.setText(stats.anomaly > 0 ? "需处理" : "OK");
 
             checkedCardSub.setText(getString(R.string.scan_info_checked_sub,
-                    stats.lastInventoryAt == 0 ? "—" : DateUtil.formatTimestamp(stats.lastInventoryAt)));
+                    stats.lastScannedAt == 0 ? "—" : DateUtil.formatTimestamp(stats.lastScannedAt)));
             recentCardDesc.setText(getString(R.string.scan_info_recent_desc,
                     stats.found, stats.missing, stats.extra));
             renderResultTags(recentTags, stats);
