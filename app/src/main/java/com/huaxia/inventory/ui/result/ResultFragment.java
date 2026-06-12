@@ -120,7 +120,12 @@ public class ResultFragment extends Fragment {
 
         vm.assets().observe(getViewLifecycleOwner(), assets -> {
             if (assets == null) return;
-            if (assets.isEmpty() && (vm.extras().getValue() == null || vm.extras().getValue().isEmpty())) {
+            ResultTab tab = vm.activeTab().getValue();
+            if (tab == ResultTab.EXTRA) {
+                // extras observer handles EXTRA mode; skip
+                return;
+            }
+            if (assets.isEmpty()) {
                 emptyTv.setVisibility(View.VISIBLE);
                 rv.setVisibility(View.GONE);
             } else {
@@ -139,9 +144,19 @@ public class ResultFragment extends Fragment {
         });
 
         vm.extras().observe(getViewLifecycleOwner(), extras -> {
-            // EXTRA mode: extras list is populated; the assets observer above will set the adapter
-            // using whichever is non-empty. For simplicity we leave the adapter update to the
-            // assets observer path. (A future task can render ScanRecord rows directly.)
+            if (extras == null) return;
+            ResultTab tab = vm.activeTab().getValue();
+            if (tab != ResultTab.EXTRA) {
+                return; // not in EXTRA mode, ignore
+            }
+            if (extras.isEmpty()) {
+                emptyTv.setVisibility(View.VISIBLE);
+                rv.setVisibility(View.GONE);
+            } else {
+                emptyTv.setVisibility(View.GONE);
+                rv.setVisibility(View.VISIBLE);
+                rv.setAdapter(new ExtraResultAdapter(extras));
+            }
         });
     }
 
