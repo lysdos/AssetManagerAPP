@@ -30,21 +30,23 @@ public class ExcelExporterTest {
         List<ScanRecord> scans = Arrays.asList(
                 scan(1L, "EPC1", 100L),
                 scan(3L, "EPC3", 101L));  // EPC3 has no asset = EXTRA
-        List<String> headers = Arrays.asList(
-                "序号", "设备名称", "固资编号", "盘点状态", "盘点时间", "信号强度");
+        // 只用原始列，RESULT_COLUMNS（盘点状态/时间/强度）由导出器自动追加
+        List<String> headers = Arrays.asList("序号", "设备名称", "固资编号");
 
         ExcelExporter.export(out, "测试任务", headers, assets, scans, id -> id == 1L);
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {
             Sheet s = wb.getSheetAt(0);
-            assertNotNull(s.getRow(3));   // header row
-            assertNotNull(s.getRow(4));   // first data row
-            // Check that 盘点状态 column contains "已盘" and "盘亏"
+            // 实际行布局：0=title, 1=meta, 2=header, 3..=data
+            assertNotNull(s.getRow(2));   // header row
+            assertNotNull(s.getRow(3));   // first data row
+            // 盘点状态列在 base = originalHeaders.size() = 3
+            int statusCol = headers.size();
             boolean foundFound = false, foundMissing = false;
-            for (int r = 4; r <= 5; r++) {
+            for (int r = 3; r <= 4; r++) {
                 Row row = s.getRow(r);
                 if (row == null) continue;
-                String status = row.getCell(3).getStringCellValue();
+                String status = row.getCell(statusCol).getStringCellValue();
                 if ("已盘".equals(status)) foundFound = true;
                 if ("盘亏".equals(status)) foundMissing = true;
             }
@@ -56,7 +58,8 @@ public class ExcelExporterTest {
     @Test
     public void roundTripsRawRowJson() throws Exception {
         // Build a synthetic workbook with one row, export it, re-parse, ensure data preserved
-        Map<String, String> raw = new HashMap<>();
+        // 用 LinkedHashMap 保证列顺序，避免 HashMap 随机顺序导致测试 flaky
+        Map<String, String> raw = new java.util.LinkedHashMap<>();
         raw.put("设备名称", "测试设备");
         raw.put("固资编号", "3500309099027210");
         String json = new ObjectMapper().writeValueAsString(raw);
@@ -69,15 +72,15 @@ public class ExcelExporterTest {
         a.assetName = "测试设备";
         a.rawRowJson = json;
 
-        List<String> headers = new ArrayList<>();
-        for (String k : raw.keySet()) headers.add(k);
+        List<String> headers = new ArrayList<>(raw.keySet());
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ExcelExporter.export(out, "任务", headers, Arrays.asList(a), new ArrayList<>(), id -> true);
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {
             Sheet s = wb.getSheetAt(0);
-            Row row = s.getRow(4);
+            // 数据行在 row 3（不是 4）：0/1/2 已被 title/meta/header 占用
+            Row row = s.getRow(3);
             assertEquals("测试设备", row.getCell(0).getStringCellValue());
             assertEquals("3500309099027210", row.getCell(1).getStringCellValue());
         }

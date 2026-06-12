@@ -20,7 +20,6 @@ import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.InventoryTask;
-import com.huaxia.inventory.data.entity.ScanRecord;
 import com.huaxia.inventory.excel.ExcelExporter;
 import com.huaxia.inventory.util.DateUtil;
 import java.util.ArrayList;
@@ -204,25 +203,24 @@ public class ResultFragment extends Fragment {
         app.executors.excelIO.execute(() -> {
             try {
                 InventoryTask task = app.db.inventoryTaskDao().findById(taskId);
-                List<Asset> assets = app.db.assetDao().findAllByTask(taskId);
-                List<ScanRecord> scans = app.db.scanRecordDao().findAllByTask(taskId);
-                Set<Long> matchedIds = new HashSet<>();
-                for (Asset a : app.db.assetDao().findFound(taskId)) matchedIds.add(a.id);
 
+                // 用首条 Asset 的 rawRowJson 推断原始列顺序（仅用于导出表头）
                 List<String> originalHeaders = new ArrayList<>();
-                if (!assets.isEmpty() && assets.get(0).rawRowJson != null) {
+                List<Asset> firstPage = app.db.assetDao().pageAll(taskId, 1, 0);
+                if (!firstPage.isEmpty() && firstPage.get(0).rawRowJson != null) {
                     com.fasterxml.jackson.databind.ObjectMapper mapper =
                             new com.fasterxml.jackson.databind.ObjectMapper();
                     @SuppressWarnings("unchecked")
                     java.util.Map<String, String> raw = mapper.readValue(
-                            assets.get(0).rawRowJson, java.util.Map.class);
+                            firstPage.get(0).rawRowJson, java.util.Map.class);
                     originalHeaders.addAll(raw.keySet());
                 }
 
                 try (java.io.OutputStream out =
                         requireContext().getContentResolver().openOutputStream(uri)) {
-                    ExcelExporter.export(out, task.sourceFileName, originalHeaders,
-                            assets, scans, matchedIds::contains);
+                    // 流式导出：分页读 + 立即写，峰值内存 ≈ 1000 行
+                    ExcelExporter.exportStreamed(out, task.sourceFileName, originalHeaders,
+                            app.db.assetDao(), app.db.scanRecordDao(), taskId);
                 }
                 requireActivity().runOnUiThread(() ->
                     Snackbar.make(requireView(), R.string.msg_export_done,

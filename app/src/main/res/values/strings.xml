@@ -22,6 +22,9 @@
     <string name="import_tip">💡 请确保 Excel 中包含「设备名称」「设备类型」「归口部门」「序列号」「固资编号」等列。</string>
     <string name="import_clear">清除</string>
     <string name="import_file_selected">已选择：%1$s</string>
+    <string name="import_progress">正在导入 %1$d / %2$d …</string>
+    <string name="import_done">已导入 %1$d 条</string>
+    <string name="import_failed">导入失败：%1$s</string>
     <string name="scan_title">🔍 扫描管理</string>
     <string name="scan_stat_in_stock">在库设备</string>
     <string name="scan_stat_scanned">已盘点</string>

@@ -28,13 +28,46 @@ public final class ExcelImporter {
         }
     }
 
+    /**
+     * 流式回调：每攒够 {@code batchSize} 条 Asset 就回调一次。
+     * 解析大文件时不在堆里保留全表 — 由 {@link ImportViewModel} 等调用方决定
+     * 是入库（{@code insertAll(batch)}）还是预览（取前 N 条）。
+     *
+     * <p>实现侧保证：抛 {@code onError} 后继续解析其他行，不中断流。
+     */
+    public interface BatchHandler {
+        void onBatch(List<Asset> batch);
+        void onError(String message);
+    }
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private ExcelImporter() {}
 
+    /** 兼容旧 API：全量收齐到 List 返回。适合测试和小文件场景。 */
     public static Result parse(InputStream in, long taskId) throws Exception {
-        List<Asset> assets = new ArrayList<>();
+        List<Asset> all = new ArrayList<>();
         List<String> errors = new ArrayList<>();
+        stream(in, taskId, /* batchSize */ 500, new BatchHandler() {
+            @Override public void onBatch(List<Asset> batch) { all.addAll(batch); }
+            @Override public void onError(String message) { errors.add(message); }
+        });
+        return new Result(all, errors);
+    }
+
+    /**
+     * 流式解析 xlsx，按 {@code batchSize} 回调 Asset 批次。
+     *
+     * <p>大文件（>5w 行）下不会把整张表留在堆里，峰值内存 ≈ {@code batchSize * Asset 大小}。
+     *
+     * @param in        xlsx 输入流（{@code Workbook} 会自行关闭）
+     * @param taskId    写入每个 Asset 的 taskId 字段
+     * @param batchSize 触发 onBatch 回调的累积大小
+     * @param handler   批次/错误回调
+     */
+    public static void stream(InputStream in, long taskId, int batchSize, BatchHandler handler)
+            throws Exception {
+        if (batchSize <= 0) throw new IllegalArgumentException("batchSize must be > 0");
         try (Workbook wb = new XSSFWorkbook(in)) {
             Sheet sheet = wb.getSheetAt(0);
             Iterator<Row> rows = sheet.iterator();
@@ -53,6 +86,7 @@ public final class ExcelImporter {
             int epcIdx = spec.epcColumnIndex();
 
             int excelRow = 4;
+            List<Asset> pending = new ArrayList<>(batchSize);
             while (rows.hasNext()) {
                 Row row = rows.next();
                 try {
@@ -60,7 +94,7 @@ public final class ExcelImporter {
                     String rawCode = cells.size() > epcIdx ? cells.get(epcIdx) : "";
                     String code = EpcNormalizer.normalize(rawCode);
                     if (code == null) {
-                        errors.add("Row " + excelRow + ": invalid 固资编号 '"
+                        handler.onError("Row " + excelRow + ": invalid 固资编号 '"
                                 + (rawCode == null ? "" : rawCode)
                                 + "' (需 16 位十进制), skipped");
                         excelRow++;
@@ -78,14 +112,20 @@ public final class ExcelImporter {
                     a.placementLocation = pick(cells, headers, "放置地点");
                     a.assetStatus = pick(cells, headers, "资产状态");
                     a.rawRowJson = buildRawJson(headers, cells);
-                    assets.add(a);
+                    pending.add(a);
+                    if (pending.size() >= batchSize) {
+                        handler.onBatch(pending);
+                        pending = new ArrayList<>(batchSize);
+                    }
                 } catch (Exception e) {
-                    errors.add("Row " + excelRow + ": " + e.getMessage());
+                    handler.onError("Row " + excelRow + ": " + e.getMessage());
                 }
                 excelRow++;
             }
+            if (!pending.isEmpty()) {
+                handler.onBatch(pending);
+            }
         }
-        return new Result(assets, errors);
     }
 
     private static String pick(List<String> cells, List<String> headers, String name) {

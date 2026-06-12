@@ -25,10 +25,10 @@ public class ImportFragment extends Fragment {
     private ImportViewModel vm;
     private MaterialButton startBtn;
     private View uploadArea, fileInfoRow;
-    private TextView fileNameTv, clearBtn;
+    private TextView fileNameTv, clearBtn, progressTv;
     private Uri pickedUri;
     private String pickedFileName;
-    private java.util.List<com.huaxia.inventory.data.entity.Asset> currentAssets;
+    private int lastSuccessCount = 0;
 
     private final ActivityResultLauncher<String[]> filePicker =
             registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
@@ -56,17 +56,24 @@ public class ImportFragment extends Fragment {
         fileInfoRow = v.findViewById(R.id.fileInfoRow);
         fileNameTv = v.findViewById(R.id.fileNameTv);
         clearBtn = v.findViewById(R.id.clearBtn);
+        progressTv = v.findViewById(R.id.progressTv);
 
         uploadArea.setOnClickListener(view -> filePicker.launch(new String[]{
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
         clearBtn.setOnClickListener(view -> clearSelection());
 
         startBtn.setOnClickListener(btn -> {
-            if (currentAssets == null || currentAssets.isEmpty()) return;
+            if (pickedUri == null || lastSuccessCount <= 0) return;
+            startBtn.setEnabled(false);
+            progressTv.setVisibility(View.VISIBLE);
+            progressTv.setText(getString(R.string.import_progress, 0, lastSuccessCount));
             String fileName = pickedFileName;
-            vm.commitToTask(fileName, currentAssets, taskId -> {
+            Uri src = pickedUri;
+            int total = lastSuccessCount;
+            vm.commitToTask(fileName, src, total, taskId -> {
                 ((InventoryApp) requireActivity().getApplication()).session.setCurrentTaskId(taskId);
                 requireActivity().runOnUiThread(() -> {
+                    progressTv.setVisibility(View.GONE);
                     com.google.android.material.bottomnavigation.BottomNavigationView nav =
                             requireActivity().findViewById(R.id.bottomNav);
                     nav.setSelectedItemId(R.id.nav_scan);
@@ -78,7 +85,7 @@ public class ImportFragment extends Fragment {
             if (pf == null) return;
             fileInfoRow.setVisibility(View.VISIBLE);
             fileNameTv.setText(getString(R.string.import_file_selected, pf.fileName));
-            currentAssets = vm.lastParsedAssets;
+            lastSuccessCount = pf.successCount;
             startBtn.setEnabled(pf.successCount > 0);
         });
 
@@ -88,13 +95,35 @@ public class ImportFragment extends Fragment {
                     getString(R.string.err_parse_failed, err),
                     Toast.LENGTH_LONG).show();
         });
+
+        vm.importProgress().observe(getViewLifecycleOwner(), p -> {
+            if (p == null) return;
+            progressTv.setText(getString(R.string.import_progress, p.imported, p.total));
+        });
+
+        vm.importDone().observe(getViewLifecycleOwner(), taskId -> {
+            if (taskId == null) return;
+            Toast.makeText(requireContext(),
+                    getString(R.string.import_done, lastSuccessCount),
+                    Toast.LENGTH_SHORT).show();
+        });
+
+        vm.importError().observe(getViewLifecycleOwner(), err -> {
+            if (err == null) return;
+            startBtn.setEnabled(true);
+            progressTv.setVisibility(View.GONE);
+            Toast.makeText(requireContext(),
+                    getString(R.string.import_failed, err),
+                    Toast.LENGTH_LONG).show();
+        });
     }
 
     private void clearSelection() {
         pickedUri = null;
         pickedFileName = null;
-        currentAssets = null;
+        lastSuccessCount = 0;
         fileInfoRow.setVisibility(View.GONE);
+        progressTv.setVisibility(View.GONE);
         startBtn.setEnabled(false);
     }
 
