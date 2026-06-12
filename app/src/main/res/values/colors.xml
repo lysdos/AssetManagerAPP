@@ -20,4 +20,11 @@
     <color name="statScanned">#1565C0</color>
     <color name="statTotal">#9C27B0</color>
     <color name="borderDashed">#BDBDBD</color>
+    <color name="bgDashedSolid">#FAFAFA</color>
+
+    <!-- Grey scale for secondary text -->
+    <color name="textBody">#666666</color>
+    <color name="textHint">#888888</color>
+    <color name="textDisabled">#999999</color>
+    <color name="textLightHint">#AAAAAA</color>
 </resources>

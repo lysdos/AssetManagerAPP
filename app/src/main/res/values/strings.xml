@@ -7,35 +7,13 @@
     <string name="nav_result">📊 结果</string>
 
     <!-- Import -->
-    <string name="import_pick_file">选择 Excel 文件</string>
     <string name="import_start">开始盘点</string>
-    <string name="import_preview_hint">预览 (前 10 条)</string>
-    <string name="import_file_label">文件</string>
-    <string name="import_count_label">记录数</string>
-    <string name="import_errors_label">解析问题</string>
 
     <!-- Scan -->
     <string name="scan_start">开始扫描</string>
     <string name="scan_stop">停止扫描</string>
-    <string name="scan_recent">最近扫描</string>
-    <string name="scan_view_result">查看结果</string>
     <string name="scan_status_ready">设备就绪</string>
     <string name="scan_status_not_ready">设备未就绪</string>
-    <string name="scan_stats_expected">预期</string>
-    <string name="scan_stats_scanned">已扫</string>
-
-    <!-- Result -->
-    <string name="result_export">导出 Excel</string>
-    <string name="result_tab_all">全部</string>
-    <string name="result_tab_found">已盘</string>
-    <string name="result_tab_missing">盘亏</string>
-    <string name="result_tab_extra">盘盈</string>
-    <string name="result_search_hint">搜索设备名/固资编号/位置</string>
-    <string name="result_status_found">已盘</string>
-    <string name="result_status_missing">盘亏</string>
-    <string name="result_status_extra">盘盈</string>
-
-    <string name="label_asset_code">固资编号</string>
 
     <string name="app_brand">📦 资产管家</string>
     <string name="import_title">📥 导入资产数据</string>
@@ -70,7 +48,6 @@
     <string name="err_parse_failed">Excel 解析失败：%1$s</string>
     <string name="err_empty_result">暂无数据</string>
     <string name="err_export_failed">导出失败：%1$s</string>
-    <string name="action_goto_import">去导入</string>
     <string name="msg_export_done">已导出</string>
     <string name="tag_found">已盘</string>
     <string name="tag_missing">盘亏</string>

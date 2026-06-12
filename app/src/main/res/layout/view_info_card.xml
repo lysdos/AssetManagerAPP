@@ -28,7 +28,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:textSize="@dimen/textSizeBody"
-            android:textColor="#666666"
+            android:textColor="@color/textBody"
             android:lineSpacingExtra="2dp" />
 
         <TextView

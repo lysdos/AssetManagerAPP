@@ -66,7 +66,7 @@
         android:gravity="center"
         android:visibility="gone"
         android:textSize="@dimen/textSizeBody"
-        android:textColor="#888888"
+        android:textColor="@color/textHint"
         android:text="@string/err_empty_result" />
 
     <androidx.recyclerview.widget.RecyclerView
@@ -93,7 +93,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textSize="13sp"
-            android:textColor="#888888" />
+            android:textColor="@color/textHint" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/prevBtn"
