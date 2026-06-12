@@ -186,6 +186,7 @@ public class ScanViewModel extends AndroidViewModel {
                 int assets = db.assetDao().deleteByTask(taskId);
                 db.inventoryTaskDao().recomputeScannedCount(taskId);
                 scannedEpcSet.clear();
+                expectedCount = 0;
                 recomputeStats();
                 clearResult.postValue(new ClearResult(assets, scans));
             } catch (Exception e) {

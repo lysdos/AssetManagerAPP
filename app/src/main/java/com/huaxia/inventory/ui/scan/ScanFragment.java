@@ -1,5 +1,7 @@
 package com.huaxia.inventory.ui.scan;
 
+import android.media.AudioManager;
+import android.media.SoundPool;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -35,11 +37,20 @@ public class ScanFragment extends Fragment {
     private TextView recentCardTitle, recentCardDesc;
     private LinearLayout recentTags;
 
+    private SoundPool soundPool;
+    private int beepSoundId;
+    private AudioManager audioManager;
+
     private final SdkRfidAdapter.TagListener rfidCallback = (epcStr, tid, rssi) -> {
         String normalized = EpcNormalizer.normalize(epcStr);
         if (normalized == null) return;
         vm.onEpcScanned(normalized, tid, rssi);
+        playBeep();
     };
+
+    public void onTriggerPressed() {
+        toggleScan();
+    }
 
     @Nullable
     @Override
@@ -144,6 +155,8 @@ public class ScanFragment extends Fragment {
                         Snackbar.LENGTH_LONG).show();
             }
         });
+
+        initSound();
     }
 
     private void confirmClearTask() {
@@ -230,6 +243,22 @@ public class ScanFragment extends Fragment {
         scanBtn.setStrokeColorResource(R.color.colorReset);
     }
 
+    @SuppressWarnings("deprecation")
+    private void initSound() {
+        audioManager = (AudioManager) requireContext().getSystemService(android.content.Context.AUDIO_SERVICE);
+        soundPool = new SoundPool(10, AudioManager.STREAM_MUSIC, 5);
+        beepSoundId = soundPool.load(requireContext(), R.raw.barcodebeep, 1);
+    }
+
+    private void playBeep() {
+        if (soundPool != null && audioManager != null) {
+            float max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            float cur = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            float ratio = max > 0 ? cur / max : 0.5f;
+            soundPool.play(beepSoundId, ratio, ratio, 1, 0, 1);
+        }
+    }
+
     @Override
     public void onResume() {
         super.onResume();
@@ -253,5 +282,9 @@ public class ScanFragment extends Fragment {
         scanBtn.setText(R.string.scan_start_inventory);
         applyScanBtnGreen();
         app.rfid.unregisterCallback(rfidCallback);
+        if (soundPool != null) {
+            soundPool.release();
+            soundPool = null;
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.huaxia.inventory;
 
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.view.KeyEvent;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
@@ -54,6 +55,20 @@ public class MainActivity extends AppCompatActivity {
         tx.replace(R.id.fragmentContainer, fragment, tag);
         tx.commit();
         return true;
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN
+                && (event.getKeyCode() == 139 || event.getKeyCode() == 280 || event.getKeyCode() == 293)
+                && event.getRepeatCount() == 0) {
+            Fragment f = getSupportFragmentManager().findFragmentById(R.id.fragmentContainer);
+            if (f instanceof ScanFragment) {
+                ((ScanFragment) f).onTriggerPressed();
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     @Override
