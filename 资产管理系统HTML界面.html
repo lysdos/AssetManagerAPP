@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>资产管理系统</title>
+    <title>华夏资产管家</title>
     <style>
         * {
             margin: 0;
@@ -238,6 +238,44 @@
         .btn-secondary:active {
             background: #e3f2fd;
         }
+        
+        /* 新增按钮样式 */
+        .btn-reset {
+            display: block;
+            width: 100%;
+            background: #fff;
+            color: #f44336;
+            border: 1px solid #f44336;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            text-align: center;
+            margin-top: 12px;
+        }
+        .btn-reset:active {
+            background: #ffebee;
+        }
+        
+        .btn-export {
+            display: block;
+            width: 100%;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            text-align: center;
+            margin-top: 12px;
+            margin-bottom: 16px;
+        }
+        .btn-export:active {
+            background: #43a047;
+        }
 
         /* 结果页面 */
         .result-stat-row {
@@ -330,7 +368,7 @@
 
     <!-- 顶部状态栏 -->
     <div class="status-bar">
-        <span>📦 资产管家</span>
+        <span>📦 华夏资产管家</span>
         <span>09:41</span>
     </div>
 
@@ -377,16 +415,6 @@
             </div>
 
             <div class="card">
-                <h3>📍 在库设备</h3>
-                <p>当前存放于仓库/办公区的全部资产，包含未盘点与已盘点设备。</p>
-                <div class="tag-group">
-                    <span class="tag tag-blue">电脑类 432</span>
-                    <span class="tag tag-green">家具类 286</span>
-                    <span class="tag tag-orange">仪器类 198</span>
-                </div>
-            </div>
-
-            <div class="card">
                 <h3>📌 已盘点设备</h3>
                 <p>已完成扫码盘点的设备清单，包含盘点人、时间及状态。</p>
                 <div style="margin-top:8px; color:#1976d2; font-size:13px;">⏱ 最后盘点：2026-06-10 17:30</div>
@@ -403,6 +431,7 @@
             </div>
 
             <button class="btn-secondary" onclick="alert('开始新一轮扫码盘点')">➕ 开始盘点</button>
+            <button class="btn-reset" onclick="resetScanData()">🗑️ 数据重置</button>
         </div>
 
         <!-- ===== 结果页面 ===== -->
@@ -430,6 +459,8 @@
             <ul class="asset-list" id="assetList">
                 <!-- 由JS动态生成 -->
             </ul>
+            
+            <button class="btn-export" onclick="exportResults()">📤 导出结果</button>
 
             <div class="pagination">
                 <span>共 1,512 条，显示 1-6</span>
@@ -488,6 +519,25 @@
         function clearFile() {
             document.getElementById('fileInput').value = '';
             document.getElementById('fileInfo').style.display = 'none';
+        }
+        
+        // 数据重置功能
+        function resetScanData() {
+            if (confirm('确定要重置所有盘点数据吗？此操作将清空已盘点记录，但不会删除原始资产数据。')) {
+                alert('数据重置中...\n已盘点设备数量已清零。\n统计信息已更新。');
+                // 这里可以添加实际的数据重置逻辑
+                // 例如：更新页面上的统计数据
+                document.querySelector('#pageScan .stat-item:nth-child(2) .num').textContent = '0';
+                document.querySelector('#pageScan .stat-item:nth-child(2) .sub').textContent = '0%';
+                document.querySelector('#pageScan .stat-item:nth-child(3) .num').textContent = '0';
+            }
+        }
+        
+        // 结果导出功能
+        function exportResults() {
+            alert('正在导出盘点结果...\n生成Excel文件中...\n文件包含全部设备、已盘、盘亏、盘盈信息。');
+            // 这里可以添加实际的数据导出逻辑
+            // 例如：调用后端API下载文件
         }
 
         // 生成资产列表数据
