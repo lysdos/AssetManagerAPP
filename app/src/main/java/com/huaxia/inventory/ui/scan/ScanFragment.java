@@ -15,7 +15,6 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.snackbar.Snackbar;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
-import com.huaxia.inventory.data.dao.CategoryCount;
 import com.huaxia.inventory.rfid.SdkRfidAdapter;
 import com.huaxia.inventory.ui.util.TagPills;
 import com.huaxia.inventory.util.DateUtil;
@@ -29,10 +28,9 @@ public class ScanFragment extends Fragment {
     private TextView deviceStatusTv;
     private TextView inStockNumber, scannedNumber, anomalyNumber;
     private TextView inStockSub, scannedSub, anomalySub;
-    private TextView inStockCardTitle, inStockCardDesc;
     private TextView checkedCardTitle, checkedCardDesc, checkedCardSub;
     private TextView recentCardTitle, recentCardDesc;
-    private LinearLayout inStockTags, recentTags;
+    private LinearLayout recentTags;
 
     private final SdkRfidAdapter.TagListener rfidCallback = (epcStr, tid, rssi) -> {
         String normalized = EpcNormalizer.normalize(epcStr);
@@ -72,13 +70,6 @@ public class ScanFragment extends Fragment {
         anomalySub = v.findViewById(R.id.anomalyStat).findViewById(R.id.statSubTv);
 
         // Bind info cards
-        View inStockCard = v.findViewById(R.id.inStockCard);
-        inStockCardTitle = inStockCard.findViewById(R.id.infoTitleTv);
-        inStockCardDesc = inStockCard.findViewById(R.id.infoDescTv);
-        inStockTags = inStockCard.findViewById(R.id.infoTagsContainer);
-        inStockCardTitle.setText(R.string.scan_info_in_stock);
-        inStockCardDesc.setText(R.string.scan_info_in_stock_desc);
-
         View checkedCard = v.findViewById(R.id.checkedCard);
         checkedCardTitle = checkedCard.findViewById(R.id.infoTitleTv);
         checkedCardDesc = checkedCard.findViewById(R.id.infoDescTv);
@@ -116,7 +107,6 @@ public class ScanFragment extends Fragment {
             anomalyNumber.setText(String.valueOf(stats.anomaly));
             anomalySub.setText(stats.anomaly > 0 ? "需处理" : "OK");
 
-            renderCategoryTags(inStockTags, stats.categories);
             checkedCardSub.setText(getString(R.string.scan_info_checked_sub,
                     stats.lastInventoryAt == 0 ? "—" : DateUtil.formatTimestamp(stats.lastInventoryAt)));
             recentCardDesc.setText(getString(R.string.scan_info_recent_desc,
@@ -177,17 +167,6 @@ public class ScanFragment extends Fragment {
         number.setTextColor(androidx.core.content.ContextCompat.getColor(requireContext(), colorRes));
         subTv.setVisibility(View.VISIBLE);
         subTv.setText(sub);
-    }
-
-    private void renderCategoryTags(LinearLayout container, java.util.List<CategoryCount> cats) {
-        container.removeAllViews();
-        if (cats == null || cats.isEmpty()) return;
-        for (CategoryCount c : cats) {
-            TagPills.bind(container,
-                    getString(R.string.tag_format_count, c.category, c.count),
-                    R.drawable.bg_tag_blue,
-                    R.color.tagBlueFg);
-        }
     }
 
     private void renderResultTags(LinearLayout container, ScanViewModel.Stats stats) {

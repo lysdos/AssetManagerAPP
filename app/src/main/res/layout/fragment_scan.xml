@@ -60,10 +60,6 @@
             android:textColor="@color/textHint" />
 
         <include
-            android:id="@+id/inStockCard"
-            layout="@layout/view_info_card" />
-
-        <include
             android:id="@+id/checkedCard"
             layout="@layout/view_info_card" />
 

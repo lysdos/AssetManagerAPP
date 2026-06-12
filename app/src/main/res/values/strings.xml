@@ -27,8 +27,6 @@
     <string name="scan_stat_scanned">已盘点</string>
     <string name="scan_stat_anomaly">异常</string>
     <string name="scan_stat_sub_today">+%1$d 今日</string>
-    <string name="scan_info_in_stock">📍 在库设备</string>
-    <string name="scan_info_in_stock_desc">当前存放于仓库/办公区的全部资产，包含未盘点与已盘点设备。</string>
     <string name="scan_info_checked">📌 已盘点设备</string>
     <string name="scan_info_checked_desc">已完成扫码盘点的设备清单，包含盘点人、时间及状态。</string>
     <string name="scan_info_checked_sub">⏱ 最后盘点：%1$s</string>
