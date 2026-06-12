@@ -29,4 +29,13 @@
         <item name="android:textColor">@color/textLightHint</item>
         <item name="android:gravity">center</item>
     </style>
+
+    <style name="Huaxia.BottomNav" parent="Widget.MaterialComponents.BottomNavigationView">
+        <item name="itemTextAppearance">@style/Huaxia.BottomNav.Text</item>
+    </style>
+
+    <style name="Huaxia.BottomNav.Text" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
 </resources>

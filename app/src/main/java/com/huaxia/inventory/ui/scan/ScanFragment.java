@@ -195,10 +195,6 @@ public class ScanFragment extends Fragment {
         app.rfid.registerCallback(rfidCallback);
         app.rfid.powerOn();
         if (app.rfid.isPowered()) {
-            if (app.rfid.getState() == com.huaxia.inventory.rfid.RfidController.State.READY) {
-                app.rfid.startInventory();
-                scanBtn.setText(R.string.scan_stop);
-            }
             scanBtn.setEnabled(true);
         } else {
             scanBtn.setEnabled(false);
