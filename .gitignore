@@ -10,3 +10,9 @@ captures/
 app/release/
 *.apk
 *.aab
+
+# Local tooling runtime artifacts
+.codegraph/
+.reasonix/
+reasonix.toml
+.claude/settings.local.json
