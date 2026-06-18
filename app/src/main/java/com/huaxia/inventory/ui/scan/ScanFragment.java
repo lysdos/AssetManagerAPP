@@ -42,6 +42,7 @@ public class ScanFragment extends Fragment {
     private AudioManager audioManager;
 
     private final SdkRfidAdapter.TagListener rfidCallback = (epcStr, tid, rssi) -> {
+        // 卡上存的就是 16/17/24 位十进制固资编号, 直接归一化到 24 位规范
         String normalized = EpcNormalizer.normalize(epcStr);
         if (normalized == null) return;
         vm.onEpcScanned(normalized, tid, rssi);
@@ -49,6 +50,7 @@ public class ScanFragment extends Fragment {
     };
 
     public void onTriggerPressed() {
+        if (scanBtn == null || !scanBtn.isEnabled()) return;
         toggleScan();
     }
 
@@ -113,9 +115,25 @@ public class ScanFragment extends Fragment {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         Long taskId = app.session.getCurrentTaskId();
         if (taskId == null) {
+            // 没有当前任务 (从未导入, 或刚被数据重置): UI 全部归零, 禁用扫描.
             deviceStatusTv.setText(getString(R.string.scan_device_status,
                     getString(R.string.scan_status_not_ready)));
             scanBtn.setEnabled(false);
+            renderEmptyStats();
+            // 仍要订阅 clearResult, 这样从其他入口触发重置也能收到提示
+            vm.clearResult().observe(getViewLifecycleOwner(), result -> {
+                if (result == null) return;
+                if (result.isError()) {
+                    Snackbar.make(requireView(),
+                            getString(R.string.scan_clear_task_failed, result.error),
+                            Snackbar.LENGTH_LONG).show();
+                } else {
+                    Snackbar.make(requireView(),
+                            getString(R.string.scan_clear_task_done, result.assets, result.scans),
+                            Snackbar.LENGTH_LONG).show();
+                }
+            });
+            initSound();
             return;
         }
         vm.bindToTask(taskId);
@@ -201,17 +219,43 @@ public class ScanFragment extends Fragment {
         TagPills.bindCount(container, R.string.tag_extra, stats.extra, R.drawable.bg_tag_orange, R.color.tagOrangeFg);
     }
 
+    /** 无当前任务时把 stats 区域显式刷成 0/—, 避免上一任务的残留值. */
+    private void renderEmptyStats() {
+        inStockNumber.setText("0");
+        inStockSub.setText(getString(R.string.scan_stat_sub_today, 0));
+        scannedNumber.setText("0");
+        scannedSub.setText("0%");
+        anomalyNumber.setText("0");
+        anomalySub.setText("OK");
+        checkedCardSub.setText(getString(R.string.scan_info_checked_sub, "—"));
+        recentCardDesc.setText(getString(R.string.scan_info_recent_desc, 0, 0, 0));
+        recentTags.removeAllViews();
+    }
+
     private void toggleScan() {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        var state = app.rfid.getState();
-        if (state == com.huaxia.inventory.rfid.RfidController.State.SCANNING) {
-            app.rfid.stopInventory();
-            scanBtn.setText(R.string.scan_start_inventory);
-            applyScanBtnGreen();
+        boolean ok;
+        if (app.rfid.isActuallyScanning()) {
+            ok = app.rfid.stopInventory();
         } else {
-            app.rfid.startInventory();
+            ok = app.rfid.startInventory();
+        }
+        if (!ok) {
+            Snackbar.make(requireView(), R.string.scan_start_failed,
+                    Snackbar.LENGTH_SHORT).show();
+        }
+        updateScanButton();
+    }
+
+    /** Single source of truth for the scan button's appearance. */
+    private void updateScanButton() {
+        InventoryApp app = (InventoryApp) requireActivity().getApplication();
+        if (app.rfid.isActuallyScanning()) {
             scanBtn.setText(R.string.scan_stop);
             applyScanBtnRed();
+        } else {
+            scanBtn.setText(R.string.scan_start_inventory);
+            applyScanBtnGreen();
         }
     }
 

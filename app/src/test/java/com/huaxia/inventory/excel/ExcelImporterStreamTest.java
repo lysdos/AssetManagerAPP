@@ -53,9 +53,9 @@ public class ExcelImporterStreamTest {
         assertEquals(Integer.valueOf(1), batchSizes.get(2));
         assertEquals(7, all.size());
         assertTrue(errors.isEmpty());
-        // 顺序保留
-        assertEquals("3500309099000000", all.get(0).epc);
-        assertEquals("3500309099000006", all.get(6).epc);
+        // 顺序保留 (24 位规范形态)
+        assertEquals("000000003500309099000000", all.get(0).epc);
+        assertEquals("000000003500309099000006", all.get(6).epc);
         // 全部带上 taskId
         for (Asset a : all) assertEquals(1L, a.taskId);
     }
@@ -98,7 +98,7 @@ public class ExcelImporterStreamTest {
             ExcelImporter.Result r = ExcelImporter.parse(in, 1L);
             assertEquals(1, r.success);
             assertEquals(0, r.errors.size());
-            assertEquals("3500309099027210", r.assets.get(0).epc);
+            assertEquals("000000003500309099027210", r.assets.get(0).epc);
         }
     }
 

@@ -32,4 +32,13 @@ public class Asset {
     @Nullable
     @ColumnInfo(name = "raw_row_json")
     public String rawRowJson;
+
+    /**
+     * 盘点时间（毫秒）。null 表示该资产尚未被人工复核/编辑过。
+     * 点击详情弹窗保存时填充：有最早扫描记录用 MIN(scannedAt)，否则用当前时间。
+     * 导出时写入 Excel 「盘点时间」列。
+     */
+    @Nullable
+    @ColumnInfo(name = "inventory_time")
+    public Long inventoryTime;
 }

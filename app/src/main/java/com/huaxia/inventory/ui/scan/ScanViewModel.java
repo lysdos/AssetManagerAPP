@@ -168,8 +168,9 @@ public class ScanViewModel extends AndroidViewModel {
     }
 
     /**
-     * 删除当前任务下全部 Asset + ScanRecord 记录，并重置内存中的扫描状态。
-     * 结果通过 {@link #clearResult()} 回调给 UI。
+     * 清当前任务: 删 ScanRecord + Asset + InventoryTask 三表的当前任务行,
+     * 并清掉 session.currentTaskId. 重置后必须重新导入才能扫.
+     * 结果通过 {@link #clearResult()} 回调给 UI.
      */
     public void clearCurrentTask() {
         if (currentTaskId == -1L) {
@@ -181,13 +182,17 @@ public class ScanViewModel extends AndroidViewModel {
         mainHandler.removeCallbacks(recomputeRunnable);
         diskIO.execute(() -> {
             try {
-                // 先删 ScanRecord（依赖 Asset 外键语义），再删 Asset
+                // 先删 ScanRecord, 再删 Asset, 最后删 InventoryTask 行 (按外键依赖顺序)
                 int scans = db.scanRecordDao().deleteByTask(taskId);
                 int assets = db.assetDao().deleteByTask(taskId);
-                db.inventoryTaskDao().recomputeScannedCount(taskId);
+                db.inventoryTaskDao().deleteById(taskId);
                 scannedEpcSet.clear();
                 expectedCount = 0;
-                recomputeStats();
+                currentTaskId = -1L;
+                // 清掉全局 session 的 currentTaskId, 让其他页面 (扫描/结果/导入) 也感知到
+                app.session.clear();
+                // 显式 postValue 一份空 stats, 让 UI 立即归零 (不依赖 onResume/bindToTask 重算)
+                stats.postValue(new Stats(0, 0, 0, 0, 0, 0, 0, java.util.Collections.emptyList(), 0L));
                 clearResult.postValue(new ClearResult(assets, scans));
             } catch (Exception e) {
                 Log.e(TAG, "clearCurrentTask failed", e);

@@ -16,12 +16,12 @@ import static org.junit.Assert.assertTrue;
 public class ExcelImporterTest {
 
     @Test
-    public void parsesSampleFile_evenWhenAllEpcsEmpty() throws Exception {
+    public void parsesSampleFile_allValid() throws Exception {
+        // sample-assets.xlsx 实际含 131 条 16/17 位有效码 (asset 列已对齐, 24 位规范后入库)
         try (java.io.InputStream in = getClass().getResourceAsStream("/sample-assets.xlsx")) {
             ExcelImporter.Result r = ExcelImporter.parse(in, /* taskId */ 1L);
-            assertEquals(0, r.success);
-            assertTrue("Expected many empty-EPC errors; got " + r.errors.size(),
-                    r.errors.size() > 100);
+            assertEquals(131, r.success);
+            assertTrue("Expected zero errors, got " + r.errors.size(), r.errors.isEmpty());
         }
     }
 
@@ -49,9 +49,9 @@ public class ExcelImporterTest {
             assertEquals(2, r.success);
             assertEquals(0, r.errors.size());
             List<Asset> assets = r.assets;
-            assertEquals("3500309099027210", assets.get(0).epc);
+            assertEquals("000000003500309099027210", assets.get(0).epc);
             assertEquals("DPM901", assets.get(0).assetName);
-            assertEquals("3500309019310435", assets.get(1).epc);
+            assertEquals("000000003500309019310435", assets.get(1).epc);
         }
     }
 
@@ -64,7 +64,7 @@ public class ExcelImporterTest {
         String[][] rows = {
                 {"1", "X", "X", "X", "X", "X", "X", "X", "3500309099027210"},
                 {"2", "X", "X", "X", "X", "X", "X", "X", "350030909902721"},   // 15 位
-                {"3", "X", "X", "X", "X", "X", "X", "X", "3500309099027210A"},  // 17 位
+                {"3", "X", "X", "X", "X", "X", "X", "X", "3500309099027210A"},  // 17 字符含字母
                 {"4", "X", "X", "X", "X", "X", "X", "X", "3500309099ABC210"},  // 含字母
                 {"5", "X", "X", "X", "X", "X", "X", "X", ""}                    // 空
         };
@@ -72,6 +72,34 @@ public class ExcelImporterTest {
             ExcelImporter.Result r = ExcelImporter.parse(in, 1L);
             assertEquals(1, r.success);
             assertEquals(4, r.errors.size());
+        }
+    }
+
+    @Test
+    public void parsesValidAssetCodes_mixed16And17() throws Exception {
+        String[] headers = {
+                "序号", "设备名称", "设备类型", "设备型号", "所属机构",
+                "详细地点", "放置地点", "资产状态", "固资编号"
+        };
+        String[][] rows = {
+                {"1", "DPM901", "RFID设备", "DPM901", "运营管理部",
+                        "前台", "可放置", "在用", "3500309099027210"},          // 16 位
+                {"2", "UPS电池", "电池", "6-FML-100", "信息科技部",
+                        "支行", "可放置", "在用", "10000000000000000"},          // 17 位
+                {"3", "服务器", "服务器", "PowerEdge", "信息科技部",
+                        "机房", "机柜", "在用", "99999999999999999"}             // 17 位 max
+        };
+        try (java.io.InputStream in = buildXlsx(headers, rows)) {
+            ExcelImporter.Result r = ExcelImporter.parse(in, 1L);
+            assertEquals(3, r.success);
+            assertEquals(0, r.errors.size());
+            List<Asset> assets = r.assets;
+            assertEquals("000000003500309099027210", assets.get(0).epc);
+            assertEquals(24, assets.get(0).epc.length());
+            assertEquals("000000010000000000000000", assets.get(1).epc);
+            assertEquals(24, assets.get(1).epc.length());
+            assertEquals("000000099999999999999999", assets.get(2).epc);
+            assertEquals(24, assets.get(2).epc.length());
         }
     }
 

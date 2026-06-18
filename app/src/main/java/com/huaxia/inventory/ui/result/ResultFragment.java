@@ -122,7 +122,8 @@ public class ResultFragment extends Fragment {
                 matchedIdsCache.clear();
                 matchedIdsCache.addAll(matched);
                 requireActivity().runOnUiThread(() ->
-                    rv.setAdapter(new AssetResultAdapter(assets, matchedIdsCache)));
+                    rv.setAdapter(new AssetResultAdapter(assets, matchedIdsCache,
+                        this::showAssetDetailDialog)));
             });
         });
 
@@ -189,9 +190,12 @@ public class ResultFragment extends Fragment {
                     com.fasterxml.jackson.databind.ObjectMapper mapper =
                             new com.fasterxml.jackson.databind.ObjectMapper();
                     @SuppressWarnings("unchecked")
-                    java.util.Map<String, String> raw = mapper.readValue(
+                    java.util.Map<String, Object> raw = mapper.readValue(
                             firstPage.get(0).rawRowJson, java.util.Map.class);
-                    originalHeaders.addAll(raw.keySet());
+                    // 源里的"盘点日期"是空占位列, 导出时由"盘点时间"取代, 这里过滤掉避免重复.
+                    for (String k : raw.keySet()) {
+                        if (!"盘点日期".equals(k)) originalHeaders.add(k);
+                    }
                 }
 
                 try (java.io.OutputStream out =
@@ -208,6 +212,30 @@ public class ResultFragment extends Fragment {
                         getString(R.string.err_export_failed, e.getMessage()),
                         Snackbar.LENGTH_LONG).show());
             }
+        });
+    }
+
+    private void showAssetDetailDialog(Asset asset) {
+        boolean isMatched = matchedIdsCache.contains(asset.id);
+        AssetDetailDialog.show(this, asset, isMatched, this::onAssetDetailSaved);
+    }
+
+    private void onAssetDetailSaved(Asset updated) {
+        InventoryApp app = (InventoryApp) requireActivity().getApplication();
+        long taskId = currentTaskId;
+        long assetId = updated.id;
+        app.executors.diskIO.execute(() -> {
+            // 盘点时间: 优先用该资产最早一次扫描时间, 否则用当前时间
+            Long firstScanAt = app.db.scanRecordDao().findFirstScanTime(taskId, assetId);
+            updated.inventoryTime = (firstScanAt != null && firstScanAt > 0)
+                    ? firstScanAt
+                    : System.currentTimeMillis();
+            app.db.assetDao().update(updated);
+            requireActivity().runOnUiThread(() -> {
+                Snackbar.make(requireView(), R.string.msg_asset_saved,
+                        Snackbar.LENGTH_SHORT).show();
+                vm.refresh();
+            });
         });
     }
 }

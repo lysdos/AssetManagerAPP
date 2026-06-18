@@ -27,4 +27,7 @@ public interface InventoryTaskDao {
 
     @Query("UPDATE InventoryTask SET scannedUniqueCount = (SELECT COUNT(*) FROM ScanRecord WHERE taskId = :taskId) WHERE id = :taskId")
     void recomputeScannedCount(long taskId);
+
+    @Query("DELETE FROM InventoryTask WHERE id = :taskId")
+    int deleteById(long taskId);
 }

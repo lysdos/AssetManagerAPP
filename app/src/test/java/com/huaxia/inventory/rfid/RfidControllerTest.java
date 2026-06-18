@@ -22,7 +22,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Unit tests for {@link RfidController}.
@@ -149,63 +148,5 @@ public class RfidControllerTest {
         // Second release: short-circuits because state is IDLE again.
         c.release();
         assertEquals("release() should be called exactly once", 1, releaseCount.get());
-    }
-
-    @Test
-    public void writeEpc_delegatesHexToAdapter() {
-        // 把控制器推到 READY
-        AtomicReference<String> capturedHex = new AtomicReference<>();
-        SdkRfidAdapter realAdapter = new SdkRfidAdapter() {
-            @Override
-            public void init(Context ignored, Callback c) {
-                c.onStatus(true);
-            }
-            @Override
-            public int writeEpc(String hex) {
-                capturedHex.set(hex);
-                return 0;
-            }
-        };
-        RfidController c = new RfidController(realAdapter);
-        c.init(null, null);
-
-        // 3500309099027210 -> 000C6F8338739B0A
-        boolean ok = c.writeEpc("3500309099027210");
-
-        assertTrue(ok);
-        assertEquals("000C6F8338739B0A", capturedHex.get());
-    }
-
-    @Test
-    public void writeEpc_returnsFalseWhenNotReady() {
-        // setup() 创建的 controller 处于 IDLE
-        boolean ok = controller.writeEpc("3500309099027210");
-
-        assertFalse(ok);
-        verify(adapter, never()).writeEpc(any(String.class));
-    }
-
-    @Test
-    public void writeEpc_returnsFalseOnCodecFailure() {
-        AtomicBoolean writeEpcCalled = new AtomicBoolean(false);
-        SdkRfidAdapter realAdapter = new SdkRfidAdapter() {
-            @Override
-            public void init(Context ignored, Callback c) {
-                c.onStatus(true);
-            }
-            @Override
-            public int writeEpc(String hex) {
-                writeEpcCalled.set(true);
-                return 0;
-            }
-        };
-        RfidController c = new RfidController(realAdapter);
-        c.init(null, null);
-
-        // 非 16 位数字 — codec 失败
-        boolean ok = c.writeEpc("123");
-
-        assertFalse(ok);
-        assertFalse("adapter.writeEpc should not be called on codec failure", writeEpcCalled.get());
     }
 }

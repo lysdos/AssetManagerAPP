@@ -93,14 +93,22 @@ public class SdkRfidAdapter {
      * on the calling thread, after {@code init()} returns.
      */
     public void init(Context appCtx, Callback cb) {
+        Log.i("UHFInit", "[SdkRfidAdapter] init() entered");
         boolean ok = false;
         try {
-            ok = requireReader().init();
+            RFIDWithUHFUART r = requireReader();
+            Log.i("UHFInit", "[SdkRfidAdapter] reader class = " + r.getClass().getName());
+            Log.i("UHFInit", "[SdkRfidAdapter] calling reader.init()...");
+            ok = r.init();
+            Log.i("UHFInit", "[SdkRfidAdapter] reader.init() returned " + ok);
         } catch (Throwable t) {
+            Log.e("UHFInit", "[SdkRfidAdapter] init() threw " + t.getClass().getName()
+                    + ": " + t.getMessage(), t);
             Log.w(TAG, "init() failed", t);
         }
         powered.set(ok);
         if (cb != null) cb.onStatus(ok);
+        Log.i("UHFInit", "[SdkRfidAdapter] init() done, ok=" + ok);
     }
 
     /** Whether the underlying RFID module is currently connected. */
@@ -202,29 +210,6 @@ public class SdkRfidAdapter {
             Log.w(TAG, "free() failed", t);
         }
         powered.set(false);
-    }
-
-    /**
-     * Write a new EPC to the next tag observed by the reader.
-     *
-     * <p>Returns {@code 0} on success, non-zero on failure. The input must be
-     * exactly 16 hex characters (8 bytes) representing the asset code in
-     * big-endian integer form.</p>
-     *
-     * <p><b>TODO:</b> real integration with the rscja DeviceAPI is pending.
-     * See {@code uhf-uart-demo/uhf-uart-demo/app/src/main/} for the SDK
-     * reference (e.g. {@code setEpc} / {@code writeEpc}). This placeholder
-     * throws so callers (and tests) can detect the unimplemented path.</p>
-     *
-     * @param hex16 16-character uppercase hex string (e.g. "000C6F8338739B0A")
-     * @return {@code 0} on success, non-zero on failure
-     */
-    public int writeEpc(String hex16) {
-        if (hex16 == null || hex16.length() != 16) return -1;
-        if (!hex16.matches("[0-9A-Fa-f]+")) return -1;
-        // TODO: integrate with rscja DeviceAPI
-        throw new UnsupportedOperationException(
-                "SdkRfidAdapter.writeEpc not yet implemented; see uhf-uart-demo");
     }
 
     private void pollLoop() {

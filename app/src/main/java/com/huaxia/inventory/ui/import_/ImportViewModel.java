@@ -2,6 +2,7 @@ package com.huaxia.inventory.ui.import_;
 
 import android.app.Application;
 import android.net.Uri;
+import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
@@ -42,6 +43,8 @@ public class ImportViewModel extends AndroidViewModel {
         }
     }
 
+    private static final String TAG = "ImportVM";
+
     public static class ImportProgress {
         public final int imported;   // 已写入数据库条数
         public final int total;      // 总条数（来自预期值或解析结果）
@@ -77,8 +80,10 @@ public class ImportViewModel extends AndroidViewModel {
      * 流式解析：不再把全表 Asset 留在堆里。保留前 10 条预览 + 错误采样 + 源 Uri。
      */
     public void parseFile(Uri uri, String displayName) {
+        Log.i(TAG, "parseFile start uri=" + uri + " name=" + displayName);
         diskIO.execute(() -> {
             try (InputStream in = app.getContentResolver().openInputStream(uri)) {
+                Log.i(TAG, "openInputStream returned " + (in == null ? "null" : "ok"));
                 int[] counters = {0, 0};
                 List<Asset> preview = new ArrayList<>(PREVIEW_MAX);
                 List<String> errors = new ArrayList<>(ERROR_SAMPLE_MAX);
@@ -93,17 +98,24 @@ public class ImportViewModel extends AndroidViewModel {
                             }
                             @Override public void onError(String message) {
                                 counters[1]++;
+                                Log.w(TAG, "row onError: " + message);
                                 if (errors.size() < ERROR_SAMPLE_MAX) errors.add(message);
                             }
                         });
+                Log.i(TAG, "stream() returned success=" + counters[0] + " error=" + counters[1]);
                 parsedFile.postValue(new ParsedFile(
                         displayName, counters[0], counters[1], errors, preview, uri));
+                Log.i(TAG, "parsedFile.postValue success=" + counters[0]);
             } catch (Exception e) {
-                parseError.postValue(e.getMessage());
+                Log.e(TAG, "parseFile FAILED", e);
+                String msg = e.getClass().getSimpleName()
+                        + (e.getMessage() == null ? "" : ": " + e.getMessage());
+                parseError.postValue(msg);
                 parsedFile.postValue(new ParsedFile(
                         displayName, 0, 0,
-                        Collections.singletonList("Parse error: " + e.getMessage()),
+                        Collections.singletonList("Parse error: " + msg),
                         Collections.emptyList(), uri));
+                Log.w(TAG, "posted parsedFile(success=0) due to exception");
             }
         });
     }
@@ -147,8 +159,10 @@ public class ImportViewModel extends AndroidViewModel {
                 importDone.postValue(taskId);
                 cb.onCommitted(taskId);
             } catch (Exception e) {
-                importError.postValue(e.getMessage() == null
-                        ? e.getClass().getSimpleName() : e.getMessage());
+                Log.e(TAG, "commitToTask FAILED", e);
+                String msg = e.getClass().getSimpleName()
+                        + (e.getMessage() == null ? "" : ": " + e.getMessage());
+                importError.postValue(msg);
             }
         });
     }

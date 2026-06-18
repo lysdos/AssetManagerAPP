@@ -48,7 +48,12 @@ public class ResultViewModel extends AndroidViewModel {
 
     public void bindToTask(long taskId) {
         this.currentTaskId = taskId;
-        refresh();
+        // 进结果页前先把所有 found 资产的 inventoryTime 回填一次 (幂等, 已有值的不动).
+        // 这样导出/弹窗显示的盘点时间, 对每条 found 资产都有值.
+        diskIO.execute(() -> {
+            db.assetDao().backfillFoundInventoryTime(taskId);
+            refresh();
+        });
     }
 
     public void setTab(ResultTab tab) {
@@ -68,7 +73,10 @@ public class ResultViewModel extends AndroidViewModel {
         refresh();
     }
 
-    private void refresh() {
+    /**
+     * 重新拉取当前页的资产/扫描数据。供弹窗保存后调用，让列表显示最新的 rawRowJson 内容。
+     */
+    public void refresh() {
         long taskId = currentTaskId;
         ResultTab tab = activeTab.getValue() == null ? ResultTab.FOUND : activeTab.getValue();
         Integer pageObj = currentPage.getValue();

@@ -38,4 +38,21 @@
         <item name="android:textSize">13sp</item>
         <item name="android:textStyle">bold</item>
     </style>
+
+    <!-- Asset detail dialog: field label (灰色小字) -->
+    <style name="DialogLabel" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">10dp</item>
+        <item name="android:textSize">@dimen/textSizeLabel</item>
+        <item name="android:textColor">@color/textHint</item>
+    </style>
+
+    <!-- Asset detail dialog: read-only value (默认黑字) -->
+    <style name="DialogValue" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">@android:color/black</item>
+    </style>
 </resources>

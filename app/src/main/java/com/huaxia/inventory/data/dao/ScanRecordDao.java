@@ -54,4 +54,12 @@ public interface ScanRecordDao {
            "COALESCE(MAX(scannedAt), 0) AS lastScannedAt " +
            "FROM ScanRecord WHERE taskId = :taskId")
     ScanAggregate aggregateStats(long taskId);
+
+    /**
+     * 该资产最早一次成功匹配的扫描时间（毫秒）。无匹配记录时返回 null，
+     * 调用方据此决定是用首次扫描时间还是当前时间作为 Asset.inventoryTime。
+     */
+    @Query("SELECT MIN(scannedAt) FROM ScanRecord " +
+           "WHERE taskId = :taskId AND matchedAssetId = :assetId")
+    Long findFirstScanTime(long taskId, long assetId);
 }

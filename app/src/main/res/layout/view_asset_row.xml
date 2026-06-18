@@ -31,6 +31,13 @@
             android:textColor="@color/textBody" />
 
         <TextView
+            android:id="@+id/assetModelTv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="@color/textDisabled" />
+
+        <TextView
             android:id="@+id/assetOrgTv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

@@ -14,6 +14,7 @@
     <string name="scan_stop">停止扫描</string>
     <string name="scan_status_ready">设备就绪</string>
     <string name="scan_status_not_ready">设备未就绪</string>
+    <string name="scan_start_failed">UHF 启动失败，请检查设备连接</string>
 
     <string name="app_brand">📦 华夏资产管家</string>
     <string name="import_title">📥 导入资产数据</string>
@@ -62,4 +63,24 @@
     <string name="tag_missing">盘亏</string>
     <string name="tag_extra">盘盈</string>
     <string name="tag_format_count">%1$s %2$d</string>
+
+    <!-- Asset detail dialog -->
+    <string name="dialog_asset_title">资产详情</string>
+    <string name="label_epc">固资编号</string>
+    <string name="label_asset_name">设备名称</string>
+    <string name="label_asset_type">设备类型</string>
+    <string name="label_asset_model">设备型号</string>
+    <string name="label_org">所属机构</string>
+    <string name="label_detailed_location">详细地点</string>
+    <string name="label_placement_location">放置地点</string>
+    <string name="label_asset_status">资产状态</string>
+    <string name="label_inventory_status">盘点状态</string>
+    <string name="label_inventory_time">盘点时间</string>
+    <string name="label_borrow_dept">领用部门</string>
+    <string name="label_borrower">领用人</string>
+    <string name="hint_borrow_dept">请输入领用部门</string>
+    <string name="hint_borrower">请输入领用人</string>
+    <string name="action_save">保存</string>
+    <string name="action_cancel">取消</string>
+    <string name="msg_asset_saved">已保存</string>
 </resources>

@@ -6,6 +6,12 @@ android {
     namespace 'com.huaxia.inventory'
     compileSdk 34
 
+    // AGP 8.0+ 默认不为 application module 生成 BuildConfig 类;
+    // 显式开启, 让 com.huaxia.inventory.BuildConfig 在源码里能引用到.
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId "com.huaxia.inventory"
         minSdk 26
@@ -20,9 +26,30 @@ android {
     }
 
     buildTypes {
+        debug {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    packagingOptions {
+        resources {
+            // log4j-api / log4j-core 都带构建期元数据, AGP 默认拒绝重复资源路径
+            // 运行时用不到, pickFirst 保留一份即可 (比 excludes 安全)
+            pickFirsts += ['META-INF/DEPENDENCIES']
+        }
+    }
+
+    testOptions {
+        unitTests {
+            // 让 ExcelImporter / ImportViewModel 里加的 Log.i/w/e 调用在 JVM 测试
+            // 下返回 0 而不是抛 "not mocked" — Robolectric 测试不受影响
+            returnDefaultValues = true
+            includeAndroidResources = true
         }
     }
 }
@@ -41,6 +68,11 @@ dependencies {
     annotationProcessor 'androidx.room:room-compiler:2.6.1'
 
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    // POI 5 把 log4j 改成 optional; 不加 log4j-core 时 ProviderUtil 会走
+    // java.util.ServiceLoader 路径 (LambdaMetafactory.metafactory), Android ART 不支持,
+    // 抛 NoSuchMethodError 导致 XSSFWorkbook 构造失败. log4j-core 自带
+    // META-INF/log4j-provider.properties, ProviderUtil 走 properties 路径不触发 lambda.
+    implementation 'org.apache.logging.log4j:log4j-core:2.21.1'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
 
     implementation files('libs/DeviceAPI_ver20230301_release.aar')

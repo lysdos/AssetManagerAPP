@@ -2,8 +2,6 @@ package com.huaxia.inventory.rfid;
 
 import android.content.Context;
 
-import com.huaxia.inventory.util.EpcCodec;
-
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -33,7 +31,7 @@ public class RfidController {
     /** High-level controller state. */
     public enum State { IDLE, INITIALIZING, READY, SCANNING, ERROR }
 
-    private static final String TAG = "RfidController";
+    private static final String TAG = "UHFInit";
 
     private final SdkRfidAdapter adapter;
     private volatile State state = State.IDLE;
@@ -61,14 +59,18 @@ public class RfidController {
      * invoked immediately with {@code true} on the calling thread.
      */
     public void init(Context appCtx, SdkRfidAdapter.Callback onReady) {
+        android.util.Log.i(TAG, "[RfidController] init() called, state=" + state);
         if (state == State.READY || state == State.SCANNING) {
             if (onReady != null) onReady.onStatus(true);
             return;
         }
         state = State.INITIALIZING;
+        android.util.Log.i(TAG, "[RfidController] state -> INITIALIZING, calling adapter.init()");
         adapter.init(appCtx, ready -> {
+            android.util.Log.i(TAG, "[RfidController] adapter.init callback ready=" + ready);
             state = ready ? State.READY : State.ERROR;
             if (onReady != null) onReady.onStatus(ready);
+            android.util.Log.i(TAG, "[RfidController] state -> " + state);
         });
     }
 
@@ -90,49 +92,47 @@ public class RfidController {
     }
 
     /**
-     * Begin continuous inventory. No-op unless the controller is in
-     * {@link State#READY} or {@link State#SCANNING}.
+     * Begin continuous inventory.
+     *
+     * @return {@code true} if the controller is now in {@link State#SCANNING}
+     *         (either we just transitioned, or we were already scanning and
+     *         the call is a no-op). {@code false} if the controller was not in
+     *         a state from which inventory can start, or the SDK rejected the
+     *         call (returned non-zero).
      */
-    public void startInventory() {
-        if (state != State.READY && state != State.SCANNING) return;
-        if (state == State.SCANNING) return;
+    public boolean startInventory() {
+        if (state != State.READY && state != State.SCANNING) return false;
+        if (state == State.SCANNING) return true;
         int rc = adapter.startInventory();
-        if (rc == 0) state = State.SCANNING;
-    }
-
-    /** Stop continuous inventory. No-op unless currently scanning. */
-    public void stopInventory() {
-        if (state != State.SCANNING) return;
-        adapter.stopInventory();
-        state = State.READY;
+        if (rc == 0) {
+            state = State.SCANNING;
+            return true;
+        }
+        return false;
     }
 
     /**
-     * Write a unified asset code (16-digit decimal) to a tag's EPC memory.
+     * Stop continuous inventory.
      *
-     * <p>No-op unless the controller is in {@link State#READY} or
-     * {@link State#SCANNING}.</p>
-     *
-     * @param decimal16 16-digit decimal string (e.g. "3500309099027210")
-     * @return {@code true} on success, {@code false} on any failure
-     *         (illegal state, codec failure, or SDK non-zero return)
+     * @return {@code true} if the controller transitioned (or was already
+     *         out of) {@link State#SCANNING} as a result of this call.
+     *         {@code false} if the controller was not scanning.
      */
-    public boolean writeEpc(String decimal16) {
-        if (state != State.READY && state != State.SCANNING) return false;
-        String hex = EpcCodec.toHex(decimal16);
-        if (hex == null) return false;
-        try {
-            int rc = adapter.writeEpc(hex);
-            if (rc != 0) {
-                android.util.Log.w(TAG, "writeEpc failed rc=" + rc);
-                return false;
-            }
-            return true;
-        } catch (UnsupportedOperationException uoe) {
-            // SDK 集成未完成 — 当前是占位
-            android.util.Log.w(TAG, "writeEpc not implemented");
-            return false;
-        }
+    public boolean stopInventory() {
+        if (state != State.SCANNING) return false;
+        adapter.stopInventory();
+        state = State.READY;
+        return true;
+    }
+
+    /**
+     * Whether the controller is actually scanning right now. Prefer this over
+     * comparing {@link #getState()} to {@link State#SCANNING} at call sites
+     * that need to drive UI: it gives the same answer with less ceremony and
+     * keeps a single point of truth for "is the radio emitting?".
+     */
+    public boolean isActuallyScanning() {
+        return state == State.SCANNING;
     }
 
     /** Power the RFID module off (does not release the SDK). */

@@ -1,5 +1,6 @@
 package com.huaxia.inventory.excel;
 
+import android.util.Log;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.util.EpcNormalizer;
@@ -41,6 +42,7 @@ public final class ExcelImporter {
     }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String TAG = "ExcelImporter";
 
     private ExcelImporter() {}
 
@@ -68,7 +70,9 @@ public final class ExcelImporter {
     public static void stream(InputStream in, long taskId, int batchSize, BatchHandler handler)
             throws Exception {
         if (batchSize <= 0) throw new IllegalArgumentException("batchSize must be > 0");
+        Log.i(TAG, "stream start, batchSize=" + batchSize);
         try (Workbook wb = new XSSFWorkbook(in)) {
+            Log.i(TAG, "XSSFWorkbook constructed, sheetCount=" + wb.getNumberOfSheets());
             Sheet sheet = wb.getSheetAt(0);
             Iterator<Row> rows = sheet.iterator();
             if (!rows.hasNext()) throw new IllegalStateException("Empty sheet");
@@ -96,7 +100,7 @@ public final class ExcelImporter {
                     if (code == null) {
                         handler.onError("Row " + excelRow + ": invalid 固资编号 '"
                                 + (rawCode == null ? "" : rawCode)
-                                + "' (需 16 位十进制), skipped");
+                                + "' (需 16、17 或 24 位十进制, 请将单元格设为文本格式), skipped");
                         excelRow++;
                         continue;
                     }
@@ -118,6 +122,7 @@ public final class ExcelImporter {
                         pending = new ArrayList<>(batchSize);
                     }
                 } catch (Exception e) {
+                    Log.w(TAG, "row " + excelRow + " parse failed", e);
                     handler.onError("Row " + excelRow + ": " + e.getMessage());
                 }
                 excelRow++;
@@ -125,6 +130,7 @@ public final class ExcelImporter {
             if (!pending.isEmpty()) {
                 handler.onBatch(pending);
             }
+            Log.i(TAG, "stream done, pending.size=" + pending.size());
         }
     }
 

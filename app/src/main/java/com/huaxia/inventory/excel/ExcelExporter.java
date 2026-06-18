@@ -20,7 +20,7 @@ public final class ExcelExporter {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public static final List<String> RESULT_COLUMNS = Arrays.asList(
-            "盘点状态", "盘点时间", "信号强度");
+            "盘点状态", "盘点时间");
 
     /** 流式导出的分页大小。经验值：1000 行 ≈ 5-10MB 堆，1s 内写完。 */
     public static final int STREAM_PAGE_SIZE = 1000;
@@ -125,7 +125,7 @@ public final class ExcelExporter {
     private static void writeAssetRow(XlsxStreamWriter writer, Asset a,
                                        List<String> originalHeaders,
                                        java.util.function.LongPredicate isFound) {
-        Object[] cells = new Object[originalHeaders.size() + 3];
+        Object[] cells = new Object[originalHeaders.size() + 2];
         try {
             @SuppressWarnings("unchecked")
             Map<String, String> raw = MAPPER.readValue(
@@ -139,18 +139,24 @@ public final class ExcelExporter {
         }
         int base = originalHeaders.size();
         cells[base] = isFound.test(a.id) ? "已盘" : "盘亏";
-        cells[base + 1] = "";
-        cells[base + 2] = "";
+        cells[base + 1] = a.inventoryTime == null
+                ? ""
+                : DateUtil.formatTimestamp(a.inventoryTime);
         writer.writeRow(cells);
     }
 
     private static void writeExtraRow(XlsxStreamWriter writer,
                                        List<String> originalHeaders, ScanRecord s) {
         int base = originalHeaders.size();
-        Object[] cells = new Object[base + 3];
+        Object[] cells = new Object[base + 2];
+        // 把 EPC 写进 "固资编号" 列, TID 写进 "电子标签" 列.
+        // 客户文件通常两列都有, 但顺序不一定; 按名字找最稳.
+        int epcIdx = originalHeaders.indexOf("固资编号");
+        if (epcIdx >= 0) cells[epcIdx] = s.epc;
+        int tidIdx = originalHeaders.indexOf("电子标签");
+        if (tidIdx >= 0) cells[tidIdx] = s.tid == null ? "" : s.tid;
         cells[base] = "盘盈";
         cells[base + 1] = DateUtil.formatTimestamp(s.scannedAt);
-        cells[base + 2] = s.rssi == null ? "" : s.rssi;
         writer.writeRow(cells);
     }
 }
