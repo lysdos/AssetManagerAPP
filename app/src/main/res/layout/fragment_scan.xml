@@ -81,7 +81,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="@string/scan_manual_btn" />
+            android:text="@string/scan_manual_btn"
+            android:textColor="@color/colorPrimary"
+            app:strokeColor="@color/colorPrimary" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/clearTaskBtn"
