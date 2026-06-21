@@ -32,4 +32,12 @@
     <color name="colorReset">#F44336</color>
     <color name="colorExport">#4CAF50</color>
     <color name="colorResetBg">#FFEBEE</color>
+
+    <!-- Tip box variants (info/warning/error) -->
+    <color name="tipInfoBg">#E3F2FD</color>
+    <color name="tipInfoFg">#1565C0</color>
+    <color name="tipWarningBg">#FFF3E0</color>
+    <color name="tipWarningFg">#EF6C00</color>
+    <color name="tipErrorBg">#FFEBEE</color>
+    <color name="tipErrorFg">#C62828</color>
 </resources>

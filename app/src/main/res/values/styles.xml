@@ -55,4 +55,21 @@
         <item name="android:textSize">15sp</item>
         <item name="android:textColor">@android:color/black</item>
     </style>
+
+    <!-- Inline row label/value (used inside CardView detail sections). -->
+    <style name="RowLabel" parent="">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/textHint</item>
+    </style>
+
+    <style name="RowValue" parent="">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_weight">2</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@android:color/black</item>
+    </style>
 </resources>

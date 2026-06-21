@@ -83,4 +83,39 @@
     <string name="action_save">保存</string>
     <string name="action_cancel">取消</string>
     <string name="msg_asset_saved">已保存</string>
+
+    <!-- Manual scan page -->
+    <string name="scan_manual_btn">📱 手动盘点</string>
+    <string name="manual_title">📱 手动盘点</string>
+    <string name="manual_hint">输入固资编号（16/17/24 位）后回车或点查询</string>
+    <string name="manual_query">查询</string>
+    <string name="manual_confirm_check">✅ 确认盘点</string>
+    <string name="manual_history_title">本次盘点历史</string>
+    <string name="manual_history_empty">暂无手动盘点记录</string>
+    <string name="manual_back">⬅️ 返回扫描页</string>
+    <string name="manual_err_invalid">请输入 16/17/24 位纯数字固资编号</string>
+    <string name="manual_err_not_found">未找到固资编号 %1$s 对应的资产</string>
+    <string name="manual_err_no_task">当前无任务，请先导入资产数据</string>
+    <string name="manual_msg_check_done">已盘点：%1$s</string>
+    <string name="manual_msg_check_dup">该固资编号已在 %1$s 盘点过</string>
+    <string name="manual_asset_status_unknown">—</string>
+    <string name="manual_asset_id_value">%1$s</string>
+
+    <!-- Manual scan page: scan status card / start-stop controls -->
+    <string name="manual_scan_idle_icon">📱</string>
+    <string name="manual_scan_active_icon">🔫</string>
+    <string name="manual_scan_idle">等待扫码</string>
+    <string name="manual_scan_active">正在扫码中…</string>
+    <string name="manual_scan_idle_tip">点击下方按钮启动手持机扫码</string>
+    <string name="manual_scan_active_tip">将条码对准手持机扫描窗口</string>
+    <string name="manual_scan_start_btn">🔫 启动扫码</string>
+    <string name="manual_scan_stop_btn">⏹️ 停止扫码</string>
+
+    <!-- Toast / Snackbar messages after an auto-scan (no user confirmation) -->
+    <string name="manual_scan_done_found">已盘：%1$s</string>
+    <string name="manual_scan_done_extra">盘盈：%1$s</string>
+    <string name="manual_scan_done_dup">已扫过：%1$s（%2$s）</string>
+    <string name="manual_scan_done_invalid">扫码格式错误：%1$s</string>
+    <string name="manual_scan_camera_permission_denied">需要相机权限才能扫码，请在系统设置中开启</string>
+    <string name="manual_scan_camera_init_failed">相机启动失败，请检查设备是否有摄像头</string>
 </resources>

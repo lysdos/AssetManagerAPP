@@ -138,6 +138,17 @@ public class ScanViewModel extends AndroidViewModel {
     }
 
     /**
+     * Public refresh hook so other fragments (e.g. ManualScanFragment writing
+     * a ScanRecord directly via dao) can nudge the scan-page stats without
+     * owning the ViewModel. Cheap (one SQL aggregate) — safe to call on
+     * resume or after an external write.
+     */
+    public void refreshStats() {
+        mainHandler.removeCallbacks(recomputeRunnable);
+        recomputeStats();
+    }
+
+    /**
      * 立即重算统计：单次 SQL 聚合拿到 matched/extra/lastScannedAt，
      * 复杂度从原来的 O(n) 全表扫描降到 O(1)。
      */

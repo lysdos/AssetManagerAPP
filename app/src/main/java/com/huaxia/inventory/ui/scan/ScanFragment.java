@@ -21,6 +21,7 @@ import com.huaxia.inventory.R;
 import com.huaxia.inventory.rfid.SdkRfidAdapter;
 import com.huaxia.inventory.ui.result.ResultFragment;
 import com.huaxia.inventory.ui.result.ResultTab;
+import com.huaxia.inventory.ui.manual.ManualScanFragment;
 import com.huaxia.inventory.ui.util.TagPills;
 import com.huaxia.inventory.util.DateUtil;
 import com.huaxia.inventory.util.EpcNormalizer;
@@ -29,6 +30,7 @@ public class ScanFragment extends Fragment {
 
     private ScanViewModel vm;
     private MaterialButton scanBtn;
+    private MaterialButton manualScanBtn;
     private MaterialButton clearTaskBtn;
     private TextView deviceStatusTv;
     private TextView inStockNumber, scannedNumber, anomalyNumber;
@@ -67,6 +69,7 @@ public class ScanFragment extends Fragment {
         vm = new ViewModelProvider(this).get(ScanViewModel.class);
 
         scanBtn = v.findViewById(R.id.scanBtn);
+        manualScanBtn = v.findViewById(R.id.manualScanBtn);
         clearTaskBtn = v.findViewById(R.id.clearTaskBtn);
         deviceStatusTv = v.findViewById(R.id.deviceStatusTv);
 
@@ -101,6 +104,7 @@ public class ScanFragment extends Fragment {
         recentCardTitle.setText(R.string.scan_info_recent);
 
         scanBtn.setOnClickListener(btn -> toggleScan());
+        manualScanBtn.setOnClickListener(btn -> navigateToManualScan());
         clearTaskBtn.setOnClickListener(btn -> confirmClearTask());
         applyScanBtnGreen();
 
@@ -275,6 +279,16 @@ public class ScanFragment extends Fragment {
         nav.getMenu().findItem(R.id.nav_result).setChecked(true);
     }
 
+    private void navigateToManualScan() {
+        // 跟 navigateToResult 一样 addToBackStack, 让用户能用返回键回到扫描页;
+        // 回到扫描页时 onResume 会调 vm.refreshStats(), 把手动盘点写进去的 ScanRecord 反映到统计卡上.
+        requireActivity().getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.fragmentContainer, new ManualScanFragment(), "manual_scan")
+                .addToBackStack(null)
+                .commit();
+    }
+
     private void applyScanBtnGreen() {
         int green = ContextCompat.getColor(requireContext(), R.color.statusFound);
         scanBtn.setTextColor(green);
@@ -306,6 +320,10 @@ public class ScanFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        // 从手动盘点页返回时, 该页面写过 ScanRecord 但 stats observer 不会自动重发,
+        // 主动 refresh 一次把已盘点/盘盈数刷成最新. bindToTask 也调 recomputeStats,
+        // 但 taskId 不变时不会重跑.
+        if (vm != null) vm.refreshStats();
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         app.rfid.registerCallback(rfidCallback);
         app.rfid.powerOn();

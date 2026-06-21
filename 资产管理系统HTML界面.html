@@ -362,14 +362,148 @@
             background: #ccc;
             border-radius: 4px;
         }
+
+        /* ========== 手动盘点页面（扫码枪模式 无摄像头画面） ========== */
+        .scan-status-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px 16px;
+            margin-bottom: 16px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .scan-status-card .icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+        .scan-status-card .status {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .scan-status-card .tip {
+            font-size: 14px;
+            color: #666;
+        }
+        .scan-active {
+            background: #e3f2fd;
+            border: 2px solid #1976d2;
+        }
+        .scan-active .icon {
+            color: #1976d2;
+        }
+        .scan-active .status {
+            color: #1976d2;
+        }
+        .code-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 12px;
+            outline: none;
+        }
+        .code-input:focus {
+            border-color: #1976d2;
+        }
+        .asset-detail {
+            background: #fff;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .asset-detail .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        .asset-detail .detail-item:last-child {
+            border-bottom: none;
+        }
+        .asset-detail .label {
+            font-size: 14px;
+            color: #666;
+        }
+        .asset-detail .value {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+        }
+        .btn-back {
+            display: block;
+            width: 100%;
+            background: #f5f5f5;
+            color: #666;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            text-align: center;
+            margin-top: 12px;
+        }
+        .btn-back:active {
+            background: #e0e0e0;
+        }
+        .scan-history {
+            margin-top: 16px;
+        }
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: #fff;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .history-item .status {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .history-item .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .history-item .error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        /* 扫码成功提示 */
+        .toast {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .toast.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
+    <!-- 全局提示框 -->
+    <div id="toast" class="toast"></div>
 
     <!-- 顶部状态栏 -->
     <div class="status-bar">
         <span>📦 华夏资产管家</span>
-        <span>09:41</span>
+        <span id="currentTime">09:41</span>
     </div>
 
     <!-- 主内容 -->
@@ -431,7 +565,65 @@
             </div>
 
             <button class="btn-secondary" onclick="alert('开始新一轮扫码盘点')">➕ 开始盘点</button>
+            <!-- 手动盘点按钮（蓝框蓝字） -->
+            <button class="btn-secondary" onclick="showManualPage()">📱 手动盘点</button>
             <button class="btn-reset" onclick="resetScanData()">🗑️ 数据重置</button>
+        </div>
+
+        <!-- ===== 手动盘点页面（扫码枪模式 无摄像头画面） ===== -->
+        <div class="page" id="pageManual">
+            <h2 style="font-size:20px; margin-bottom:16px;">📱 手动盘点</h2>
+            
+            <!-- 扫码状态卡片（替代原来的摄像头画面） -->
+            <div class="scan-status-card" id="scanStatusCard">
+                <div class="icon">📱</div>
+                <div class="status">等待扫码</div>
+                <div class="tip">点击下方按钮启动手持机扫码</div>
+            </div>
+
+            <!-- 扫码控制按钮 -->
+            <button class="btn-primary" id="startScanBtn" onclick="startScan()">🔫 启动扫码</button>
+            <button class="btn-secondary" id="stopScanBtn" onclick="stopScan()" style="display:none;">⏹️ 停止扫码</button>
+
+            <!-- 手动输入条形码 -->
+            <div style="margin-bottom:16px; margin-top:16px;">
+                <input type="text" class="code-input" id="codeInput" placeholder="手动输入固资编号" onkeydown="handleKeyDown(event)">
+                <button class="btn-primary" onclick="checkAssetByCode()">确认查询</button>
+            </div>
+
+            <!-- 资产信息展示 -->
+            <div class="asset-detail" id="assetDetail" style="display:none;">
+                <h3 style="margin-bottom:12px;">📄 固资信息</h3>
+                <div class="detail-item">
+                    <span class="label">固资编号</span>
+                    <span class="value" id="assetId">-</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">设备名称</span>
+                    <span class="value" id="assetName">-</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">归口部门</span>
+                    <span class="value" id="assetDept">-</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">设备状态</span>
+                    <span class="value" id="assetStatus">-</span>
+                </div>
+                <button class="btn-primary" style="margin-top:12px;" onclick="confirmCheck()">✅ 确认盘点</button>
+            </div>
+
+            <!-- 盘点提示 -->
+            <div class="tip-box" id="scanTip" style="display:none;"></div>
+
+            <!-- 盘点历史 -->
+            <div class="scan-history">
+                <h3 style="font-size:16px; margin-bottom:8px;">📜 盘点历史</h3>
+                <div id="historyList"></div>
+            </div>
+
+            <!-- 返回按钮 -->
+            <button class="btn-back" onclick="backToScanPage()">⬅️ 返回扫描页</button>
         </div>
 
         <!-- ===== 结果页面 ===== -->
@@ -489,17 +681,25 @@
     </div>
 
     <script>
+        // 全局变量
+        let isScanning = false; // 扫码状态
+        let scanBuffer = ''; // 扫码缓冲区
+        let lastKeyTime = 0; // 上次按键时间
+
         // 底部导航切换
         const navItems = document.querySelectorAll('.nav-item');
         const pages = {
             import: document.getElementById('pageImport'),
             scan: document.getElementById('pageScan'),
-            result: document.getElementById('pageResult')
+            result: document.getElementById('pageResult'),
+            manual: document.getElementById('pageManual')
         };
 
         navItems.forEach(item => {
             item.addEventListener('click', function(e) {
                 e.preventDefault();
+                // 切换页面时停止扫码
+                stopScan();
                 navItems.forEach(n => n.classList.remove('active'));
                 this.classList.add('active');
                 const page = this.dataset.page;
@@ -507,6 +707,16 @@
                 if (pages[page]) pages[page].classList.add('active');
             });
         });
+
+        // 更新时间
+        function updateTime() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            document.getElementById('currentTime').textContent = `${hours}:${minutes}`;
+        }
+        setInterval(updateTime, 60000);
+        updateTime();
 
         // 文件上传处理
         function handleFile(input) {
@@ -525,19 +735,266 @@
         function resetScanData() {
             if (confirm('确定要重置所有盘点数据吗？此操作将清空已盘点记录，但不会删除原始资产数据。')) {
                 alert('数据重置中...\n已盘点设备数量已清零。\n统计信息已更新。');
-                // 这里可以添加实际的数据重置逻辑
-                // 例如：更新页面上的统计数据
                 document.querySelector('#pageScan .stat-item:nth-child(2) .num').textContent = '0';
                 document.querySelector('#pageScan .stat-item:nth-child(2) .sub').textContent = '0%';
                 document.querySelector('#pageScan .stat-item:nth-child(3) .num').textContent = '0';
+                document.getElementById('historyList').innerHTML = '';
             }
         }
         
         // 结果导出功能
         function exportResults() {
             alert('正在导出盘点结果...\n生成Excel文件中...\n文件包含全部设备、已盘、盘亏、盘盈信息。');
-            // 这里可以添加实际的数据导出逻辑
-            // 例如：调用后端API下载文件
+        }
+
+        // 模拟资产数据库（对接导入页数据）
+        const assetDatabase = [
+            { id: 'ZC-2024-001', name: 'ThinkPad X1 Carbon', dept: '研发部', status: '在库' },
+            { id: 'ZC-2024-002', name: 'HP 激光打印机', dept: '行政部', status: '在库' },
+            { id: 'ZC-2024-003', name: '戴尔 PowerEdge 服务器', dept: 'IT部', status: '维修中' },
+            { id: 'ZC-2024-004', name: '会议平板 MAXHUB', dept: '市场部', status: '在库' },
+            { id: 'ZC-2024-005', name: '人体工学椅', dept: '财务部', status: '在库' },
+            { id: 'ZC-2024-006', name: 'UPS 不间断电源', dept: '机房', status: '待报废' }
+        ];
+
+        // 盘点历史记录
+        let checkHistory = [];
+
+        // ========== 扫码枪核心逻辑 ==========
+        // 开始扫码
+        function startScan() {
+            if (isScanning) return;
+            
+            isScanning = true;
+            scanBuffer = '';
+            
+            // 更新UI状态
+            document.getElementById('scanStatusCard').classList.add('scan-active');
+            document.getElementById('scanStatusCard').querySelector('.icon').textContent = '🔫';
+            document.getElementById('scanStatusCard').querySelector('.status').textContent = '正在扫码中...';
+            document.getElementById('scanStatusCard').querySelector('.tip').textContent = '将条码对准手持机扫描窗口';
+            document.getElementById('startScanBtn').style.display = 'none';
+            document.getElementById('stopScanBtn').style.display = 'block';
+            
+            // 清空之前的状态
+            document.getElementById('assetDetail').style.display = 'none';
+            document.getElementById('scanTip').style.display = 'none';
+            document.getElementById('codeInput').value = '';
+            
+            // 监听键盘事件（扫码枪会模拟键盘输入）
+            document.addEventListener('keydown', handleScanInput);
+            
+            showToast('✅ 扫码已启动，请扫描条码');
+        }
+
+        // 停止扫码
+        function stopScan() {
+            if (!isScanning) return;
+            
+            isScanning = false;
+            scanBuffer = '';
+            
+            // 更新UI状态
+            document.getElementById('scanStatusCard').classList.remove('scan-active');
+            document.getElementById('scanStatusCard').querySelector('.icon').textContent = '📱';
+            document.getElementById('scanStatusCard').querySelector('.status').textContent = '等待扫码';
+            document.getElementById('scanStatusCard').querySelector('.tip').textContent = '点击下方按钮启动手持机扫码';
+            document.getElementById('startScanBtn').style.display = 'block';
+            document.getElementById('stopScanBtn').style.display = 'none';
+            
+            // 移除键盘事件监听
+            document.removeEventListener('keydown', handleScanInput);
+        }
+
+        // 处理扫码枪输入
+        function handleScanInput(e) {
+            if (!isScanning) return;
+            
+            const currentTime = Date.now();
+            const key = e.key;
+            
+            // 扫码枪输入速度非常快（每个字符间隔<50ms），以此区分手动输入
+            if (currentTime - lastKeyTime > 100) {
+                scanBuffer = ''; // 超过100ms没有输入，清空缓冲区
+            }
+            lastKeyTime = currentTime;
+            
+            // 回车键表示扫码结束
+            if (key === 'Enter') {
+                e.preventDefault();
+                const barcode = scanBuffer.trim();
+                if (barcode) {
+                    handleScanSuccess(barcode);
+                }
+                scanBuffer = '';
+                return;
+            }
+            
+            // 忽略功能键
+            if (key.length > 1) return;
+            
+            // 添加到缓冲区
+            scanBuffer += key;
+        }
+
+        // 处理扫码成功
+        function handleScanSuccess(barcode) {
+            // 显示成功提示
+            showToast(`✅ 扫码成功：${barcode}`);
+            
+            // 填充到输入框
+            document.getElementById('codeInput').value = barcode;
+            
+            // 查询资产信息
+            checkAssetByCode();
+            
+            // 自动停止扫码（可选，如需连续扫码可注释此行）
+            stopScan();
+        }
+
+        // 手动输入回车处理
+        function handleKeyDown(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                checkAssetByCode();
+            }
+        }
+
+        // 显示提示框
+        function showToast(text, duration=2000) {
+            const toast = document.getElementById('toast');
+            toast.textContent = text;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        // ========== 业务逻辑 ==========
+        // 显示手动盘点页面
+        function showManualPage() {
+            Object.values(pages).forEach(p => p.classList.remove('active'));
+            pages.manual.classList.add('active');
+            // 清空状态
+            document.getElementById('codeInput').value = '';
+            document.getElementById('assetDetail').style.display = 'none';
+            document.getElementById('scanTip').style.display = 'none';
+            document.getElementById('historyList').innerHTML = '';
+            // 渲染历史记录
+            renderHistory();
+        }
+
+        // 返回扫描页
+        function backToScanPage() {
+            stopScan();
+            Object.values(pages).forEach(p => p.classList.remove('active'));
+            pages.scan.classList.add('active');
+            // 更新统计数据
+            updateScanStat();
+        }
+
+        // 根据条码查询资产
+        function checkAssetByCode() {
+            const code = document.getElementById('codeInput').value.trim();
+            if (!code) {
+                showTip('请输入资产编号或条形码', 'error');
+                return;
+            }
+
+            // 查找资产
+            const asset = assetDatabase.find(item => item.id === code);
+            if (asset) {
+                // 显示资产信息
+                document.getElementById('assetId').textContent = asset.id;
+                document.getElementById('assetName').textContent = asset.name;
+                document.getElementById('assetDept').textContent = asset.dept;
+                document.getElementById('assetStatus').textContent = asset.status;
+                document.getElementById('assetDetail').style.display = 'block';
+                document.getElementById('scanTip').style.display = 'none';
+            } else {
+                // 未找到资产
+                document.getElementById('assetDetail').style.display = 'none';
+                showTip(`未找到编号为【${code}】的资产，请检查输入`, 'error');
+            }
+        }
+
+        // 确认盘点
+        function confirmCheck() {
+            const assetId = document.getElementById('assetId').textContent;
+            const assetName = document.getElementById('assetName').textContent;
+            
+            // 检查是否已盘点
+            const existed = checkHistory.find(item => item.id === assetId);
+            if (existed) {
+                showTip(`资产【${assetId}】已在 ${existed.time} 盘点过`, 'warning');
+                return;
+            }
+
+            // 记录盘点历史
+            const historyItem = {
+                id: assetId,
+                name: assetName,
+                time: new Date().toLocaleTimeString(),
+                status: 'success'
+            };
+            checkHistory.unshift(historyItem);
+            
+            // 更新历史列表
+            renderHistory();
+            
+            // 提示成功
+            showToast(`✅ 资产【${assetId}】盘点完成`);
+            showTip(`资产【${assetId}】盘点成功`, 'success');
+            
+            // 清空状态
+            document.getElementById('codeInput').value = '';
+            document.getElementById('assetDetail').style.display = 'none';
+        }
+
+        // 显示提示
+        function showTip(text, type) {
+            const tipBox = document.getElementById('scanTip');
+            tipBox.style.display = 'block';
+            if (type === 'error') {
+                tipBox.style.background = '#ffebee';
+                tipBox.style.color = '#c62828';
+            } else if (type === 'warning') {
+                tipBox.style.background = '#fff3e0';
+                tipBox.style.color = '#ef6c00';
+            } else {
+                tipBox.style.background = '#e8f5e9';
+                tipBox.style.color = '#2e7d32';
+            }
+            tipBox.textContent = text;
+        }
+
+        // 渲染盘点历史
+        function renderHistory() {
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = '';
+            
+            checkHistory.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.innerHTML = `
+                    <div>
+                        <div style="font-weight:500;">${item.id} ${item.name}</div>
+                        <div style="font-size:12px; color:#999;">${item.time}</div>
+                    </div>
+                    <span class="status ${item.status}">盘点成功</span>
+                `;
+                historyList.appendChild(div);
+            });
+        }
+
+        // 更新扫描页统计数据
+        function updateScanStat() {
+            const checkedCount = checkHistory.length;
+            const totalCount = assetDatabase.length;
+            const percent = totalCount > 0 ? ((checkedCount / totalCount) * 100).toFixed(1) + '%' : '0%';
+            
+            document.querySelector('#pageScan .stat-item:nth-child(2) .num').textContent = checkedCount;
+            document.querySelector('#pageScan .stat-item:nth-child(2) .sub').textContent = percent;
         }
 
         // 生成资产列表数据
@@ -573,6 +1030,11 @@
                 list.appendChild(li);
             });
         }
+
+        // 页面卸载时停止扫码
+        window.addEventListener('beforeunload', stopScan);
+
+        // 初始化
         renderAssets();
     </script>
 </body>
