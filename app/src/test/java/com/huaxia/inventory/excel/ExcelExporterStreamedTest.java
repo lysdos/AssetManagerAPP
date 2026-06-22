@@ -92,6 +92,54 @@ public class ExcelExporterStreamedTest {
         }
     }
 
+    @Test
+    public void exportStreamed_extrasEpcStripsLeadingZeros() throws Exception {
+        // DB 里 ScanRecord.epc 是 24 位规范形态（8/7 个前导 0），
+        // 导出时必须调 toDisplayForm 剥前导 0，跟 Asset 行的 rawRowJson 原始字符串保持一致。
+        // 用真实固资编号（16 位 / 17 位）作为输入，验证导出形态。
+        long taskId = db.inventoryTaskDao().insert(makeTask("strip"));
+        db.assetDao().insert(makeAsset(taskId, "3500309099027210"));
+        long matchedAssetId = db.assetDao().findByEpc(taskId, "3500309099027210").id;
+        // matched: 16 位原始 → DB 存 24 位
+        db.scanRecordDao().insert(scan(taskId, "000000003500309099027210", 1_000L, matchedAssetId, "TID_M"));
+        // extra: 16 位原始 → DB 存 24 位
+        db.scanRecordDao().insert(scan(taskId, "000000003500309111002222", 2_000L, null, "TID_16"));
+        // extra: 17 位原始 → DB 存 24 位
+        db.scanRecordDao().insert(scan(taskId, "000000035003090111002222", 3_000L, null, "TID_17"));
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ExcelExporter.exportStreamed(out, "strip",
+                Arrays.asList("设备名称", "固资编号", "电子标签"),
+                db.assetDao(), db.scanRecordDao(), taskId);
+
+        try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {
+            Sheet s = wb.getSheetAt(0);
+            int extrasHeaderRow = -1;
+            for (int r = 0; r <= s.getLastRowNum(); r++) {
+                Row row = s.getRow(r);
+                if (row == null) continue;
+                if (row.getCell(0) != null
+                        && "【盘盈记录】".equals(row.getCell(0).getStringCellValue())) {
+                    extrasHeaderRow = r;
+                    break;
+                }
+            }
+            assertNotNull("盘盈区块应存在", extrasHeaderRow);
+
+            // pageExtra 按 scannedAt DESC: 3_000L (17 位) 在前, 2_000L (16 位) 在后
+            Row data1 = s.getRow(extrasHeaderRow + 2);
+            Row data2 = s.getRow(extrasHeaderRow + 3);
+            assertNotNull("第一条盘盈数据应存在", data1);
+            assertNotNull("第二条盘盈数据应存在", data2);
+
+            // 列: 0=设备名称, 1=固资编号, 2=电子标签, 3=盘点状态, 4=盘点时间
+            // 24 位 DB 形态 → toDisplayForm 剥前导 0 → 17 位原始
+            assertEquals("35003090111002222", data1.getCell(1).getStringCellValue());
+            // 24 位 DB 形态 → toDisplayForm 剥前导 0 → 16 位原始
+            assertEquals("3500309111002222", data2.getCell(1).getStringCellValue());
+        }
+    }
+
     private static InventoryTask makeTask(String name) {
         InventoryTask t = new InventoryTask();
         t.sourceFileName = name + ".xlsx";

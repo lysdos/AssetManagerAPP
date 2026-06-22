@@ -1,7 +1,5 @@
 package com.huaxia.inventory.ui.scan;
 
-import android.media.AudioManager;
-import android.media.SoundPool;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -23,6 +21,7 @@ import com.huaxia.inventory.ui.result.ResultFragment;
 import com.huaxia.inventory.ui.result.ResultTab;
 import com.huaxia.inventory.ui.manual.ManualScanFragment;
 import com.huaxia.inventory.ui.util.TagPills;
+import com.huaxia.inventory.util.BeepPlayer;
 import com.huaxia.inventory.util.DateUtil;
 import com.huaxia.inventory.util.EpcNormalizer;
 
@@ -39,16 +38,14 @@ public class ScanFragment extends Fragment {
     private TextView recentCardTitle, recentCardDesc;
     private LinearLayout recentTags;
 
-    private SoundPool soundPool;
-    private int beepSoundId;
-    private AudioManager audioManager;
+    private final BeepPlayer beepPlayer = new BeepPlayer();
 
     private final SdkRfidAdapter.TagListener rfidCallback = (epcStr, tid, rssi) -> {
         // 卡上存的就是 16/17/24 位十进制固资编号, 直接归一化到 24 位规范
         String normalized = EpcNormalizer.normalize(epcStr);
         if (normalized == null) return;
         vm.onEpcScanned(normalized, tid, rssi);
-        playBeep();
+        beepPlayer.play();
     };
 
     public void onTriggerPressed() {
@@ -137,7 +134,7 @@ public class ScanFragment extends Fragment {
                             Snackbar.LENGTH_LONG).show();
                 }
             });
-            initSound();
+            beepPlayer.init(requireContext(), R.raw.barcodebeep);
             return;
         }
         vm.bindToTask(taskId);
@@ -178,7 +175,7 @@ public class ScanFragment extends Fragment {
             }
         });
 
-        initSound();
+        beepPlayer.init(requireContext(), R.raw.barcodebeep);
     }
 
     private void confirmClearTask() {
@@ -301,22 +298,6 @@ public class ScanFragment extends Fragment {
         scanBtn.setStrokeColorResource(R.color.colorReset);
     }
 
-    @SuppressWarnings("deprecation")
-    private void initSound() {
-        audioManager = (AudioManager) requireContext().getSystemService(android.content.Context.AUDIO_SERVICE);
-        soundPool = new SoundPool(10, AudioManager.STREAM_MUSIC, 5);
-        beepSoundId = soundPool.load(requireContext(), R.raw.barcodebeep, 1);
-    }
-
-    private void playBeep() {
-        if (soundPool != null && audioManager != null) {
-            float max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-            float cur = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
-            float ratio = max > 0 ? cur / max : 0.5f;
-            soundPool.play(beepSoundId, ratio, ratio, 1, 0, 1);
-        }
-    }
-
     @Override
     public void onResume() {
         super.onResume();
@@ -344,9 +325,6 @@ public class ScanFragment extends Fragment {
         scanBtn.setText(R.string.scan_start_inventory);
         applyScanBtnGreen();
         app.rfid.unregisterCallback(rfidCallback);
-        if (soundPool != null) {
-            soundPool.release();
-            soundPool = null;
-        }
+        beepPlayer.release();
     }
 }

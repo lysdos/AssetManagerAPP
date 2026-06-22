@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 import com.huaxia.inventory.ui.import_.ImportFragment;
+import com.huaxia.inventory.ui.manual.ManualScanFragment;
 import com.huaxia.inventory.ui.result.ResultFragment;
 import com.huaxia.inventory.ui.scan.ScanFragment;
 import com.google.android.material.appbar.MaterialToolbar;
@@ -65,6 +66,10 @@ public class MainActivity extends AppCompatActivity {
             Fragment f = getSupportFragmentManager().findFragmentById(R.id.fragmentContainer);
             if (f instanceof ScanFragment) {
                 ((ScanFragment) f).onTriggerPressed();
+                return true;
+            }
+            if (f instanceof ManualScanFragment) {
+                ((ManualScanFragment) f).onTriggerPressed();
                 return true;
             }
         }

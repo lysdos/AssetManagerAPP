@@ -29,6 +29,7 @@ import com.huaxia.inventory.R;
 import com.huaxia.inventory.barcode.BarcodeCameraController;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.ScanRecord;
+import com.huaxia.inventory.util.BeepPlayer;
 import com.huaxia.inventory.util.DateUtil;
 import com.huaxia.inventory.util.EpcNormalizer;
 import java.util.List;
@@ -52,6 +53,7 @@ public class ManualScanFragment extends Fragment {
     private TextView historyEmptyTv;
 
     private ActivityResultLauncher<String> cameraPermissionLauncher;
+    private final BeepPlayer beepPlayer = new BeepPlayer();
 
     @Nullable
     @Override
@@ -123,6 +125,21 @@ public class ManualScanFragment extends Fragment {
         vm.checkEvent().observe(getViewLifecycleOwner(), this::renderCheckEvent);
         vm.scanEvent().observe(getViewLifecycleOwner(), this::renderScanEvent);
         vm.history().observe(getViewLifecycleOwner(), this::renderHistory);
+
+        beepPlayer.init(requireContext(), R.raw.barcodebeep);
+    }
+
+    /**
+     * PDA 扳机联动: 扳机按下 = toggle 启动/停止扫码. 当前已开启 → 停;
+     * 未开启 → 启. 触发源是 MainActivity.dispatchKeyEvent.
+     */
+    public void onTriggerPressed() {
+        if (cameraContainer == null) return;
+        if (cameraContainer.getVisibility() == View.VISIBLE) {
+            stopScan();
+        } else {
+            startScan();
+        }
     }
 
     @Override
@@ -207,6 +224,7 @@ public class ManualScanFragment extends Fragment {
             barcodeController.release();
             barcodeController = null;
         }
+        beepPlayer.release();
     }
 
     private Asset currentAsset;
@@ -274,19 +292,23 @@ public class ManualScanFragment extends Fragment {
         if (e == null) return;
         String display = EpcNormalizer.toDisplayForm(e.epc);
         String msg;
+        boolean shouldBeep = false;
         switch (e.outcome) {
             case SCANNED_FOUND:
                 msg = getString(R.string.manual_scan_done_found,
                         display == null ? "" : display);
+                shouldBeep = true;
                 break;
             case SCANNED_EXTRA:
                 msg = getString(R.string.manual_scan_done_extra,
                         display == null ? "" : display);
+                shouldBeep = true;
                 break;
             case SCANNED_DUPLICATE:
                 String at = e.previousAt == null ? "—" : DateUtil.formatTimestamp(e.previousAt);
                 msg = getString(R.string.manual_scan_done_dup,
                         display == null ? "" : display, at);
+                shouldBeep = true;
                 break;
             case SCANNED_INVALID:
                 msg = getString(R.string.manual_scan_done_invalid,
@@ -298,6 +320,7 @@ public class ManualScanFragment extends Fragment {
             default:
                 return;
         }
+        if (shouldBeep) beepPlayer.play();
         Snackbar.make(requireView(), msg, Snackbar.LENGTH_SHORT).show();
     }
 

@@ -6,6 +6,7 @@ import com.huaxia.inventory.data.dao.ScanRecordDao;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.ScanRecord;
 import com.huaxia.inventory.util.DateUtil;
+import com.huaxia.inventory.util.EpcNormalizer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -152,7 +153,7 @@ public final class ExcelExporter {
         // 把 EPC 写进 "固资编号" 列, TID 写进 "电子标签" 列.
         // 客户文件通常两列都有, 但顺序不一定; 按名字找最稳.
         int epcIdx = originalHeaders.indexOf("固资编号");
-        if (epcIdx >= 0) cells[epcIdx] = s.epc;
+        if (epcIdx >= 0) cells[epcIdx] = EpcNormalizer.toDisplayForm(s.epc);
         int tidIdx = originalHeaders.indexOf("电子标签");
         if (tidIdx >= 0) cells[tidIdx] = s.tid == null ? "" : s.tid;
         cells[base] = "盘盈";
