@@ -87,7 +87,7 @@
     <!-- Manual scan page -->
     <string name="scan_manual_btn">📱 手动盘点</string>
     <string name="manual_title">📱 手动盘点</string>
-    <string name="manual_hint">输入固资编号（16/17/24 位）后回车或点查询</string>
+    <string name="manual_hint">输入固资编号后点查询</string>
     <string name="manual_query">查询</string>
     <string name="manual_confirm_check">✅ 确认盘点</string>
     <string name="manual_history_title">本次盘点历史</string>
