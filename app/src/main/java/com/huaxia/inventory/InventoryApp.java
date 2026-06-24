@@ -1,6 +1,7 @@
 package com.huaxia.inventory;
 
 import android.app.Application;
+import android.content.SharedPreferences;
 import android.util.Log;
 import androidx.room.Room;
 import com.huaxia.inventory.data.AppDatabase;
@@ -12,16 +13,23 @@ import com.huaxia.inventory.util.AppExecutors;
 public class InventoryApp extends Application {
 
     private static final String TAG = "UHFInit";
+    private static final String PREFS_NAME = "huaxia_inventory_prefs";
+    private static final String KEY_RFID_POWER = "rfid_power";
+    private static final int DEFAULT_POWER = 26; // 默认功率26dBm
 
     public AppExecutors executors;
     public InventorySession session;
     public RfidController rfid;
     public AppDatabase db;
+    private SharedPreferences prefs;
 
     @Override
     public void onCreate() {
         super.onCreate();
         Log.i(TAG, "[InventoryApp] onCreate start, BuildConfig.DEBUG=" + BuildConfig.DEBUG);
+
+        // 初始化SharedPreferences
+        prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
         // Android ART 把 java.lang.invoke.LambdaMetafactory 列在 hidden-api blacklist,
         // log4j-api 2.21.1 的 ServiceLoaderUtil 用它生成 Provider 工厂, 触发 NoSuchMethodError,
@@ -71,5 +79,24 @@ public class InventoryApp extends Application {
                         + " " + t.getMessage());
             }
         }
+    }
+
+    /**
+     * 获取保存的RFID功率设置。
+     *
+     * @return 保存的功率值(dBm)，未设置返回默认值26
+     */
+    public int getSavedPower() {
+        return prefs.getInt(KEY_RFID_POWER, DEFAULT_POWER);
+    }
+
+    /**
+     * 保存RFID功率设置。
+     *
+     * @param power 功率值(dBm)
+     */
+    public void savePower(int power) {
+        prefs.edit().putInt(KEY_RFID_POWER, power).apply();
+        Log.i(TAG, "Power saved: " + power + " dBm");
     }
 }

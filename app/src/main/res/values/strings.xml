@@ -111,6 +111,16 @@
     <string name="manual_scan_start_btn">🔫 启动扫码</string>
     <string name="manual_scan_stop_btn">⏹️ 停止扫码</string>
 
+    <!-- Power setting -->
+    <string name="action_power_setting">功率设置</string>
+    <string name="power_setting_title">功率设置</string>
+    <string name="power_setting_current">当前读写器功率</string>
+    <string name="power_setting_low">0 dBm (低)</string>
+    <string name="power_setting_high">30 dBm (高)</string>
+    <string name="power_setting_info">功率说明：\n• 低功率(0-10dBm)：近距离扫描，约1米\n• 中功率(11-20dBm)：中距离扫描，约2米\n• 高功率(21-30dBm)：远距离扫描，约5-8米</string>
+    <string name="power_setting_saved">功率已设置为 %1$d dBm</string>
+    <string name="power_setting_failed">功率设置失败，请重试</string>
+
     <!-- Toast / Snackbar messages after an auto-scan (no user confirmation) -->
     <string name="manual_scan_done_found">已盘：%1$s</string>
     <string name="manual_scan_done_extra">盘盈：%1$s</string>

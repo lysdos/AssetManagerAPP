@@ -3,6 +3,8 @@ package com.huaxia.inventory;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.KeyEvent;
+import android.view.Menu;
+import android.view.MenuItem;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
@@ -13,6 +15,7 @@ import com.huaxia.inventory.ui.result.ResultFragment;
 import com.huaxia.inventory.ui.scan.ScanFragment;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.huaxia.inventory.ui.setting.PowerSettingDialog;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -26,16 +29,6 @@ public class MainActivity extends AppCompatActivity {
 
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        toolbar.setOnMenuItemClickListener(item -> {
-            if (item.getItemId() == R.id.action_export) {
-                Fragment current = getSupportFragmentManager().findFragmentById(R.id.fragmentContainer);
-                if (current instanceof ResultFragment) {
-                    ((ResultFragment) current).onExportClicked();
-                    return true;
-                }
-            }
-            return false;
-        });
 
         BottomNavigationView nav = findViewById(R.id.bottomNav);
         nav.setOnItemSelectedListener(item -> {
@@ -51,11 +44,31 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_power_setting) {
+            showPowerSettingDialog();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
     private boolean showFragment(Fragment fragment, String tag) {
         FragmentTransaction tx = getSupportFragmentManager().beginTransaction();
         tx.replace(R.id.fragmentContainer, fragment, tag);
         tx.commit();
         return true;
+    }
+
+    private void showPowerSettingDialog() {
+        PowerSettingDialog dialog = PowerSettingDialog.newInstance();
+        dialog.show(getSupportFragmentManager(), "power_setting");
     }
 
     @Override

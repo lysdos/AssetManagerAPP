@@ -116,6 +116,45 @@ public class SdkRfidAdapter {
         return reader != null && powered.get();
     }
 
+    /**
+     * 设置RFID读写器功率。
+     *
+     * @param power 功率值，范围 0-30 dBm
+     * @return {@code true} 设置成功，{@code false} 设置失败
+     */
+    public boolean setPower(int power) {
+        if (power < 0 || power > 30) {
+            Log.w(TAG, "setPower() invalid power value: " + power + ", must be 0-30");
+            return false;
+        }
+        try {
+            RFIDWithUHFUART r = requireReader();
+            boolean result = r.setPower(power);
+            Log.i(TAG, "setPower(" + power + ") returned " + result);
+            return result;
+        } catch (Throwable t) {
+            Log.w(TAG, "setPower() failed", t);
+            return false;
+        }
+    }
+
+    /**
+     * 获取当前RFID读写器功率。
+     *
+     * @return 当前功率值(dBm)，获取失败返回 -1
+     */
+    public int getPower() {
+        try {
+            RFIDWithUHFUART r = requireReader();
+            int power = r.getPower();
+            Log.i(TAG, "getPower() returned " + power);
+            return power;
+        } catch (Throwable t) {
+            Log.w(TAG, "getPower() failed", t);
+            return -1;
+        }
+    }
+
     /** Register a per-tag callback with the adapter. */
     public void registerCallback(TagListener l) {
         listeners.add(l);

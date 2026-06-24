@@ -1,6 +1,7 @@
 package com.huaxia.inventory.rfid;
 
 import android.content.Context;
+import android.util.Log;
 
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -143,6 +144,33 @@ public class RfidController {
     /** Power the RFID module on (does not re-initialize the SDK). */
     public void powerOn() {
         adapter.power(true);
+    }
+
+    /**
+     * 设置RFID读写器功率。
+     *
+     * @param power 功率值，范围 0-30 dBm
+     * @return {@code true} 设置成功，{@code false} 设置失败或未初始化
+     */
+    public boolean setPower(int power) {
+        if (state == State.IDLE || state == State.ERROR) {
+            Log.w(TAG, "setPower() failed: RFID not initialized");
+            return false;
+        }
+        return adapter.setPower(power);
+    }
+
+    /**
+     * 获取当前RFID读写器功率。
+     *
+     * @return 当前功率值(dBm)，获取失败返回 -1
+     */
+    public int getPower() {
+        if (state == State.IDLE || state == State.ERROR) {
+            Log.w(TAG, "getPower() failed: RFID not initialized");
+            return -1;
+        }
+        return adapter.getPower();
     }
 
     /**
