@@ -190,7 +190,9 @@ public class ScanFragment extends Fragment {
         app.executors.diskIO.execute(() -> {
             int assets = app.db.assetDao().countByTask(tid);
             int scans = app.db.scanRecordDao().countByTask(tid);
+            if (!isAdded()) return;
             requireActivity().runOnUiThread(() -> {
+                if (!isAdded()) return;
                 new AlertDialog.Builder(requireContext())
                         .setTitle(R.string.scan_clear_task_confirm_title)
                         .setMessage(getString(R.string.scan_clear_task_confirm_msg, assets, scans))

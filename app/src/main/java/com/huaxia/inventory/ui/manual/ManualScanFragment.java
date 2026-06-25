@@ -180,14 +180,26 @@ public class ManualScanFragment extends Fragment {
         startScanBtn.setVisibility(View.GONE);
         stopScanBtn.setVisibility(View.VISIBLE);
 
-        boolean ok = barcodeController.startScan(this, previewView, rawCode ->
-                vm.onBarcodeScanned(rawCode));
-        if (!ok) {
-            Snackbar.make(requireView(),
-                    R.string.manual_scan_camera_init_failed,
-                    Snackbar.LENGTH_LONG).show();
-            forceIdleState();
-        }
+        // startScan 现在异步返回 void, 错误通过 Callback.onStartFailed 异步通知.
+        // 守卫 getView()/isAdded() 因为回调可能在 Fragment 已 detach 时到达.
+        barcodeController.startScan(this, previewView, new BarcodeCameraController.Callback() {
+            @Override
+            public void onBarcodeDetected(@NonNull String rawCode) {
+                vm.onBarcodeScanned(rawCode);
+            }
+
+            @Override
+            public void onStartFailed(@NonNull String reason) {
+                Log.w(TAG, "[ManualScanFragment] camera start failed: " + reason);
+                if (!isAdded()) return;
+                View v = getView();
+                if (v != null) {
+                    Snackbar.make(v, R.string.manual_scan_camera_init_failed,
+                            Snackbar.LENGTH_LONG).show();
+                }
+                forceIdleState();
+            }
+        });
     }
 
     private void stopScan() {

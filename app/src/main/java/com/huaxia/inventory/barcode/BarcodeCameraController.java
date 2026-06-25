@@ -11,6 +11,7 @@ import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleOwner;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mlkit.vision.barcode.BarcodeScanner;
@@ -42,6 +43,18 @@ public class BarcodeCameraController {
         /** Fires on the main thread. {@code rawCode} is the unprocessed ML Kit
          *  string — caller decides whether to normalize or reject it. */
         @MainThread void onBarcodeDetected(@NonNull String rawCode);
+
+        /**
+         * Fires on the main thread when {@link #startScan} cannot complete
+         * asynchronously — either the camera provider is unavailable
+         * (no camera, GMS missing) or {@code bindToLifecycle} fails
+         * (camera in use by another app, owner destroyed, etc.).
+         *
+         * <p>Default implementation is a no-op for backwards compatibility
+         * with callers that only care about successful scans. New callers
+         * should override to surface an error to the user.</p>
+         */
+        @MainThread default void onStartFailed(@NonNull String reason) {}
     }
 
     private final BarcodeScanner scanner;
@@ -76,41 +89,60 @@ public class BarcodeCameraController {
      * Bind CameraX preview + analysis to {@code previewView} under the given
      * lifecycle. Must be called on the main thread.
      *
-     * @return {@code true} if the camera bound successfully; {@code false} if
-     *         no provider was available (device has no camera, GMS missing, etc.)
+     * <p>Implementation note: the camera-provider future is consumed on the
+     * main thread via {@code addListener} + main executor — NOT via
+     * {@code future.get()}, which would block this thread (causing ANR on
+     * cold camera init). The lifecycle guard skips the bind entirely if
+     * {@code owner} has already reached {@link Lifecycle.State#DESTROYED}
+     * by the time the listener fires, which would otherwise throw
+     * {@code IllegalArgumentException} inside CameraX.</p>
+     *
+     * <p>Errors are surfaced asynchronously via
+     * {@link Callback#onStartFailed(String)} since {@code startScan} now
+     * returns {@code void}.</p>
      */
     @MainThread
-    public boolean startScan(@NonNull LifecycleOwner owner,
-                             @NonNull PreviewView previewView,
-                             @NonNull Callback callback) {
+    public void startScan(@NonNull LifecycleOwner owner,
+                          @NonNull PreviewView previewView,
+                          @NonNull Callback callback) {
         Log.i(TAG, "[BarcodeCameraController] startScan()");
         this.activeCallback = callback;
         ListenableFuture<ProcessCameraProvider> future =
                 ProcessCameraProvider.getInstance(previewView.getContext());
-        try {
-            cameraProvider = future.get();
-        } catch (Exception e) {
-            Log.e(TAG, "[BarcodeCameraController] getInstance failed", e);
-            return false;
-        }
-        Preview preview = new Preview.Builder().build();
-        preview.setSurfaceProvider(previewView.getSurfaceProvider());
+        future.addListener(() -> {
+            // Owner may have been destroyed while the future was pending
+            // (e.g. user pressed back during cold camera init). Bind will
+            // throw IllegalArgumentException in that case; skip silently.
+            if (owner.getLifecycle().getCurrentState() == Lifecycle.State.DESTROYED) {
+                Log.w(TAG, "[BarcodeCameraController] owner destroyed before bind, skipping");
+                return;
+            }
+            try {
+                cameraProvider = future.get();
+            } catch (Exception e) {
+                Log.e(TAG, "[BarcodeCameraController] getInstance failed", e);
+                callback.onStartFailed("camera provider unavailable: " + e.getMessage());
+                return;
+            }
 
-        ImageAnalysis analysis = new ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build();
-        analysis.setAnalyzer(analyzerExecutor, analyzer);
+            Preview preview = new Preview.Builder().build();
+            preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
-        try {
-            cameraProvider.unbindAll();
-            cameraProvider.bindToLifecycle(owner,
-                    CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis);
-            Log.i(TAG, "[BarcodeCameraController] bound to lifecycle, scanning");
-            return true;
-        } catch (Exception e) {
-            Log.e(TAG, "[BarcodeCameraController] bindToLifecycle failed", e);
-            return false;
-        }
+            ImageAnalysis analysis = new ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build();
+            analysis.setAnalyzer(analyzerExecutor, analyzer);
+
+            try {
+                cameraProvider.unbindAll();
+                cameraProvider.bindToLifecycle(owner,
+                        CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis);
+                Log.i(TAG, "[BarcodeCameraController] bound to lifecycle, scanning");
+            } catch (Exception e) {
+                Log.e(TAG, "[BarcodeCameraController] bindToLifecycle failed", e);
+                callback.onStartFailed("bind failed: " + e.getMessage());
+            }
+        }, ContextCompat.getMainExecutor(previewView.getContext()));
     }
 
     @MainThread

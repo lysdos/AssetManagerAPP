@@ -121,9 +121,12 @@ public class ResultFragment extends Fragment {
                 for (Asset as : a.db.assetDao().findFound(currentTaskId)) matched.add(as.id);
                 matchedIdsCache.clear();
                 matchedIdsCache.addAll(matched);
-                requireActivity().runOnUiThread(() ->
+                if (!isAdded()) return;
+                requireActivity().runOnUiThread(() -> {
+                    if (!isAdded() || rv == null) return;
                     rv.setAdapter(new AssetResultAdapter(assets, matchedIdsCache,
-                        this::showAssetDetailDialog)));
+                        this::showAssetDetailDialog));
+                });
             });
         });
 
@@ -203,14 +206,26 @@ public class ResultFragment extends Fragment {
                     ExcelExporter.exportStreamed(out, task.sourceFileName, originalHeaders,
                             app.db.assetDao(), app.db.scanRecordDao(), taskId);
                 }
-                requireActivity().runOnUiThread(() ->
-                    Snackbar.make(requireView(), R.string.msg_export_done,
-                            Snackbar.LENGTH_SHORT).show());
+                if (isAdded()) {
+                    requireActivity().runOnUiThread(() -> {
+                        View v = getView();
+                        if (v != null) {
+                            Snackbar.make(v, R.string.msg_export_done,
+                                    Snackbar.LENGTH_SHORT).show();
+                        }
+                    });
+                }
             } catch (Exception e) {
-                requireActivity().runOnUiThread(() ->
-                    Snackbar.make(requireView(),
-                        getString(R.string.err_export_failed, e.getMessage()),
-                        Snackbar.LENGTH_LONG).show());
+                if (isAdded()) {
+                    requireActivity().runOnUiThread(() -> {
+                        View v = getView();
+                        if (v != null) {
+                            Snackbar.make(v,
+                                getString(R.string.err_export_failed, e.getMessage()),
+                                Snackbar.LENGTH_LONG).show();
+                        }
+                    });
+                }
             }
         });
     }
@@ -231,11 +246,16 @@ public class ResultFragment extends Fragment {
                     ? firstScanAt
                     : System.currentTimeMillis();
             app.db.assetDao().update(updated);
-            requireActivity().runOnUiThread(() -> {
-                Snackbar.make(requireView(), R.string.msg_asset_saved,
-                        Snackbar.LENGTH_SHORT).show();
-                vm.refresh();
-            });
+            if (isAdded()) {
+                requireActivity().runOnUiThread(() -> {
+                    View v = getView();
+                    if (v != null) {
+                        Snackbar.make(v, R.string.msg_asset_saved,
+                                Snackbar.LENGTH_SHORT).show();
+                    }
+                    vm.refresh();
+                });
+            }
         });
     }
 }

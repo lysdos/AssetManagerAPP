@@ -53,7 +53,16 @@ public class InventoryApp extends Application {
         checkRfidClasses();
 
         Log.i(TAG, "[InventoryApp] calling rfid.init()");
-        rfid.init(this, ready -> Log.i(TAG, "[InventoryApp] rfid.init callback ready=" + ready));
+        rfid.init(this, ready -> {
+            Log.i(TAG, "[InventoryApp] rfid.init callback ready=" + ready);
+            // init 成功后自动应用上次保存的功率. 失败则保持 reader 默认功率不动.
+            if (ready) {
+                int savedPower = getSavedPower();
+                boolean applied = rfid.setPower(savedPower);
+                Log.i(TAG, "[InventoryApp] auto-applied saved power=" + savedPower
+                        + " dBm, success=" + applied);
+            }
+        });
         Log.i(TAG, "[InventoryApp] onCreate end");
     }
 

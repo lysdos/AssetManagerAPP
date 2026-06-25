@@ -175,13 +175,12 @@ public class PowerSettingDialog extends DialogFragment {
     private void savePower() {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
 
-        // 保存到SharedPreferences
-        app.savePower(currentPower);
-
-        // 应用到RFID读写器
+        // 先应用到 reader, 成功后才落 prefs. 失败时 prefs 不写, 避免出现
+        // "prefs 里是新值但 reader 不知道" 的不一致状态.
         boolean success = app.rfid.setPower(currentPower);
 
         if (success) {
+            app.savePower(currentPower);
             Toast.makeText(getContext(),
                     getString(R.string.power_setting_saved, currentPower),
                     Toast.LENGTH_SHORT).show();

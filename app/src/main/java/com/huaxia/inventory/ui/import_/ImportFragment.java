@@ -72,7 +72,9 @@ public class ImportFragment extends Fragment {
             int total = lastSuccessCount;
             vm.commitToTask(fileName, src, total, taskId -> {
                 ((InventoryApp) requireActivity().getApplication()).session.setCurrentTaskId(taskId);
+                if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
+                    if (!isAdded()) return;
                     progressTv.setVisibility(View.GONE);
                     com.google.android.material.bottomnavigation.BottomNavigationView nav =
                             requireActivity().findViewById(R.id.bottomNav);
