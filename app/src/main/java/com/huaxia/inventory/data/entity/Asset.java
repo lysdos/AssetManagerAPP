@@ -21,13 +21,11 @@ public class Asset {
     public int excelRowIndex;
 
     public String epc;
-    public String assetName;
     public String assetType;
     public String assetModel;
-    public String org;
-    public String detailedLocation;
-    public String placementLocation;
-    public String assetStatus;
+    public String serialNumber;
+    public String custodian;
+    public String dept;
 
     @Nullable
     @ColumnInfo(name = "raw_row_json")

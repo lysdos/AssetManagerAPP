@@ -19,6 +19,7 @@ import com.google.android.material.snackbar.Snackbar;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
 import com.huaxia.inventory.data.entity.Asset;
+import com.huaxia.inventory.data.entity.ExtraClaim;
 import com.huaxia.inventory.data.entity.InventoryTask;
 import com.huaxia.inventory.excel.ExcelExporter;
 import com.huaxia.inventory.util.DateUtil;
@@ -142,7 +143,7 @@ public class ResultFragment extends Fragment {
             } else {
                 emptyTv.setVisibility(View.GONE);
                 rv.setVisibility(View.VISIBLE);
-                rv.setAdapter(new ExtraResultAdapter(extras));
+                rv.setAdapter(new ExtraResultAdapter(extras, this::showExtraDetailDialog));
             }
         });
     }
@@ -256,6 +257,29 @@ public class ResultFragment extends Fragment {
                     vm.refresh();
                 });
             }
+        });
+    }
+
+    private void showExtraDetailDialog(ExtraWithClaim data) {
+        ExtraDetailDialog.show(this, data, claim -> onExtraDetailSaved(data.scan.id, claim));
+    }
+
+    /**
+     * 保存盘盈补全信息。
+     * ScanRecord 行不动(matchedAssetId 保持 NULL, 盘盈状态保留);
+     * ExtraClaim 通过 unique(scanRecordId) 实现 UPSERT — 同一行二次编辑会覆盖.
+     */
+    private void onExtraDetailSaved(long scanRecordId, ExtraClaim claim) {
+        vm.saveExtraClaim(scanRecordId, claim, () -> {
+            if (!isAdded()) return;
+            requireActivity().runOnUiThread(() -> {
+                View v = getView();
+                if (v != null) {
+                    Snackbar.make(v, R.string.msg_extra_saved,
+                            Snackbar.LENGTH_SHORT).show();
+                }
+                vm.refresh();
+            });
         });
     }
 }

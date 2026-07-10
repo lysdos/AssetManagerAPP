@@ -32,6 +32,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: relative;
+            z-index: 150;
         }
         .status-bar .title {
             font-size: 18px;
@@ -174,19 +176,37 @@
             color: #1565c0;
         }
 
-        /* 扫描页面统计卡片行 */
+        /* 扫描页面统计卡片行（横向滚动） */
         .stat-row {
             display: flex;
             gap: 10px;
             margin-bottom: 16px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 8px;
+        }
+        .stat-row::-webkit-scrollbar {
+            height: 6px;
+        }
+        .stat-row::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 3px;
         }
         .stat-item {
-            flex: 1;
+            flex: 0 0 auto;
+            min-width: 142px;
             background: #fff;
             border-radius: 12px;
-            padding: 14px 12px;
+            padding: 14px 16px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.04);
             text-align: center;
+            cursor: pointer;
+            transition: box-shadow 0.15s, transform 0.15s;
+            user-select: none;
+        }
+        .stat-item:active {
+            transform: scale(0.96);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
         }
         .stat-item .num {
             font-size: 26px;
@@ -494,6 +514,454 @@
         .toast.show {
             opacity: 1;
         }
+
+        /* ========== 齿轮设置按钮 ========== */
+        .settings-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .settings-btn:active {
+            background: rgba(255,255,255,0.2);
+        }
+        .settings-btn svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        /* ========== 齿轮下拉菜单 ========== */
+        .settings-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 16px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            min-width: 160px;
+            z-index: 300;
+            display: none;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .settings-dropdown.show {
+            display: block;
+        }
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            font-size: 15px;
+            color: #333;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            width: 100%;
+            text-align: left;
+            transition: background 0.15s;
+        }
+        .dropdown-item:active {
+            background: #e3f2fd;
+        }
+        .dropdown-item svg {
+            width: 20px;
+            height: 20px;
+            color: #1976d2;
+            flex-shrink: 0;
+        }
+        .dropdown-item + .dropdown-item {
+            border-top: 1px solid #f0f0f0;
+        }
+
+        /* ========== 盘点任务页面 ========== */
+        .task-summary-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .task-summary-item {
+            flex: 1;
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            text-align: center;
+        }
+        .task-summary-item .num {
+            font-size: 24px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+        .task-summary-item .label {
+            font-size: 12px;
+            color: #888;
+        }
+        .task-list {
+            list-style: none;
+        }
+        .task-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .task-card .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .task-card .task-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            flex: 1;
+        }
+        .task-card .task-delete-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: #bbb;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            padding: 0;
+        }
+        .task-card .task-delete-btn:active {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .task-card .task-delete-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+        .task-card .task-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+        }
+        .task-card .task-dept {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .task-card .task-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+        .task-card .task-progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .task-card .task-progress-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+        .task-card .task-progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #999;
+            margin-top: 6px;
+        }
+        .task-card .task-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .task-card .task-actions button {
+            flex: 1;
+            padding: 8px;
+            border-radius: 6px;
+            border: none;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .task-btn-start {
+            background: #1976d2;
+            color: white;
+        }
+        .task-btn-start:active { background: #1565c0; }
+        .task-btn-start.disabled {
+            background: #bdbdbd;
+            color: #fff;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .task-btn-detail {
+            background: #f5f5f5;
+            color: #666;
+            border: 1px solid #ddd !important;
+        }
+        .task-btn-detail:active { background: #e0e0e0; }
+        .task-btn-pause {
+            background: #fff3e0;
+            color: #ef6c00;
+            border: 1px solid #ffcc80 !important;
+        }
+        .task-btn-pause:active { background: #ffe0b2; }
+
+        /* ========== 导入资产弹窗 ========== */
+        .import-dialog-body {
+            padding: 20px;
+        }
+        .import-dialog-body .upload-area {
+            margin-bottom: 12px;
+            padding: 30px 16px;
+        }
+        .import-dialog-body .upload-area .icon-big {
+            font-size: 42px;
+        }
+
+        /* ========== 创建任务弹窗 ========== */
+        .create-task-body {
+            padding: 24px 20px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none;
+            color: #333;
+        }
+        .form-input:focus {
+            border-color: #1976d2;
+        }
+        .form-select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none;
+            color: #333;
+            background: #fff;
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+        }
+        .form-select:focus {
+            border-color: #1976d2;
+        }
+
+        /* ========== 功率设置弹窗 ========== */
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 480px;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+        .dialog-overlay.show {
+            display: flex;
+        }
+        .dialog {
+            width: 320px;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        .dialog-header {
+            background: #1976d2;
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .dialog-header h3 {
+            font-size: 18px;
+            font-weight: 500;
+        }
+        .dialog-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .dialog-close:active {
+            background: rgba(255,255,255,0.3);
+        }
+        .dialog-body {
+            padding: 24px 20px;
+        }
+        .power-display {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .power-value {
+            font-size: 48px;
+            font-weight: 700;
+            color: #1976d2;
+        }
+        .power-unit {
+            font-size: 16px;
+            color: #666;
+            margin-left: 4px;
+        }
+        .power-label {
+            font-size: 14px;
+            color: #999;
+            margin-top: 4px;
+        }
+        .power-slider-container {
+            margin-bottom: 24px;
+        }
+        .power-slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .power-slider-labels span {
+            font-size: 12px;
+            color: #999;
+        }
+        .power-slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: linear-gradient(to right, #e3f2fd, #1976d2);
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+        .power-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #1976d2;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+        .power-slider::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #1976d2;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+        .power-presets {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .preset-btn {
+            padding: 10px 8px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+            color: #333;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .preset-btn:active {
+            border-color: #1976d2;
+            color: #1976d2;
+        }
+        .preset-btn.active {
+            background: #1976d2;
+            border-color: #1976d2;
+            color: white;
+        }
+        .power-info {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }
+        .power-info p {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+        }
+        .dialog-footer {
+            padding: 16px 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 12px;
+        }
+        .dialog-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .dialog-btn.cancel {
+            background: #f5f5f5;
+            color: #666;
+        }
+        .dialog-btn.cancel:active {
+            background: #e0e0e0;
+        }
+        .dialog-btn.confirm {
+            background: #1976d2;
+            color: white;
+        }
+        .dialog-btn.confirm:active {
+            background: #1565c0;
+        }
     </style>
 </head>
 <body>
@@ -503,27 +971,61 @@
     <!-- 顶部状态栏 -->
     <div class="status-bar">
         <span>📦 华夏资产管家</span>
-        <span id="currentTime">09:41</span>
+        <div style="display:flex; align-items:center; gap:12px; position:relative;">
+            <span id="currentTime">09:41</span>
+            <button class="settings-btn" onclick="toggleSettingsDropdown(event)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
+            <!-- 下拉菜单 -->
+            <div class="settings-dropdown" id="settingsDropdown">
+                <button class="dropdown-item" onclick="openPowerDialog()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                    <span>功率设置</span>
+                </button>
+                <button class="dropdown-item" onclick="openImportDialog()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <span>导入资产</span>
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- 主内容 -->
     <div class="content" id="mainContent">
-        <!-- ===== 导入页面 ===== -->
-        <div class="page active" id="pageImport">
-            <h2 style="font-size:20px; margin-bottom:16px;">📥 导入资产数据</h2>
-            <div class="upload-area" onclick="document.getElementById('fileInput').click();">
-                <div class="icon-big">📂</div>
-                <p>拖拽或 <span class="highlight">点击浏览</span></p>
-                <p style="font-size:12px; color:#aaa;">支持 .xlsx / .xls</p>
-                <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none;" onchange="handleFile(this)">
+        <!-- ===== 盘点任务页面 ===== -->
+        <div class="page active" id="pageTask">
+            <h2 style="font-size:20px; margin-bottom:16px;">📋 盘点任务</h2>
+            <div class="task-summary-row">
+                <div class="task-summary-item">
+                    <div class="label">全部任务</div>
+                    <div class="num" style="color:#1976d2;">5</div>
+                </div>
+                <div class="task-summary-item">
+                    <div class="label">进行中</div>
+                    <div class="num" style="color:#ef6c00;">2</div>
+                </div>
+                <div class="task-summary-item">
+                    <div class="label">已完成</div>
+                    <div class="num" style="color:#2e7d32;">3</div>
+                </div>
             </div>
-            <div class="file-info" id="fileInfo">
-                <span>已选择：<strong id="fileName"></strong></span>
-                <span style="float:right; color:#c62828; cursor:pointer;" onclick="clearFile()">清除</span>
-            </div>
-            <button class="btn-primary" onclick="alert('开始导入并解析资产数据...')">开始导入</button>
-            <div class="tip-box">
-                💡 请确保Excel中包含「设备名称」「设备类型」「归口部门」「序列号」「固资编号」等列。
+
+            <ul class="task-list" id="taskList">
+                <!-- JS 动态渲染 -->
+            </ul>
+
+            <div style="display:flex; gap:10px; margin-top:4px;">
+                <button class="btn-primary" onclick="openCreateTaskDialog()" style="flex:1; margin-top:0;">➕ 创建任务</button>
+                <button class="btn-reset" id="clearDoneBtn" onclick="clearDoneTasks()" style="flex:1; margin-top:0; display:none;">🗑️ 清除已完成</button>
             </div>
         </div>
 
@@ -531,20 +1033,25 @@
         <div class="page" id="pageScan">
             <h2 style="font-size:20px; margin-bottom:16px;">🔍 扫描管理</h2>
             <div class="stat-row">
-                <div class="stat-item">
+                <div class="stat-item" onclick="goToResult('all')">
                     <div class="label">在库设备</div>
                     <div class="num" style="color:#2e7d32;">1,284</div>
                     <div class="sub">+12 今日</div>
                 </div>
-                <div class="stat-item">
+                <div class="stat-item" onclick="goToResult('checked')">
                     <div class="label">已盘点</div>
                     <div class="num" style="color:#1565c0;">967</div>
                     <div class="sub">75.3%</div>
                 </div>
-                <div class="stat-item">
+                <div class="stat-item" onclick="goToResult('missing')">
                     <div class="label">异常</div>
                     <div class="num" style="color:#c62828;">24</div>
                     <div class="sub">需处理</div>
+                </div>
+                <div class="stat-item" onclick="goToResult('surplus')">
+                    <div class="label">盘盈</div>
+                    <div class="num" style="color:#ef6c00;">8</div>
+                    <div class="sub">待确认</div>
                 </div>
             </div>
 
@@ -628,25 +1135,7 @@
 
         <!-- ===== 结果页面 ===== -->
         <div class="page" id="pageResult">
-            <h2 style="font-size:20px; margin-bottom:16px;">📊 盘点结果</h2>
-            <div class="result-stat-row">
-                <div class="result-stat-item">
-                    <div class="label">全部设备</div>
-                    <div class="num" style="color:#9c27b0;">1,512</div>
-                </div>
-                <div class="result-stat-item">
-                    <div class="label">已盘</div>
-                    <div class="num" style="color:#2e7d32;">1,486</div>
-                </div>
-                <div class="result-stat-item">
-                    <div class="label">盘亏</div>
-                    <div class="num" style="color:#c62828;">18</div>
-                </div>
-                <div class="result-stat-item">
-                    <div class="label">盘盈</div>
-                    <div class="num" style="color:#ef6c00;">8</div>
-                </div>
-            </div>
+            <h2 id="resultPageTitle" style="font-size:20px; margin-bottom:16px;">📊 盘点结果</h2>
 
             <ul class="asset-list" id="assetList">
                 <!-- 由JS动态生成 -->
@@ -664,11 +1153,132 @@
         </div>
     </div>
 
+    <!-- 功率设置弹窗 -->
+    <div class="dialog-overlay" id="powerDialogOverlay" onclick="togglePowerDialog()">
+        <div class="dialog" onclick="event.stopPropagation()">
+            <div class="dialog-header">
+                <h3>功率设置</h3>
+                <button class="dialog-close" onclick="togglePowerDialog()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="dialog-body">
+                <div class="power-display">
+                    <span class="power-value" id="powerValue">26</span>
+                    <span class="power-unit">dBm</span>
+                    <div class="power-label">当前读写器功率</div>
+                </div>
+
+                <div class="power-slider-container">
+                    <div class="power-slider-labels">
+                        <span>0 dBm (低)</span>
+                        <span>30 dBm (高)</span>
+                    </div>
+                    <input type="range" class="power-slider" id="powerSlider" min="0" max="30" value="26" oninput="updatePower(this.value)">
+                </div>
+
+                <div class="power-presets">
+                    <button class="preset-btn" onclick="setPowerPreset(5)">5 dBm</button>
+                    <button class="preset-btn" onclick="setPowerPreset(15)">15 dBm</button>
+                    <button class="preset-btn active" onclick="setPowerPreset(26)">26 dBm</button>
+                    <button class="preset-btn" onclick="setPowerPreset(30)">30 dBm</button>
+                </div>
+
+                <div class="power-info">
+                    <p><strong>功率说明：</strong><br>
+                    低功率(0-10dBm)：近距离扫描，约1米<br>
+                    中功率(11-20dBm)：中距离扫描，约2米<br>
+                    高功率(21-30dBm)：远距离扫描，约5-8米</p>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="dialog-btn cancel" onclick="togglePowerDialog()">取消</button>
+                <button class="dialog-btn confirm" onclick="savePower()">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导入资产弹窗 -->
+    <div class="dialog-overlay" id="importDialogOverlay" onclick="closeImportDialog()">
+        <div class="dialog" onclick="event.stopPropagation()">
+            <div class="dialog-header">
+                <h3>导入资产数据</h3>
+                <button class="dialog-close" onclick="closeImportDialog()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="import-dialog-body">
+                <div class="upload-area" onclick="document.getElementById('importFileInput').click();">
+                    <div class="icon-big">📂</div>
+                    <p>拖拽或 <span class="highlight">点击浏览</span></p>
+                    <p style="font-size:12px; color:#aaa;">支持 .xlsx / .xls</p>
+                    <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none;" onchange="handleImportFile(this)">
+                </div>
+                <div class="file-info" id="importFileInfo">
+                    <span>已选择：<strong id="importFileName"></strong></span>
+                    <span style="float:right; color:#c62828; cursor:pointer;" onclick="clearImportFile()">清除</span>
+                </div>
+                <button class="btn-primary" onclick="startImport()" style="margin-top:12px;">开始导入</button>
+                <div class="tip-box" style="margin-top:12px;">
+                    请确保Excel中包含「设备名称」「设备类型」「归口部门」「序列号」「固资编号」等列。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建盘点任务弹窗 -->
+    <div class="dialog-overlay" id="createTaskDialogOverlay" onclick="closeCreateTaskDialog()">
+        <div class="dialog" onclick="event.stopPropagation()">
+            <div class="dialog-header">
+                <h3>创建盘点任务</h3>
+                <button class="dialog-close" onclick="closeCreateTaskDialog()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="create-task-body">
+                <div class="form-group">
+                    <label>任务名称</label>
+                    <input type="text" class="form-input" id="newTaskName" placeholder="例如：2026年Q3盘点">
+                </div>
+                <div class="form-group">
+                    <label>领用部门（可选）</label>
+                    <select class="form-select" id="newTaskDept" onchange="previewDeptAssets()">
+                        <option value="">不限制（全部资产）</option>
+                        <option value="研发部">研发部</option>
+                        <option value="行政部">行政部</option>
+                        <option value="IT部">IT部</option>
+                        <option value="市场部">市场部</option>
+                        <option value="财务部">财务部</option>
+                        <option value="机房">机房</option>
+                    </select>
+                    <div id="deptAssetPreview" style="font-size:12px; color:#888; margin-top:6px;"></div>
+                </div>
+                <div class="form-group">
+                    <label>备注（可选）</label>
+                    <input type="text" class="form-input" id="newTaskNote" placeholder="补充说明...">
+                </div>
+                <div class="dialog-footer" style="padding:16px 0 0; border:none;">
+                    <button class="dialog-btn cancel" onclick="closeCreateTaskDialog()">取消</button>
+                    <button class="dialog-btn confirm" onclick="createTask()">创建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 底部导航 -->
     <div class="bottom-nav">
-        <button class="nav-item active" data-page="import">
-            <span class="icon">📥</span>
-            <span>导入</span>
+        <button class="nav-item active" data-page="task">
+            <span class="icon">📋</span>
+            <span>任务</span>
         </button>
         <button class="nav-item" data-page="scan">
             <span class="icon">🔍</span>
@@ -689,7 +1299,7 @@
         // 底部导航切换
         const navItems = document.querySelectorAll('.nav-item');
         const pages = {
-            import: document.getElementById('pageImport'),
+            task: document.getElementById('pageTask'),
             scan: document.getElementById('pageScan'),
             result: document.getElementById('pageResult'),
             manual: document.getElementById('pageManual')
@@ -718,17 +1328,294 @@
         setInterval(updateTime, 60000);
         updateTime();
 
-        // 文件上传处理
-        function handleFile(input) {
+        // 文件上传处理（导入弹窗内）
+        function handleImportFile(input) {
             const file = input.files[0];
             if (!file) return;
-            document.getElementById('fileName').textContent = file.name;
-            document.getElementById('fileInfo').style.display = 'block';
+            document.getElementById('importFileName').textContent = file.name;
+            document.getElementById('importFileInfo').style.display = 'block';
         }
 
-        function clearFile() {
-            document.getElementById('fileInput').value = '';
-            document.getElementById('fileInfo').style.display = 'none';
+        function clearImportFile() {
+            document.getElementById('importFileInput').value = '';
+            document.getElementById('importFileInfo').style.display = 'none';
+        }
+
+        function startImport() {
+            const fileName = document.getElementById('importFileName').textContent;
+            if (!fileName) {
+                showToast('请先选择要导入的文件');
+                return;
+            }
+            // 模拟导入：解析文件后追加到 assetDatabase
+            const importedCount = Math.floor(Math.random() * 50) + 30;
+            const depts = ['研发部', '行政部', 'IT部', '市场部', '财务部', '机房'];
+            const deviceTypes = ['台式电脑', '笔记本', '打印机', '服务器', '显示器', '交换机'];
+            for (let i = 0; i < importedCount; i++) {
+                const dept = depts[Math.floor(Math.random() * depts.length)];
+                assetDatabase.push({
+                    id: `ZC-2026-${String(assetDatabase.length + 1).padStart(3, '0')}`,
+                    name: deviceTypes[Math.floor(Math.random() * deviceTypes.length)] + ` #${Math.floor(Math.random() * 999)}`,
+                    dept: dept,
+                    status: '在库'
+                });
+            }
+            showToast(`导入成功！共导入 ${importedCount} 条资产数据`);
+            closeImportDialog();
+        }
+
+        // ========== 齿轮下拉菜单逻辑 ==========
+        function toggleSettingsDropdown(e) {
+            e.stopPropagation();
+            const dropdown = document.getElementById('settingsDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        function openPowerDialog() {
+            document.getElementById('settingsDropdown').classList.remove('show');
+            togglePowerDialog();
+        }
+
+        function openImportDialog() {
+            document.getElementById('settingsDropdown').classList.remove('show');
+            document.getElementById('importDialogOverlay').classList.add('show');
+        }
+
+        function closeImportDialog() {
+            document.getElementById('importDialogOverlay').classList.remove('show');
+        }
+
+        // 点击页面其他区域关闭下拉菜单
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('settingsDropdown');
+            if (dropdown && !e.target.closest('.settings-btn') && !e.target.closest('.settings-dropdown')) {
+                dropdown.classList.remove('show');
+            }
+        });
+
+        // ========== 盘点任务逻辑 ==========
+        const taskData = [
+            { id: 1, name: '研发部 Q3 盘点', dept: '研发部', total: 186, checked: 142, status: 'active', date: '2026-07-01' },
+            { id: 2, name: '行政部资产清查', dept: '行政部', total: 95, checked: 30, status: 'active', date: '2026-07-03' },
+            { id: 3, name: 'IT机房设备盘点', dept: 'IT部', total: 210, checked: 210, status: 'done', date: '2026-06-15' },
+            { id: 4, name: '市场部固定资产', dept: '市场部', total: 64, checked: 64, status: 'done', date: '2026-06-20' },
+            { id: 5, name: '财务部设备盘点', dept: '财务部', total: 48, checked: 48, status: 'done', date: '2026-06-25' }
+        ];
+        let nextTaskId = 6;
+
+        function renderTasks() {
+            const list = document.getElementById('taskList');
+            list.innerHTML = '';
+
+            taskData.forEach(task => {
+                const percent = task.total > 0 ? Math.round((task.checked / task.total) * 100) : 0;
+                let progressColor = '#1976d2';
+                let statusTag = '';
+                if (task.status === 'done') {
+                    progressColor = '#2e7d32';
+                    statusTag = '<span class="tag tag-green" style="font-size:11px; padding:2px 8px;">已完成</span>';
+                } else if (task.status === 'paused') {
+                    progressColor = '#9e9e9e';
+                    statusTag = '<span class="tag" style="font-size:11px; padding:2px 8px; background:#f5f5f5; color:#757575;">已暂停</span>';
+                } else {
+                    statusTag = '<span class="tag tag-orange" style="font-size:11px; padding:2px 8px;">进行中</span>';
+                }
+
+                let actionsHtml = '';
+                if (task.status === 'done') {
+                    actionsHtml = `
+                        <div class="task-actions">
+                            <button class="task-btn-detail" onclick="viewTaskDetail(${task.id})">查看详情</button>
+                        </div>`;
+                } else if (task.status === 'paused') {
+                    actionsHtml = `
+                        <div class="task-actions">
+                            <button class="task-btn-start disabled">开始盘点</button>
+                            <button class="task-btn-start" style="background:#2e7d32;" onclick="resumeTask(${task.id})">恢复</button>
+                        </div>`;
+                } else {
+                    actionsHtml = `
+                        <div class="task-actions">
+                            <button class="task-btn-start" onclick="startTask(${task.id})">开始盘点</button>
+                            <button class="task-btn-pause" onclick="pauseTask(${task.id})">暂停</button>
+                        </div>`;
+                }
+
+                const li = document.createElement('li');
+                li.className = 'task-card';
+                li.innerHTML = `
+                    <div class="task-header">
+                        <div class="task-header-left">
+                            <span class="task-name">${task.name}</span>
+                            ${statusTag}
+                        </div>
+                        <button class="task-delete-btn" onclick="deleteTask(${task.id})">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="task-dept">${task.dept}</div>
+                    <div class="task-meta">
+                        <span>创建：${task.date}</span>
+                        <span>共 ${task.total} 台</span>
+                    </div>
+                    <div class="task-progress-bar">
+                        <div class="task-progress-fill" style="width:${percent}%; background:${progressColor};"></div>
+                    </div>
+                    <div class="task-progress-text">
+                        <span>已盘 ${task.checked} 台</span>
+                        <span>${percent}%</span>
+                    </div>
+                    ${actionsHtml}
+                `;
+                list.appendChild(li);
+            });
+
+            // 更新统计
+            const total = taskData.length;
+            const active = taskData.filter(t => t.status === 'active').length;
+            const done = taskData.filter(t => t.status === 'done').length;
+            const summaryItems = document.querySelectorAll('#pageTask .task-summary-item .num');
+            if (summaryItems.length >= 3) {
+                summaryItems[0].textContent = total;
+                summaryItems[1].textContent = active;
+                summaryItems[2].textContent = done;
+            }
+            // 控制清除按钮显隐
+            document.getElementById('clearDoneBtn').style.display = done > 0 ? 'block' : 'none';
+        }
+
+        function startTask(taskId) {
+            const task = taskData.find(t => t.id === taskId);
+            if (task) {
+                showToast(`开始执行任务：${task.name}`);
+                // 切换到扫描页面
+                navItems.forEach(n => n.classList.remove('active'));
+                document.querySelector('[data-page="scan"]').classList.add('active');
+                Object.values(pages).forEach(p => p.classList.remove('active'));
+                pages.scan.classList.add('active');
+            }
+        }
+
+        function pauseTask(taskId) {
+            const task = taskData.find(t => t.id === taskId);
+            if (task) {
+                task.status = 'paused';
+                renderTasks();
+                showToast(`任务「${task.name}」已暂停`);
+            }
+        }
+
+        function resumeTask(taskId) {
+            const task = taskData.find(t => t.id === taskId);
+            if (task) {
+                task.status = 'active';
+                renderTasks();
+                showToast(`任务「${task.name}」已恢复，可继续盘点`);
+            }
+        }
+
+        function deleteTask(taskId) {
+            const task = taskData.find(t => t.id === taskId);
+            if (!task) return;
+            const msg = task.status === 'done'
+                ? `确定删除已完成任务「${task.name}」吗？`
+                : `任务「${task.name}」尚未完成，确定删除吗？`;
+            if (confirm(msg)) {
+                const idx = taskData.findIndex(t => t.id === taskId);
+                if (idx > -1) taskData.splice(idx, 1);
+                renderTasks();
+                showToast(`任务「${task.name}」已删除`);
+            }
+        }
+
+        function clearDoneTasks() {
+            const doneCount = taskData.filter(t => t.status === 'done').length;
+            if (doneCount === 0) return;
+            if (confirm(`确定清除全部 ${doneCount} 个已完成任务吗？`)) {
+                for (let i = taskData.length - 1; i >= 0; i--) {
+                    if (taskData[i].status === 'done') taskData.splice(i, 1);
+                }
+                renderTasks();
+                showToast(`已清除 ${doneCount} 个已完成任务`);
+            }
+        }
+
+        function viewTaskDetail(taskId) {
+            const task = taskData.find(t => t.id === taskId);
+            if (task) {
+                showToast(`查看任务：${task.name}，盘点率 ${Math.round((task.checked/task.total)*100)}%`);
+            }
+        }
+
+        function openCreateTaskDialog() {
+            document.getElementById('newTaskName').value = '';
+            document.getElementById('newTaskDept').value = '';
+            document.getElementById('newTaskNote').value = '';
+            document.getElementById('deptAssetPreview').textContent = '';
+            document.getElementById('createTaskDialogOverlay').classList.add('show');
+        }
+
+        function previewDeptAssets() {
+            const dept = document.getElementById('newTaskDept').value;
+            const preview = document.getElementById('deptAssetPreview');
+            if (!dept) {
+                const total = assetDatabase.length;
+                if (total === 0) {
+                    preview.textContent = '暂无已导入资产';
+                    preview.style.color = '#c62828';
+                } else {
+                    preview.textContent = `将盘点全部 ${total} 台设备`;
+                    preview.style.color = '#2e7d32';
+                }
+                return;
+            }
+            const count = assetDatabase.filter(a => a.dept === dept).length;
+            if (count === 0) {
+                preview.textContent = '该部门暂无已导入资产';
+                preview.style.color = '#c62828';
+            } else {
+                preview.textContent = `该部门 ${count} 台设备`;
+                preview.style.color = '#2e7d32';
+            }
+        }
+
+        function closeCreateTaskDialog() {
+            document.getElementById('createTaskDialogOverlay').classList.remove('show');
+        }
+
+        function createTask() {
+            const name = document.getElementById('newTaskName').value.trim();
+            const dept = document.getElementById('newTaskDept').value;
+            if (!name) {
+                showToast('请输入任务名称');
+                return;
+            }
+
+            // 根据部门统计已导入资产数量（不选部门则统计全部）
+            const deptAssets = dept
+                ? assetDatabase.filter(a => a.dept === dept).length
+                : assetDatabase.length;
+
+            if (deptAssets === 0) {
+                showToast('暂无已导入的资产数据，请先通过齿轮菜单导入');
+                return;
+            }
+
+            const newTask = {
+                id: nextTaskId++,
+                name: name,
+                dept: dept || '全部',
+                total: deptAssets,
+                checked: 0,
+                status: 'active',
+                date: new Date().toISOString().slice(0, 10)
+            };
+            taskData.unshift(newTask);
+            renderTasks();
+            closeCreateTaskDialog();
+            showToast(`任务创建成功，包含 ${deptAssets} 台设备待盘点`);
         }
         
         // 数据重置功能
@@ -1007,10 +1894,28 @@
             { id: 'ZC-2024-006', name: 'UPS 不间断电源', dept: '机房', status: 'missing' }
         ];
 
-        function renderAssets() {
+        function renderAssets(filter) {
             const list = document.getElementById('assetList');
             list.innerHTML = '';
-            mockAssets.forEach(a => {
+
+            // 标题文案
+            const titleEl = document.getElementById('resultPageTitle');
+            const titleMap = {
+                all: '📊 全部设备',
+                checked: '📊 已盘点设备',
+                missing: '📊 异常设备',
+                surplus: '📊 盘盈设备'
+            };
+            titleEl.textContent = titleMap[filter] || '📊 盘点结果';
+
+            const filtered = filter === 'all' ? mockAssets : mockAssets.filter(a => a.status === filter);
+
+            if (filtered.length === 0) {
+                list.innerHTML = '<div style="text-align:center; color:#999; padding:40px 0; font-size:14px;">暂无数据</div>';
+                return;
+            }
+
+            filtered.forEach(a => {
                 let statusText, statusClass;
                 switch (a.status) {
                     case 'checked': statusText = '已盘 ✓'; statusClass = 'tag-green'; break;
@@ -1031,11 +1936,50 @@
             });
         }
 
+        // 从扫描管理点击统计卡片跳转到结果页
+        function goToResult(filter) {
+            navItems.forEach(n => n.classList.remove('active'));
+            document.querySelector('[data-page="result"]').classList.add('active');
+            Object.values(pages).forEach(p => p.classList.remove('active'));
+            pages.result.classList.add('active');
+            renderAssets(filter);
+            // 滚动到顶部
+            document.getElementById('mainContent').scrollTop = 0;
+        }
+
         // 页面卸载时停止扫码
         window.addEventListener('beforeunload', stopScan);
 
+        // ========== 功率设置弹窗逻辑 ==========
+        function togglePowerDialog() {
+            const overlay = document.getElementById('powerDialogOverlay');
+            overlay.classList.toggle('show');
+        }
+
+        function updatePower(value) {
+            document.getElementById('powerValue').textContent = value;
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent === value + ' dBm') {
+                    btn.classList.add('active');
+                }
+            });
+        }
+
+        function setPowerPreset(value) {
+            document.getElementById('powerSlider').value = value;
+            updatePower(value);
+        }
+
+        function savePower() {
+            const power = document.getElementById('powerValue').textContent;
+            showToast('功率已设置为 ' + power + ' dBm');
+            togglePowerDialog();
+        }
+
         // 初始化
-        renderAssets();
+        renderAssets('all');
+        renderTasks();
     </script>
 </body>
 </html>

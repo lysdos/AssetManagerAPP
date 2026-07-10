@@ -2,12 +2,12 @@
     <string name="app_name">华夏资产管家</string>
 
     <!-- Bottom nav -->
-    <string name="nav_import">📥 导入</string>
+    <string name="nav_task">📋 任务</string>
     <string name="nav_scan">🔍 扫描</string>
     <string name="nav_result">📊 结果</string>
 
     <!-- Import -->
-    <string name="import_start">开始盘点</string>
+    <string name="import_start">开始导入</string>
 
     <!-- Scan -->
     <string name="scan_start">开始扫描</string>
@@ -20,16 +20,23 @@
     <string name="import_title">📥 导入资产数据</string>
     <string name="import_upload_hint">拖拽或 点击浏览</string>
     <string name="import_upload_format">支持 .xlsx / .xls</string>
-    <string name="import_tip">💡 请确保 Excel 中包含「设备名称」「设备类型」「归口部门」「序列号」「固资编号」等列。</string>
+    <string name="import_tip">💡 请确保 Excel 包含「设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人」等列。</string>
     <string name="import_clear">清除</string>
     <string name="import_file_selected">已选择：%1$s</string>
     <string name="import_progress">正在导入 %1$d / %2$d …</string>
     <string name="import_done">已导入 %1$d 条</string>
+    <string name="import_done_fmt">✅ 导入成功！已添加 %1$d 条到库存池</string>
+    <string name="import_importing_fmt">正在导入 %1$d / %2$d …</string>
+    <string name="import_progress_pre">正在解析文件…</string>
+    <string name="import_progress_parsed">解析完成：%1$d 条可导入，%2$d 条错误</string>
+    <string name="err_import_failed_fmt">导入失败：%1$s</string>
     <string name="import_failed">导入失败：%1$s</string>
     <string name="scan_title">🔍 扫描管理</string>
     <string name="scan_stat_in_stock">在库设备</string>
     <string name="scan_stat_scanned">已盘点</string>
     <string name="scan_stat_anomaly">异常</string>
+    <string name="scan_stat_extra">盘盈</string>
+    <string name="scan_stat_extra_sub">待确认</string>
     <string name="scan_stat_sub_today">+%1$d 今日</string>
     <string name="scan_info_checked">📌 已盘点设备</string>
     <string name="scan_info_checked_desc">已完成扫码盘点的设备清单，包含盘点人、时间及状态。</string>
@@ -58,6 +65,62 @@
     <string name="err_parse_failed">Excel 解析失败：%1$s</string>
     <string name="err_empty_result">暂无数据</string>
     <string name="err_export_failed">导出失败：%1$s</string>
+
+    <!-- Task tab -->
+    <string name="task_title">📋 盘点任务</string>
+    <string name="task_summary_total">总任务</string>
+    <string name="task_summary_progress">进行中</string>
+    <string name="task_summary_done">已完成</string>
+    <string name="task_create_btn">+ 创建任务</string>
+    <string name="task_clear_done">🗑️ 清除已完成</string>
+    <string name="task_empty">暂无任务，点击下方按钮创建</string>
+    <string name="task_status_in_progress">进行中</string>
+    <string name="task_status_completed">已完成</string>
+    <string name="task_dept_all">不限制（全部资产）</string>
+    <string name="task_action_start">开始盘点</string>
+    <string name="task_action_view">查看详情</string>
+    <string name="task_action_delete">删除</string>
+    <string name="task_action_pause">暂停</string>
+    <string name="task_action_resume">恢复</string>
+    <string name="task_status_paused">已暂停</string>
+    <string name="task_progress_fmt">%1$d / %2$d</string>
+    <string name="task_progress_checked_fmt">已盘 %1$d 台</string>
+    <string name="task_progress_pct_fmt">%1$d%%</string>
+    <string name="task_meta_date_fmt">创建：%1$s</string>
+    <string name="task_meta_total_fmt">共 %1$d 台</string>
+    <string name="task_dept_fmt">归属：%1$s</string>
+    <string name="task_dept_unlimited_fmt">归属：不限部门</string>
+    <string name="task_no_dept">不限部门</string>
+    <string name="task_msg_confirm_delete">确认删除该任务？此操作将删除任务下所有资产和扫描记录。</string>
+    <string name="task_msg_confirm_clear_done">确认清除所有已完成任务？</string>
+    <string name="task_msg_paused">任务「%1$s」已暂停</string>
+    <string name="task_msg_resumed">任务「%1$s」已恢复，可继续盘点</string>
+    <string name="task_content_desc_delete">删除任务</string>
+    <string name="task_content_desc_more">更多操作</string>
+    <string name="task_action_release_to_pool">释放资产回库存池</string>
+    <string name="task_msg_release_done">已释放 %1$d 条资产到库存池</string>
+    <string name="task_msg_release_none">该任务下暂无资产</string>
+    <string name="task_msg_confirm_release">确认释放 %1$d 条资产到库存池？\n该任务的扫描记录将一并清除，操作不可撤销。</string>
+    <string name="task_msg_in_progress_cant_release">进行中的任务请先暂停后再释放资产</string>
+
+    <!-- Create task dialog -->
+    <string name="task_create_title">创建盘点任务</string>
+    <string name="task_name_hint">任务名称（必填）</string>
+    <string name="task_name_label">任务名称</string>
+    <string name="task_name_placeholder">例如：2026年Q3盘点</string>
+    <string name="task_dept_label">领用部门</string>
+    <string name="task_dept_label_optional">领用部门（可选）</string>
+    <string name="task_preview_fmt">将盘点 %1$d 台</string>
+    <string name="task_preview_all">将盘点全部已导入资产</string>
+    <string name="task_preview_empty">暂无已导入资产</string>
+    <string name="task_preview_dept_empty">该部门暂无已导入资产</string>
+    <string name="task_remark_label">备注（可选）</string>
+    <string name="task_remark_placeholder">补充说明...</string>
+    <string name="task_create_confirm">创建</string>
+    <string name="task_msg_name_required">请输入任务名称</string>
+    <string name="task_msg_no_assets">该部门暂无资产可盘点</string>
+    <string name="task_msg_created">任务创建成功，包含 %1$d 台设备待盘点</string>
+    <string name="task_msg_no_data">暂无已导入的资产数据，请先通过齿轮菜单导入</string>
     <string name="msg_export_done">已导出</string>
     <string name="tag_found">已盘</string>
     <string name="tag_missing">盘亏</string>
@@ -70,6 +133,7 @@
     <string name="label_asset_name">设备名称</string>
     <string name="label_asset_type">设备类型</string>
     <string name="label_asset_model">设备型号</string>
+    <string name="label_serial_no">序列号</string>
     <string name="label_org">所属机构</string>
     <string name="label_detailed_location">详细地点</string>
     <string name="label_placement_location">放置地点</string>
@@ -83,6 +147,13 @@
     <string name="action_save">保存</string>
     <string name="action_cancel">取消</string>
     <string name="msg_asset_saved">已保存</string>
+
+    <!-- Extra (盘盈) detail dialog -->
+    <string name="dialog_extra_title">盘盈补全</string>
+    <string name="extra_label_scanned_at">扫描时间</string>
+    <string name="extra_tag_claimed">已补全</string>
+    <string name="extra_claim_info_fmt">%1$s · 领用人 %2$s</string>
+    <string name="msg_extra_saved">补全信息已保存</string>
 
     <!-- Manual scan page -->
     <string name="scan_manual_btn">📱 手动盘点</string>
@@ -113,6 +184,9 @@
 
     <!-- Power setting -->
     <string name="action_power_setting">功率设置</string>
+    <string name="menu_settings">操作</string>
+    <string name="menu_action_power">功率设置</string>
+    <string name="menu_action_import">导入资产</string>
     <string name="power_setting_title">功率设置</string>
     <string name="power_setting_current">当前读写器功率</string>
     <string name="power_setting_low">0 dBm (低)</string>

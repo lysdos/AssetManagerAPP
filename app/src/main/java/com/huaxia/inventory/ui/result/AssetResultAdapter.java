@@ -45,9 +45,9 @@ public class AssetResultAdapter extends RecyclerView.Adapter<AssetResultAdapter.
     public void onBindViewHolder(@NonNull VH h, int position) {
         Asset a = items.get(position);
         h.code.setText(a.epc == null ? "" : EpcNormalizer.toDisplayForm(a.epc));
-        h.name.setText(a.assetName == null ? "" : a.assetName);
-        h.model.setText(a.assetModel == null ? "" : a.assetModel);
-        h.org.setText(a.org == null ? "" : a.org);
+        h.serial.setText(a.serialNumber == null ? "" : a.serialNumber);
+        h.custodian.setText(a.custodian == null ? "" : a.custodian);
+        h.dept.setText(a.dept == null ? "" : a.dept);
 
         boolean matched = matchedIds.contains(a.id);
         if (matched) {
@@ -70,13 +70,13 @@ public class AssetResultAdapter extends RecyclerView.Adapter<AssetResultAdapter.
     @Override public int getItemCount() { return items.size(); }
 
     static class VH extends RecyclerView.ViewHolder {
-        final TextView code, name, model, org, pill;
+        final TextView code, serial, custodian, dept, pill;
         VH(View v) {
             super(v);
             code = v.findViewById(R.id.assetCodeTv);
-            name = v.findViewById(R.id.assetNameTv);
-            model = v.findViewById(R.id.assetModelTv);
-            org = v.findViewById(R.id.assetOrgTv);
+            serial = v.findViewById(R.id.assetSerialTv);
+            custodian = v.findViewById(R.id.assetCustodianTv);
+            dept = v.findViewById(R.id.assetDeptTv);
             pill = v.findViewById(R.id.assetStatusPill);
         }
     }

@@ -7,8 +7,8 @@ import java.util.List;
 public class HeaderSpec {
 
     public static final List<String> REQUIRED = Arrays.asList(
-            "序号", "设备名称", "设备类型", "设备型号", "所属机构",
-            "详细地点", "放置地点", "资产状态", "固资编号");
+            "序号", "设备类型", "设备型号", "序列号",
+            "固资编号", "领用部门", "领用人", "盘点日期");
 
     private final List<String> actual;
 

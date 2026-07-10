@@ -77,19 +77,38 @@ public final class ExcelImporter {
             Iterator<Row> rows = sheet.iterator();
             if (!rows.hasNext()) throw new IllegalStateException("Empty sheet");
 
-            rows.next(); // skip title row 1
-            rows.next(); // skip meta row 2
-
-            Row headerRow = rows.next(); // row 3
-            List<String> headers = readRow(headerRow);
-            HeaderSpec spec = new HeaderSpec(headers);
-            if (!spec.isValid()) {
-                throw new IllegalStateException(
-                        "Missing required columns: " + spec.missingHeaders());
+            // 智能探测 header:
+            //   新格式 (华夏资产导入测试.xlsx): row 1 直接是 header
+            //   老格式 (带 title/meta):         row 1 = title, row 2 = meta, row 3 = header
+            // 判定: row 1 是否包含所有必需列名; 是 → 新格式; 否则 → 老格式
+            Row firstRow = rows.next();
+            HeaderSpec spec = new HeaderSpec(readRow(firstRow));
+            int excelRow;
+            List<String> headers;
+            if (spec.isValid()) {
+                headers = spec.all();
+                excelRow = 2; // data 从 row 2 起
+            } else {
+                if (!rows.hasNext()) {
+                    throw new IllegalStateException(
+                            "Missing required columns: " + spec.missingHeaders());
+                }
+                rows.next(); // skip row 2 (老格式 meta 行)
+                if (!rows.hasNext()) {
+                    throw new IllegalStateException(
+                            "Missing required columns: " + spec.missingHeaders());
+                }
+                Row headerRow = rows.next(); // row 3
+                spec = new HeaderSpec(readRow(headerRow));
+                if (!spec.isValid()) {
+                    throw new IllegalStateException(
+                            "Missing required columns: " + spec.missingHeaders());
+                }
+                headers = spec.all();
+                excelRow = 4; // data 从 row 4 起
             }
             int epcIdx = spec.epcColumnIndex();
 
-            int excelRow = 4;
             List<Asset> pending = new ArrayList<>(batchSize);
             while (rows.hasNext()) {
                 Row row = rows.next();
@@ -108,13 +127,12 @@ public final class ExcelImporter {
                     a.taskId = taskId;
                     a.excelRowIndex = excelRow;
                     a.epc = code;
-                    a.assetName = pick(cells, headers, "设备名称");
                     a.assetType = pick(cells, headers, "设备类型");
                     a.assetModel = pick(cells, headers, "设备型号");
-                    a.org = pick(cells, headers, "所属机构");
-                    a.detailedLocation = pick(cells, headers, "详细地点");
-                    a.placementLocation = pick(cells, headers, "放置地点");
-                    a.assetStatus = pick(cells, headers, "资产状态");
+                    a.serialNumber = pick(cells, headers, "序列号");
+                    a.custodian = pick(cells, headers, "领用人");
+                    a.dept = pick(cells, headers, "领用部门");
+                    // "盘点日期" 列解析后丢弃, 不写入 Asset 任何字段
                     a.rawRowJson = buildRawJson(headers, cells);
                     pending.add(a);
                     if (pending.size() >= batchSize) {

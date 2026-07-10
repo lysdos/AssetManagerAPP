@@ -32,8 +32,8 @@ public class ScanFragment extends Fragment {
     private MaterialButton manualScanBtn;
     private MaterialButton clearTaskBtn;
     private TextView deviceStatusTv;
-    private TextView inStockNumber, scannedNumber, anomalyNumber;
-    private TextView inStockSub, scannedSub, anomalySub;
+    private TextView inStockNumber, scannedNumber, anomalyNumber, extraNumber;
+    private TextView inStockSub, scannedSub, anomalySub, extraSub;
     private TextView checkedCardTitle, checkedCardDesc, checkedCardSub;
     private TextView recentCardTitle, recentCardDesc;
     private LinearLayout recentTags;
@@ -77,13 +77,17 @@ public class ScanFragment extends Fragment {
                 R.color.statScanned, "0%");
         bindStatCard(v, R.id.anomalyStat, R.string.scan_stat_anomaly,
                 R.color.statusMissing, "需处理");
+        bindStatCard(v, R.id.extraStat, R.string.scan_stat_extra,
+                R.color.statusExtra, getString(R.string.scan_stat_extra_sub));
 
         inStockNumber = v.findViewById(R.id.inStockStat).findViewById(R.id.statNumberTv);
         scannedNumber = v.findViewById(R.id.scannedStat).findViewById(R.id.statNumberTv);
         anomalyNumber = v.findViewById(R.id.anomalyStat).findViewById(R.id.statNumberTv);
+        extraNumber = v.findViewById(R.id.extraStat).findViewById(R.id.statNumberTv);
         inStockSub = v.findViewById(R.id.inStockStat).findViewById(R.id.statSubTv);
         scannedSub = v.findViewById(R.id.scannedStat).findViewById(R.id.statSubTv);
         anomalySub = v.findViewById(R.id.anomalyStat).findViewById(R.id.statSubTv);
+        extraSub = v.findViewById(R.id.extraStat).findViewById(R.id.statSubTv);
 
         // Bind info cards
         View checkedCard = v.findViewById(R.id.checkedCard);
@@ -112,6 +116,8 @@ public class ScanFragment extends Fragment {
                 card -> navigateToResult(ResultTab.FOUND));
         v.findViewById(R.id.anomalyStat).setOnClickListener(
                 card -> navigateToResult(ResultTab.MISSING));
+        v.findViewById(R.id.extraStat).setOnClickListener(
+                card -> navigateToResult(ResultTab.EXTRA));
 
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         Long taskId = app.session.getCurrentTaskId();
@@ -148,6 +154,8 @@ public class ScanFragment extends Fragment {
             scannedSub.setText(pct + "%");
             anomalyNumber.setText(String.valueOf(stats.anomaly));
             anomalySub.setText(stats.anomaly > 0 ? "需处理" : "OK");
+            extraNumber.setText(String.valueOf(stats.extra));
+            extraSub.setText(stats.extra > 0 ? getString(R.string.scan_stat_extra_sub) : "OK");
 
             checkedCardSub.setText(getString(R.string.scan_info_checked_sub,
                     stats.lastScannedAt == 0 ? "—" : DateUtil.formatTimestamp(stats.lastScannedAt)));
@@ -230,6 +238,8 @@ public class ScanFragment extends Fragment {
         scannedSub.setText("0%");
         anomalyNumber.setText("0");
         anomalySub.setText("OK");
+        extraNumber.setText("0");
+        extraSub.setText("OK");
         checkedCardSub.setText(getString(R.string.scan_info_checked_sub, "—"));
         recentCardDesc.setText(getString(R.string.scan_info_recent_desc, 0, 0, 0));
         recentTags.removeAllViews();

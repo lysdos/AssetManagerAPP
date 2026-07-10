@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@android:color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="20dp">
+
+        <!-- Title bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/import_title"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="#222222" />
+
+            <ImageButton
+                android:id="@+id/importCloseBtn"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/bg_dialog_close"
+                android:src="@drawable/ic_close"
+                android:contentDescription="@string/action_cancel"
+                app:tint="#666666"
+                android:scaleType="centerInside" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#eeeeee" />
+
+        <!-- Upload area -->
+        <LinearLayout
+            android:id="@+id/uploadArea"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_marginTop="20dp"
+            android:padding="32dp"
+            android:background="@drawable/bg_upload_area"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📂"
+                android:textSize="48sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/import_upload_hint"
+                android:textSize="15sp"
+                android:textColor="#555555" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/import_upload_format"
+                android:textSize="12sp"
+                android:textColor="#aaaaaa" />
+        </LinearLayout>
+
+        <!-- File info row -->
+        <LinearLayout
+            android:id="@+id/fileInfoRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="12dp"
+            android:padding="12dp"
+            android:background="@drawable/bg_dialog_input"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <TextView
+                android:id="@+id/fileInfoNameTv"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="14sp"
+                android:textColor="#333333"
+                android:singleLine="true"
+                android:ellipsize="middle"
+                tools:text="已选择：华夏资产导入测试.xlsx" />
+
+            <Button
+                android:id="@+id/clearFileBtn"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:text="@string/import_clear"
+                android:textSize="13sp"
+                android:textColor="#c62828" />
+        </LinearLayout>
+
+        <!-- Progress row -->
+        <TextView
+            android:id="@+id/progressTv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:padding="12dp"
+            android:background="@drawable/bg_dialog_input"
+            android:textSize="14sp"
+            android:textColor="#1976d2"
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:text="正在导入 1500 / 3399 …" />
+
+        <!-- Error row -->
+        <TextView
+            android:id="@+id/errorTv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:padding="12dp"
+            android:background="@drawable/bg_tip_error"
+            android:textSize="13sp"
+            android:textColor="@color/tipErrorFg"
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:text="导入失败：xxx" />
+
+        <!-- Start import button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/startImportBtn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/import_start"
+            android:enabled="false"
+            android:backgroundTint="@color/colorPrimary"
+            android:textColor="@android:color/white" />
+
+        <!-- Tip box -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:padding="12dp"
+            android:background="@drawable/bg_tip_info"
+            android:text="@string/import_tip"
+            android:textSize="13sp"
+            android:textColor="@color/tipInfoFg" />
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="false"
+    android:background="@color/cardCorner">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp">
+
+        <!-- 头部: EPC + 原始扫描时间只读 -->
+        <TextView style="@style/DialogLabel"
+            android:text="@string/label_epc" />
+        <TextView android:id="@+id/extraDlgEpcTv"
+            style="@style/DialogValue"
+            android:fontFamily="monospace" />
+
+        <TextView style="@style/DialogLabel"
+            android:layout_marginTop="6dp"
+            android:text="@string/extra_label_scanned_at" />
+        <TextView android:id="@+id/extraDlgScannedAtTv"
+            style="@style/DialogValue" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="6dp"
+            android:background="@color/borderDashed" />
+
+        <!-- 6 个可编辑字段：固资编号 / 类型 / 型号 / 序列号 / 部门 / 领用人 -->
+        <TextView style="@style/DialogLabel"
+            android:text="@string/label_epc" />
+        <EditText
+            android:id="@+id/extraDlgEpcEt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@android:color/black"
+            android:textColorHint="@color/textLightHint"
+            android:inputType="number"
+            android:digits="0123456789"
+            android:maxLines="1" />
+
+        <TextView style="@style/DialogLabel"
+            android:text="@string/label_asset_type" />
+        <EditText
+            android:id="@+id/extraDlgTypeEt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@android:color/black"
+            android:inputType="text"
+            android:maxLines="1" />
+
+        <TextView style="@style/DialogLabel"
+            android:text="@string/label_asset_model" />
+        <EditText
+            android:id="@+id/extraDlgModelEt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@android:color/black"
+            android:inputType="text"
+            android:maxLines="1" />
+
+        <TextView style="@style/DialogLabel"
+            android:text="@string/label_serial_no" />
+        <EditText
+            android:id="@+id/extraDlgSerialEt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@android:color/black"
+            android:inputType="text"
+            android:maxLines="1" />
+
+        <TextView style="@style/DialogLabel"
+            android:text="@string/label_borrow_dept" />
+        <EditText
+            android:id="@+id/extraDlgDeptEt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/hint_borrow_dept"
+            android:textSize="15sp"
+            android:textColor="@android:color/black"
+            android:textColorHint="@color/textLightHint"
+            android:inputType="text"
+            android:maxLines="1"
+            android:autofillHints="organizationName" />
+
+        <TextView style="@style/DialogLabel"
+            android:layout_marginTop="10dp"
+            android:text="@string/label_borrower" />
+        <EditText
+            android:id="@+id/extraDlgBorrowerEt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/hint_borrower"
+            android:textSize="15sp"
+            android:textColor="@android:color/black"
+            android:textColorHint="@color/textLightHint"
+            android:inputType="text"
+            android:maxLines="1"
+            android:autofillHints="personName" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="14dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/extraDlgCancelBtn"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/action_cancel" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/extraDlgSaveBtn"
+                style="@style/Widget.MaterialComponents.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/action_save" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

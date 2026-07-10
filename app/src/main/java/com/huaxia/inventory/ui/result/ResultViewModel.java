@@ -8,9 +8,13 @@ import androidx.lifecycle.MutableLiveData;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.data.AppDatabase;
 import com.huaxia.inventory.data.entity.Asset;
+import com.huaxia.inventory.data.entity.ExtraClaim;
 import com.huaxia.inventory.data.entity.ScanRecord;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 public class ResultViewModel extends AndroidViewModel {
@@ -27,7 +31,7 @@ public class ResultViewModel extends AndroidViewModel {
     private final AppDatabase db;
     private final Executor diskIO;
     private final MutableLiveData<List<Asset>> assets = new MutableLiveData<>();
-    private final MutableLiveData<List<ScanRecord>> extras = new MutableLiveData<>();
+    private final MutableLiveData<List<ExtraWithClaim>> extras = new MutableLiveData<>();
     private final MutableLiveData<Stats> stats = new MutableLiveData<>(new Stats(0, 0, 0, 0));
     private final MutableLiveData<ResultTab> activeTab = new MutableLiveData<>(ResultTab.FOUND);
     private final MutableLiveData<Integer> currentPage = new MutableLiveData<>(0);
@@ -41,7 +45,7 @@ public class ResultViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<Asset>> assets() { return assets; }
-    public LiveData<List<ScanRecord>> extras() { return extras; }
+    public LiveData<List<ExtraWithClaim>> extras() { return extras; }
     public LiveData<Stats> stats() { return stats; }
     public LiveData<ResultTab> activeTab() { return activeTab; }
     public LiveData<Integer> currentPage() { return currentPage; }
@@ -97,7 +101,7 @@ public class ResultViewModel extends AndroidViewModel {
                     break;
                 case EXTRA:
                     assetResult = Collections.emptyList();
-                    extras.postValue(db.scanRecordDao().pageExtra(taskId, PAGE_SIZE, offset));
+                    extras.postValue(loadExtrasWithClaim(taskId, PAGE_SIZE, offset));
                     break;
                 case ALL:
                     assetResult = db.assetDao().pageAll(taskId, PAGE_SIZE, offset);
@@ -110,6 +114,38 @@ public class ResultViewModel extends AndroidViewModel {
                     break;
             }
             assets.postValue(assetResult);
+        });
+    }
+
+    /**
+     * 拉一页盘盈 + 对应的 ExtraClaim 补全信息。
+     * 两步查: 先 pageExtra 拿 ScanRecord 列表, 再批量 findByScanRecordIds 拿补全信息。
+     */
+    private List<ExtraWithClaim> loadExtrasWithClaim(long taskId, int limit, int offset) {
+        List<ScanRecord> records = db.scanRecordDao().pageExtra(taskId, limit, offset);
+        if (records.isEmpty()) return Collections.emptyList();
+        List<Long> ids = new ArrayList<>(records.size());
+        for (ScanRecord r : records) ids.add(r.id);
+        List<ExtraClaim> claims = db.extraClaimDao().findByScanRecordIds(ids);
+        Map<Long, ExtraClaim> map = new HashMap<>();
+        for (ExtraClaim c : claims) map.put(c.scanRecordId, c);
+        List<ExtraWithClaim> out = new ArrayList<>(records.size());
+        for (ScanRecord r : records) {
+            out.add(new ExtraWithClaim(r, map.get(r.id)));
+        }
+        return out;
+    }
+
+    /**
+     * 保存/更新盘盈补全信息。ScanRecord 行不动(matchedAssetId 保持 NULL),
+     * 通过 unique(scanRecordId) 实现 UPSERT 语义。
+     */
+    public void saveExtraClaim(long scanRecordId, ExtraClaim claim, Runnable onSaved) {
+        diskIO.execute(() -> {
+            claim.scanRecordId = scanRecordId;
+            claim.claimedAt = System.currentTimeMillis();
+            db.extraClaimDao().insert(claim);
+            if (onSaved != null) onSaved.run();
         });
     }
 }

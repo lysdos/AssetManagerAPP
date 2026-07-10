@@ -136,7 +136,7 @@ public final class ExcelExporter {
             }
         } catch (Exception e) {
             cells[0] = a.excelRowIndex;
-            if (originalHeaders.size() > 1) cells[1] = a.assetName;
+            // rawRowJson 不可用时其余列留空，不再兜底具体业务字段
         }
         int base = originalHeaders.size();
         cells[base] = isFound.test(a.id) ? "已盘" : "盘亏";

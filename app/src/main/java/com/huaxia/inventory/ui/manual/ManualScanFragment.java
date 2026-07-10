@@ -389,12 +389,12 @@ public class ManualScanFragment extends Fragment {
         currentAsset = a;
         currentNormalizedEpc = normalizedEpc != null ? normalizedEpc : a.epc;
         detailEpcTv.setText(EpcNormalizer.toDisplayForm(currentNormalizedEpc));
-        detailNameTv.setText(a.assetName == null || a.assetName.isEmpty()
-                ? getString(R.string.manual_asset_status_unknown) : a.assetName);
-        detailOrgTv.setText(a.org == null || a.org.isEmpty()
-                ? getString(R.string.manual_asset_status_unknown) : a.org);
-        detailStatusTv.setText(a.assetStatus == null || a.assetStatus.isEmpty()
-                ? getString(R.string.manual_asset_status_unknown) : a.assetStatus);
+        detailNameTv.setText(a.assetModel == null || a.assetModel.isEmpty()
+                ? getString(R.string.manual_asset_status_unknown) : a.assetModel);
+        detailOrgTv.setText(a.dept == null || a.dept.isEmpty()
+                ? getString(R.string.manual_asset_status_unknown) : a.dept);
+        detailStatusTv.setText(a.custodian == null || a.custodian.isEmpty()
+                ? getString(R.string.manual_asset_status_unknown) : a.custodian);
         detailCard.setVisibility(View.VISIBLE);
         confirmCheckBtn.setEnabled(true);
     }

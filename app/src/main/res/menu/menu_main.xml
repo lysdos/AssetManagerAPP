@@ -2,8 +2,8 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
-        android:id="@+id/action_power_setting"
-        android:title="功率设置"
-        android:icon="@drawable/ic_settings"
-        app:showAsAction="always" />
+        android:id="@+id/action_settings"
+        android:title="@string/menu_settings"
+        app:showAsAction="always"
+        app:actionLayout="@layout/menu_action_settings" />
 </menu>

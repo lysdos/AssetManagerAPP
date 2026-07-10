@@ -10,7 +10,6 @@ import androidx.lifecycle.MutableLiveData;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.data.AppDatabase;
 import com.huaxia.inventory.data.entity.Asset;
-import com.huaxia.inventory.data.entity.InventoryTask;
 import com.huaxia.inventory.excel.ExcelImporter;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -48,7 +47,11 @@ public class ImportViewModel extends AndroidViewModel {
     public static class ImportProgress {
         public final int imported;   // 已写入数据库条数
         public final int total;      // 总条数（来自预期值或解析结果）
-        public final long taskId;    // 第一次回调时为 0，commit 创建任务后才有值
+        /**
+         * 导入后归属 taskId. 库存池模式固定 = 0;
+         * 旧的"导入即建任务"模式才会传具体 taskId (现已废弃).
+         */
+        public final long taskId;
         public ImportProgress(int imported, int total, long taskId) {
             this.imported = imported; this.total = total; this.taskId = taskId;
         }
@@ -60,6 +63,10 @@ public class ImportViewModel extends AndroidViewModel {
     private final MutableLiveData<ParsedFile> parsedFile = new MutableLiveData<>();
     private final MutableLiveData<String> parseError = new MutableLiveData<>();
     private final MutableLiveData<ImportProgress> importProgress = new MutableLiveData<>();
+    /**
+     * 导入完成信号。值 = 实际写入条数（>=0），仅作触发使用。
+     * 库存池模式不再创建 InventoryTask，因此这里没有 taskId。
+     */
     private final MutableLiveData<Long> importDone = new MutableLiveData<>();
     private final MutableLiveData<String> importError = new MutableLiveData<>();
 
@@ -122,7 +129,15 @@ public class ImportViewModel extends AndroidViewModel {
 
     /**
      * 真正写入：重新打开 Uri 流式读 + 每批 500 条 insertAll。
-     * 通过 {@link #importProgress} 回调进度，完成后通过 {@link #importDone} 回调 taskId。
+     * 通过 {@link #importProgress} 回调进度，完成后通过 {@link #importDone} 回调写入条数。
+     *
+     * <p><b>库存池模式</b>：不再创建 InventoryTask。所有资产以 taskId=0 写入，
+     * 后续在任务页由用户创建任务时，由 {@link com.huaxia.inventory.ui.task.TaskListViewModel#createTask}
+     * 把 pool 资产划拨到新任务。
+     *
+     * <p>方法名保留 commitToTask 是为了不破坏 dialog 端调用，但 taskId 已无意义。
+     *
+     * @param cb 回调参数 = 实际写入条数（旧版是 taskId，已废弃语义）
      */
     public void commitToTask(String fileName, Uri sourceUri, int expectedTotal,
                              ImportCallback cb) {
@@ -132,32 +147,28 @@ public class ImportViewModel extends AndroidViewModel {
         }
         diskIO.execute(() -> {
             try {
-                InventoryTask task = new InventoryTask();
-                task.sourceFileName = fileName;
-                task.importedAt = System.currentTimeMillis();
-                task.status = "IN_PROGRESS";
-                task.expectedCount = expectedTotal;
-                long taskId = db.inventoryTaskDao().insert(task);
-                importProgress.postValue(new ImportProgress(0, expectedTotal, taskId));
+                // 库存池模式: 直接以 taskId=0 导入, 不创建 InventoryTask
+                importProgress.postValue(new ImportProgress(0, expectedTotal, 0L));
 
                 int[] imported = {0};
                 try (InputStream in = app.getContentResolver().openInputStream(sourceUri)) {
-                    ExcelImporter.stream(in, taskId, STREAM_BATCH,
+                    ExcelImporter.stream(in, 0L, STREAM_BATCH,
                             new ExcelImporter.BatchHandler() {
                                 @Override public void onBatch(List<Asset> batch) {
                                     // insertAll 内部单事务，单批 500 条 SQLite 写入 ≈ 5-15ms
                                     db.assetDao().insertAll(batch);
                                     imported[0] += batch.size();
                                     importProgress.postValue(new ImportProgress(
-                                            imported[0], expectedTotal, taskId));
+                                            imported[0], expectedTotal, 0L));
                                 }
                                 @Override public void onError(String message) {
                                     // 提交阶段不再处理行错误（解析阶段已统计）
                                 }
                             });
                 }
-                importDone.postValue(taskId);
-                cb.onCommitted(taskId);
+                long count = imported[0];
+                importDone.postValue(count);
+                cb.onCommitted(count);
             } catch (Exception e) {
                 Log.e(TAG, "commitToTask FAILED", e);
                 String msg = e.getClass().getSimpleName()
@@ -167,6 +178,9 @@ public class ImportViewModel extends AndroidViewModel {
         });
     }
 
+    /**
+     * @param taskId 旧版是任务 id; 库存池模式下固定 0; 此参数保留仅为兼容调用方
+     */
     public interface ImportCallback {
         void onCommitted(long taskId);
     }

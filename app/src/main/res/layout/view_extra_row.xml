@@ -3,39 +3,70 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
+    android:orientation="vertical"
     android:background="@color/cardCorner"
     android:padding="14dp"
-    android:layout_marginBottom="8dp">
+    android:layout_marginBottom="8dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground">
 
+    <!-- 第一行: EPC + 时间 + tag -->
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
         <TextView
             android:id="@+id/extraEpcTv"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:fontFamily="monospace"
             android:textSize="14sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/extraTimeTv"
+            android:id="@+id/extraClaimedTag"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:textSize="10sp"
+            android:textColor="@android:color/white"
+            android:background="@drawable/bg_tag_green"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/extraRssiTv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:textSize="12sp"
-            android:textColor="@color/textDisabled" />
+            android:textColor="@color/textHint" />
     </LinearLayout>
 
+    <!-- 第二行: 原始扫描时间 -->
     <TextView
-        android:id="@+id/extraRssiTv"
+        android:id="@+id/extraTimeTv"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
         android:textSize="12sp"
-        android:textColor="@color/textHint" />
+        android:textColor="@color/textDisabled" />
+
+    <!-- 第三行: 补全信息（仅 claimed 时可见） -->
+    <TextView
+        android:id="@+id/extraClaimInfoTv"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:padding="8dp"
+        android:textSize="12sp"
+        android:textColor="@color/textHint"
+        android:background="@color/bgSurface"
+        android:visibility="gone" />
 </LinearLayout>

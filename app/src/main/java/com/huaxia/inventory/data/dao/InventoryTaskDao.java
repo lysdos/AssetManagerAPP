@@ -1,5 +1,6 @@
 package com.huaxia.inventory.data.dao;
 
+import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.Query;
@@ -22,12 +23,21 @@ public interface InventoryTaskDao {
     @Query("SELECT * FROM InventoryTask ORDER BY importedAt DESC")
     List<InventoryTask> findAll();
 
+    @Query("SELECT * FROM InventoryTask ORDER BY importedAt DESC")
+    LiveData<List<InventoryTask>> findAllLive();
+
     @Query("SELECT * FROM InventoryTask WHERE status = 'IN_PROGRESS' ORDER BY importedAt DESC LIMIT 1")
     InventoryTask findInProgress();
+
+    @Query("SELECT * FROM InventoryTask WHERE status = 'COMPLETED' ORDER BY importedAt DESC")
+    List<InventoryTask> findAllCompleted();
 
     @Query("UPDATE InventoryTask SET scannedUniqueCount = (SELECT COUNT(*) FROM ScanRecord WHERE taskId = :taskId) WHERE id = :taskId")
     void recomputeScannedCount(long taskId);
 
     @Query("DELETE FROM InventoryTask WHERE id = :taskId")
     int deleteById(long taskId);
+
+    @Query("DELETE FROM InventoryTask WHERE status = 'COMPLETED'")
+    int deleteAllCompleted();
 }

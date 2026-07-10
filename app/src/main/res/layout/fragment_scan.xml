@@ -20,36 +20,45 @@
             android:textSize="@dimen/textSizeTitle"
             android:textStyle="bold" />
 
-        <LinearLayout
+        <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:scrollbars="none"
+            android:overScrollMode="never">
 
-            <include
-                android:id="@+id/inStockStat"
-                layout="@layout/view_stat_card"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginEnd="5dp" />
+                android:orientation="horizontal">
 
-            <include
-                android:id="@+id/scannedStat"
-                layout="@layout/view_stat_card"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="5dp"
-                android:layout_marginEnd="5dp" />
+                <include
+                    android:id="@+id/inStockStat"
+                    layout="@layout/view_stat_card"
+                    android:layout_width="142dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp" />
 
-            <include
-                android:id="@+id/anomalyStat"
-                layout="@layout/view_stat_card"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="5dp" />
-        </LinearLayout>
+                <include
+                    android:id="@+id/scannedStat"
+                    layout="@layout/view_stat_card"
+                    android:layout_width="142dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp" />
+
+                <include
+                    android:id="@+id/anomalyStat"
+                    layout="@layout/view_stat_card"
+                    android:layout_width="142dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp" />
+
+                <include
+                    android:id="@+id/extraStat"
+                    layout="@layout/view_stat_card"
+                    android:layout_width="142dp"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+        </HorizontalScrollView>
 
         <TextView
             android:id="@+id/deviceStatusTv"

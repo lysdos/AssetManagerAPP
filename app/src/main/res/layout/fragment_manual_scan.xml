@@ -175,7 +175,7 @@
 
                     <TextView
                         style="@style/RowLabel"
-                        android:text="@string/label_asset_name" />
+                        android:text="@string/label_asset_model" />
 
                     <TextView
                         android:id="@+id/detailNameTv"
@@ -191,7 +191,7 @@
 
                     <TextView
                         style="@style/RowLabel"
-                        android:text="@string/label_org" />
+                        android:text="@string/label_borrow_dept" />
 
                     <TextView
                         android:id="@+id/detailOrgTv"
@@ -207,7 +207,7 @@
 
                     <TextView
                         style="@style/RowLabel"
-                        android:text="@string/label_asset_status" />
+                        android:text="@string/label_borrower" />
 
                     <TextView
                         android:id="@+id/detailStatusTv"

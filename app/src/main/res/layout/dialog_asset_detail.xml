@@ -17,60 +17,49 @@
 
         <TextView style="@style/DialogLabel"
             android:text="@string/label_epc" />
-        <TextView android:id="@+id/dlgEpcTv"
-            style="@style/DialogValue" />
-
-        <TextView style="@style/DialogLabel"
-            android:text="@string/label_asset_name" />
-        <TextView android:id="@+id/dlgNameTv"
-            style="@style/DialogValue" />
+        <EditText
+            android:id="@+id/dlgEpcEt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@android:color/black"
+            android:textColorHint="@color/textLightHint"
+            android:inputType="number"
+            android:digits="0123456789"
+            android:maxLines="1" />
 
         <TextView style="@style/DialogLabel"
             android:text="@string/label_asset_type" />
-        <TextView android:id="@+id/dlgTypeTv"
-            style="@style/DialogValue" />
+        <EditText
+            android:id="@+id/dlgTypeEt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@android:color/black"
+            android:inputType="text"
+            android:maxLines="1" />
 
         <TextView style="@style/DialogLabel"
             android:text="@string/label_asset_model" />
-        <TextView android:id="@+id/dlgModelTv"
-            style="@style/DialogValue" />
-
-        <TextView style="@style/DialogLabel"
-            android:text="@string/label_org" />
-        <TextView android:id="@+id/dlgOrgTv"
-            style="@style/DialogValue" />
-
-        <TextView style="@style/DialogLabel"
-            android:text="@string/label_detailed_location" />
-        <TextView android:id="@+id/dlgDetailedLocationTv"
-            style="@style/DialogValue" />
-
-        <TextView style="@style/DialogLabel"
-            android:text="@string/label_placement_location" />
-        <TextView android:id="@+id/dlgPlacementLocationTv"
-            style="@style/DialogValue" />
-
-        <TextView style="@style/DialogLabel"
-            android:text="@string/label_asset_status" />
-        <TextView android:id="@+id/dlgAssetStatusTv"
-            style="@style/DialogValue" />
-
-        <TextView style="@style/DialogLabel"
-            android:text="@string/label_inventory_status" />
-        <TextView android:id="@+id/dlgInventoryStatusTv"
-            style="@style/DialogValue" />
-
-        <TextView style="@style/DialogLabel"
-            android:text="@string/label_inventory_time" />
-        <TextView android:id="@+id/dlgInventoryTimeTv"
-            style="@style/DialogValue" />
-
-        <View
+        <EditText
+            android:id="@+id/dlgModelEt"
             android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="14dp"
-            android:layout_marginBottom="6dp"
-            android:background="@color/borderDashed" />
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@android:color/black"
+            android:inputType="text"
+            android:maxLines="1" />
+
+        <TextView style="@style/DialogLabel"
+            android:text="@string/label_serial_no" />
+        <EditText
+            android:id="@+id/dlgSerialEt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@android:color/black"
+            android:inputType="text"
+            android:maxLines="1" />
 
         <TextView style="@style/DialogLabel"
             android:text="@string/label_borrow_dept" />
@@ -100,6 +89,23 @@
             android:inputType="text"
             android:maxLines="1"
             android:autofillHints="personName" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="6dp"
+            android:background="@color/borderDashed" />
+
+        <TextView style="@style/DialogLabel"
+            android:text="@string/label_inventory_status" />
+        <TextView android:id="@+id/dlgInventoryStatusTv"
+            style="@style/DialogValue" />
+
+        <TextView style="@style/DialogLabel"
+            android:text="@string/label_inventory_time" />
+        <TextView android:id="@+id/dlgInventoryTimeTv"
+            style="@style/DialogValue" />
 
         <LinearLayout
             android:layout_width="match_parent"
