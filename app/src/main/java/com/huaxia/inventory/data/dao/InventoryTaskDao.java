@@ -32,7 +32,17 @@ public interface InventoryTaskDao {
     @Query("SELECT * FROM InventoryTask WHERE status = 'COMPLETED' ORDER BY importedAt DESC")
     List<InventoryTask> findAllCompleted();
 
-    @Query("UPDATE InventoryTask SET scannedUniqueCount = (SELECT COUNT(*) FROM ScanRecord WHERE taskId = :taskId) WHERE id = :taskId")
+    /**
+     * 重算"已盘数"= 成功匹配到 Asset 的去重资产数。
+     * 旧版本用 COUNT(*) FROM ScanRecord, 把盘盈 (matchedAssetId IS NULL) 也算进去,
+     * 任务卡片会显示盘盈把分母撑爆 (例如 expected=19, scanned=20, 105%)。
+     * 跟 ScanRecordDao.aggregateStats 的 matchedCount 语义对齐:
+     *   COUNT(DISTINCT matchedAssetId) WHERE matchedAssetId IS NOT NULL
+     */
+    @Query("UPDATE InventoryTask SET scannedUniqueCount = (" +
+           "  SELECT COUNT(DISTINCT matchedAssetId) FROM ScanRecord " +
+           "  WHERE taskId = :taskId AND matchedAssetId IS NOT NULL" +
+           ") WHERE id = :taskId")
     void recomputeScannedCount(long taskId);
 
     @Query("DELETE FROM InventoryTask WHERE id = :taskId")

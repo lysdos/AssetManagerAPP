@@ -46,7 +46,8 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:textSize="12sp"
-            android:textColor="@color/textHint" />
+            android:textColor="@color/textHint"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- 第二行: 原始扫描时间 -->

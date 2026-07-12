@@ -57,13 +57,12 @@ public class TaskListFragment extends Fragment {
 
         adapter = new TaskAdapter(new TaskAdapter.Listener() {
             @Override public void onStartTask(InventoryTask task) {
+                // switchToTask 回调在 diskIO 线程触发; session 用 postValue,
+                // 立刻 getValue() 读到的是旧值, cur != taskId 会恒真.
+                // 参数 taskId 已经是校验过的, 直接用.
                 vm.switchToTask(task.id, (taskId, ok) -> {
                     if (!ok) return;
-                    InventoryApp app = (InventoryApp) requireActivity().getApplication();
-                    Long cur = app.session.getCurrentTaskId();
-                    if (cur != null && cur == taskId) {
-                        requireActivity().runOnUiThread(() -> navigateToScan());
-                    }
+                    requireActivity().runOnUiThread(() -> navigateToScan());
                 });
             }
             @Override public void onPauseTask(InventoryTask task) {

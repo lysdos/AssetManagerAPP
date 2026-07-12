@@ -205,7 +205,8 @@ public class ResultFragment extends Fragment {
                 try (java.io.OutputStream out =
                         requireContext().getContentResolver().openOutputStream(uri)) {
                     ExcelExporter.exportStreamed(out, task.sourceFileName, originalHeaders,
-                            app.db.assetDao(), app.db.scanRecordDao(), taskId);
+                            app.db.assetDao(), app.db.scanRecordDao(),
+                            app.db.extraClaimDao(), taskId);
                 }
                 if (isAdded()) {
                     requireActivity().runOnUiThread(() -> {

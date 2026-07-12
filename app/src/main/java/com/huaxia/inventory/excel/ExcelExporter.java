@@ -2,8 +2,10 @@ package com.huaxia.inventory.excel;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huaxia.inventory.data.dao.AssetDao;
+import com.huaxia.inventory.data.dao.ExtraClaimDao;
 import com.huaxia.inventory.data.dao.ScanRecordDao;
 import com.huaxia.inventory.data.entity.Asset;
+import com.huaxia.inventory.data.entity.ExtraClaim;
 import com.huaxia.inventory.data.entity.ScanRecord;
 import com.huaxia.inventory.util.DateUtil;
 import com.huaxia.inventory.util.EpcNormalizer;
@@ -11,6 +13,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -58,7 +61,7 @@ public final class ExcelExporter {
                 writer.writeRow("【盘盈记录】");
                 writer.writeRow(fullHeaders.toArray(new String[0]));
                 for (ScanRecord s : extras) {
-                    writeExtraRow(writer, originalHeaders, s);
+                    writeExtraRow(writer, originalHeaders, s, null);
                 }
             }
         }
@@ -78,6 +81,7 @@ public final class ExcelExporter {
             List<String> originalHeaders,
             AssetDao assetDao,
             ScanRecordDao scanRecordDao,
+            ExtraClaimDao extraClaimDao,
             long taskId) throws IOException {
 
         List<String> fullHeaders = new ArrayList<>(originalHeaders);
@@ -104,18 +108,28 @@ public final class ExcelExporter {
                 }
             }
 
-            // 3) 分页流式写盘盈
+            // 3) 分页流式写盘盈 (含补全信息)
             int totalExtras = scanRecordDao.countExtras(taskId);
             if (totalExtras > 0) {
                 writer.writeRow("");  // 空行
                 writer.writeRow("【盘盈记录】");
                 writer.writeRow(fullHeaders.toArray(new String[0]));
+                // 一次性加载所有 ScanRecord id 对应的 ExtraClaim, 避免写每行时 N+1 查询
+                List<ScanRecord> allExtraRecords = new ArrayList<>(totalExtras);
                 for (int offset = 0; offset < totalExtras; offset += STREAM_PAGE_SIZE) {
-                    List<ScanRecord> page = scanRecordDao.pageExtra(
-                            taskId, STREAM_PAGE_SIZE, offset);
-                    for (ScanRecord s : page) {
-                        writeExtraRow(writer, originalHeaders, s);
+                    allExtraRecords.addAll(scanRecordDao.pageExtra(
+                            taskId, STREAM_PAGE_SIZE, offset));
+                }
+                List<Long> extraIds = new ArrayList<>(allExtraRecords.size());
+                for (ScanRecord r : allExtraRecords) extraIds.add(r.id);
+                Map<Long, ExtraClaim> claimMap = new HashMap<>();
+                if (extraClaimDao != null) {
+                    for (ExtraClaim c : extraClaimDao.findByScanRecordIds(extraIds)) {
+                        claimMap.put(c.scanRecordId, c);
                     }
+                }
+                for (ScanRecord s : allExtraRecords) {
+                    writeExtraRow(writer, originalHeaders, s, claimMap.get(s.id));
                 }
             }
         }
@@ -147,17 +161,33 @@ public final class ExcelExporter {
     }
 
     private static void writeExtraRow(XlsxStreamWriter writer,
-                                       List<String> originalHeaders, ScanRecord s) {
+                                       List<String> originalHeaders, ScanRecord s,
+                                       ExtraClaim claim) {
         int base = originalHeaders.size();
         Object[] cells = new Object[base + 2];
-        // 把 EPC 写进 "固资编号" 列, TID 写进 "电子标签" 列.
-        // 客户文件通常两列都有, 但顺序不一定; 按名字找最稳.
+        // EPC: 优先用补全的 ExtraClaim.epc (用户可能改过), 否则用 ScanRecord 原始扫描值
+        String epcValue = (claim != null && claim.epc != null) ? claim.epc : s.epc;
         int epcIdx = originalHeaders.indexOf("固资编号");
-        if (epcIdx >= 0) cells[epcIdx] = EpcNormalizer.toDisplayForm(s.epc);
+        if (epcIdx >= 0) cells[epcIdx] = EpcNormalizer.toDisplayForm(epcValue);
         int tidIdx = originalHeaders.indexOf("电子标签");
         if (tidIdx >= 0) cells[tidIdx] = s.tid == null ? "" : s.tid;
+        // 业务字段从 ExtraClaim 取 (空时跳过, 保留原 cell 默认 null)
+        if (claim != null) {
+            putIfPresent(cells, originalHeaders, "设备类型", claim.assetType);
+            putIfPresent(cells, originalHeaders, "设备型号", claim.assetModel);
+            putIfPresent(cells, originalHeaders, "序列号", claim.serialNumber);
+            putIfPresent(cells, originalHeaders, "领用部门", claim.dept);
+            putIfPresent(cells, originalHeaders, "领用人", claim.custodian);
+        }
         cells[base] = "盘盈";
         cells[base + 1] = DateUtil.formatTimestamp(s.scannedAt);
         writer.writeRow(cells);
+    }
+
+    private static void putIfPresent(Object[] cells, List<String> headers,
+                                      String header, String value) {
+        if (value == null || value.isEmpty()) return;
+        int idx = headers.indexOf(header);
+        if (idx >= 0) cells[idx] = value;
     }
 }

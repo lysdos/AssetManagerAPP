@@ -10,6 +10,7 @@ import com.huaxia.inventory.R;
 import com.huaxia.inventory.data.entity.ExtraClaim;
 import com.huaxia.inventory.data.entity.ScanRecord;
 import com.huaxia.inventory.util.DateUtil;
+import com.huaxia.inventory.util.EpcNormalizer;
 import java.util.List;
 
 public class ExtraResultAdapter extends RecyclerView.Adapter<ExtraResultAdapter.VH> {
@@ -36,9 +37,10 @@ public class ExtraResultAdapter extends RecyclerView.Adapter<ExtraResultAdapter.
     public void onBindViewHolder(@NonNull VH h, int position) {
         ExtraWithClaim data = items.get(position);
         ScanRecord r = data.scan;
-        h.epc.setText(r.epc == null ? "" : r.epc);
+        // EPC 是 24 位归一化形式, 展示时剥前导 0 (跟 AssetResultAdapter 一致)
+        h.epc.setText(r.epc == null ? "" : EpcNormalizer.toDisplayForm(r.epc));
         h.time.setText(DateUtil.formatTimestamp(r.scannedAt));
-        h.rssi.setText(r.rssi == null ? "" : r.rssi + " dBm");
+        // RSSI 是读卡器技术字段, 不暴露给盘点用户 — 布局里默认 GONE, 这里不再 setText
 
         if (data.isClaimed()) {
             h.claimedTag.setVisibility(View.VISIBLE);
@@ -69,7 +71,7 @@ public class ExtraResultAdapter extends RecyclerView.Adapter<ExtraResultAdapter.
             sb.append(" · SN:").append(c.serialNumber);
         }
         if (c.epc != null && !c.epc.isEmpty()) {
-            sb.append(" · EPC:").append(c.epc);
+            sb.append(" · EPC:").append(EpcNormalizer.toDisplayForm(c.epc));
         }
         return sb.toString();
     }

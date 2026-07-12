@@ -48,13 +48,14 @@ public final class ExtraDetailDialog {
         EditText borrowerEt = view.findViewById(R.id.extraDlgBorrowerEt);
 
         String originalEpc = data.scan.epc == null ? "" : data.scan.epc;
-        // 头部只读: 显示原始扫描 EPC (来自 ScanRecord, hex 形式 — 跟扫描页一致)
-        epcTv.setText(originalEpc);
+        // 头部只读: ScanRecord.epc 是 24 位归一化十进制, 显示时剥前导 0 跟列表保持一致
+        epcTv.setText(originalEpc.isEmpty() ? "" : EpcNormalizer.toDisplayForm(originalEpc));
         scannedAtTv.setText(DateUtil.formatTimestamp(data.scan.scannedAt));
 
-        // 编辑区: 若已补全, 用 ExtraClaim 初值; 否则用空字符串
+        // 编辑区: 若已补全, 用 ExtraClaim 初值; 否则用 ScanRecord 原始扫描值的 display 形式
         ExtraClaim c = data.claim;
-        epcEt.setText(c != null && c.epc != null ? EpcNormalizer.toDisplayForm(c.epc) : originalEpc);
+        epcEt.setText(c != null && c.epc != null ? EpcNormalizer.toDisplayForm(c.epc)
+                : (originalEpc.isEmpty() ? "" : EpcNormalizer.toDisplayForm(originalEpc)));
         typeEt.setText(c == null || c.assetType == null ? "" : c.assetType);
         modelEt.setText(c == null || c.assetModel == null ? "" : c.assetModel);
         serialEt.setText(c == null || c.serialNumber == null ? "" : c.serialNumber);
