@@ -255,10 +255,12 @@ public class ManualScanFragment extends Fragment {
             return;
         }
         if (r.notFound) {
-            String msg = getString(R.string.manual_err_not_found,
-                    r.normalizedEpc == null
-                            ? (inputEt.getText() == null ? "" : inputEt.getText().toString())
-                            : r.normalizedEpc);
+            // 用户原始输入已经是 display 形式 (16/17 位), 24 位归一化形式要剥前导 0
+            // 跟列表 / 详情卡片显示口径保持一致 — 跟 ExtraResultAdapter 同一种坑.
+            String rawEpc = r.normalizedEpc == null
+                    ? (inputEt.getText() == null ? "" : inputEt.getText().toString())
+                    : EpcNormalizer.toDisplayForm(r.normalizedEpc);
+            String msg = getString(R.string.manual_err_not_found, rawEpc);
             showTip(msg, TipKind.ERROR);
             hideDetail();
             return;

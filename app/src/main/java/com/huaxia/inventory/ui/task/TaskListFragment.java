@@ -91,6 +91,13 @@ public class TaskListFragment extends Fragment {
                         .show();
             }
             @Override public void onMoreClicked(InventoryTask task, String status, View anchor) {
+                // IN_PROGRESS 状态下 ⋮ 菜单中"释放资产"被隐藏 (业务上释放需先暂停),
+                // 用 Snackbar 提示用户原因, 菜单照常弹 — 让"删除"仍可点.
+                if ("IN_PROGRESS".equals(status)) {
+                    com.google.android.material.snackbar.Snackbar.make(requireView(),
+                            R.string.task_msg_in_progress_cant_release,
+                            com.google.android.material.snackbar.Snackbar.LENGTH_SHORT).show();
+                }
                 showTaskMorePopup(task, status, anchor);
             }
         });
