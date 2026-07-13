@@ -1,9 +1,16 @@
 package com.huaxia.inventory.barcode;
 
 import android.annotation.SuppressLint;
+import android.hardware.camera2.CaptureRequest;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
+import androidx.camera.camera2.interop.Camera2CameraControl;
+import androidx.camera.camera2.interop.CaptureRequestOptions;
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraControl;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
@@ -63,8 +70,22 @@ public class BarcodeCameraController {
 
     private ProcessCameraProvider cameraProvider;
     private Callback activeCallback;
+    private Camera camera;
     private long lastEmitMs = 0L;
     private String lastEmitCode = "";
+    private static final long AF_TRIGGER_INTERVAL_MS = 600L;
+    private final Handler afTriggerHandler = new Handler(Looper.getMainLooper());
+    private boolean afLoopRunning = false;
+    private final Runnable afTriggerRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!afLoopRunning || camera == null) {
+                return;
+            }
+            fireAfTrigger();
+            afTriggerHandler.postDelayed(this, AF_TRIGGER_INTERVAL_MS);
+        }
+    };
 
     public BarcodeCameraController() {
         // 客户资产上的条码通常是 CODE_128/CODE_39 (一维) + 部分 QR. 全格式打开
@@ -125,6 +146,13 @@ public class BarcodeCameraController {
                 return;
             }
 
+            // AF 加速策略 (PDA 硬件驱动):
+            //   PDA HAL (imx214_mipi_raw / C72_6765) 实测拒绝
+            //     - CONTROL_AF_MODE_CONTINUOUS_PICTURE (静默忽略)
+            //     - startFocusAndMetering (报 "MeteringPoints not supported")
+            //   唯一可用的 Camera2 路径是周期性下发 CONTROL_AF_TRIGGER_START —
+            //   这是 HAL 层 trigger, 不依赖 metering point.
+            //   配 torch 增加进光量, AF 收敛更快 + ML Kit 首帧识别更稳.
             Preview preview = new Preview.Builder().build();
             preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
@@ -135,9 +163,25 @@ public class BarcodeCameraController {
 
             try {
                 cameraProvider.unbindAll();
-                cameraProvider.bindToLifecycle(owner,
+                Camera boundCamera = cameraProvider.bindToLifecycle(owner,
                         CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis);
+                this.camera = boundCamera;
                 Log.i(TAG, "[BarcodeCameraController] bound to lifecycle, scanning");
+
+                // 1) 开 torch (手电筒). hasFlashUnit=false 时直接跳过.
+                try {
+                    if (boundCamera.getCameraInfo().hasFlashUnit()) {
+                        boundCamera.getCameraControl().enableTorch(true);
+                        Log.i(TAG, "torch enabled");
+                    } else {
+                        Log.i(TAG, "no flash unit, torch skipped");
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "torch enable failed (ignored): " + e.getMessage());
+                }
+
+                // 2) 启动周期性 AF trigger. 失败/不支持均 silently ignore.
+                startAfTriggerLoop();
             } catch (Exception e) {
                 Log.e(TAG, "[BarcodeCameraController] bindToLifecycle failed", e);
                 callback.onStartFailed("bind failed: " + e.getMessage());
@@ -148,9 +192,23 @@ public class BarcodeCameraController {
     @MainThread
     public void stopScan() {
         Log.i(TAG, "[BarcodeCameraController] stopScan()");
+        // 顺序很重要: 先停 AF trigger + 灭 torch, 再 unbindAll —
+        // 否则 unbind 后 Camera 句柄可能已无效, torch disable 会丢.
+        stopAfTriggerLoop();
+        if (camera != null) {
+            try {
+                if (camera.getCameraInfo().hasFlashUnit()) {
+                    camera.getCameraControl().enableTorch(false);
+                    Log.i(TAG, "torch disabled");
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "torch disable failed (ignored): " + e.getMessage());
+            }
+        }
         if (cameraProvider != null) {
             cameraProvider.unbindAll();
         }
+        camera = null;
         activeCallback = null;
     }
 
@@ -161,6 +219,44 @@ public class BarcodeCameraController {
         scanner.close();
         analyzerExecutor.shutdown();
         cameraProvider = null;
+    }
+
+    /** 周期性下发 AF trigger (CONTROL_AF_TRIGGER_START). 失败/不支持均 silently ignore.
+     *  PDA 第一次扫码启动时 HAL 默认焦距 ≈ infinity, 不主动触发不会自己收敛.
+     *  600ms 间隔是经验值: 太快 HAL 反应不过来, 太慢体感还是糊.
+     *  注意: CameraX 1.3.4 的 setCaptureRequestOptions 接 CaptureRequestOptions,
+     *  不是 Camera2Interop.Extender (后者只能用在 Preview/ImageCapture 等 ExtendableBuilder 上). */
+    private void fireAfTrigger() {
+        try {
+            CaptureRequestOptions options = new CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(
+                            CaptureRequest.CONTROL_AF_MODE,
+                            CaptureRequest.CONTROL_AF_MODE_AUTO)
+                    .setCaptureRequestOption(
+                            CaptureRequest.CONTROL_AF_TRIGGER,
+                            CaptureRequest.CONTROL_AF_TRIGGER_START)
+                    .build();
+            CameraControl cc = camera.getCameraControl();
+            Camera2CameraControl control = Camera2CameraControl.from(cc);
+            control.setCaptureRequestOptions(options);
+            Log.i(TAG, "AF trigger fired");
+        } catch (Exception e) {
+            Log.w(TAG, "AF trigger failed (ignored): " + e.getMessage());
+        }
+    }
+
+    private void startAfTriggerLoop() {
+        if (afLoopRunning) return;
+        afLoopRunning = true;
+        afTriggerHandler.post(afTriggerRunnable);
+        Log.i(TAG, "AF trigger loop started");
+    }
+
+    private void stopAfTriggerLoop() {
+        if (!afLoopRunning) return;
+        afLoopRunning = false;
+        afTriggerHandler.removeCallbacks(afTriggerRunnable);
+        Log.i(TAG, "AF trigger loop stopped");
     }
 
     /** Called from analyzer thread; posts back to main via {@link #emit}.

@@ -101,7 +101,7 @@
     <string name="task_msg_release_done">已释放 %1$d 条资产到库存池</string>
     <string name="task_msg_release_none">该任务下暂无资产</string>
     <string name="task_msg_confirm_release">确认释放 %1$d 条资产到库存池？\n该任务的扫描记录将一并清除，操作不可撤销。</string>
-    <string name="task_msg_in_progress_cant_release">进行中的任务请先暂停后再释放资产</string>
+    <string name="task_msg_in_progress_cant_release">（非删除选项）进行中的任务如果想把资源释放回资源池，需暂停后再选择释放资产选项</string>
 
     <!-- Create task dialog -->
     <string name="task_create_title">创建盘点任务</string>
