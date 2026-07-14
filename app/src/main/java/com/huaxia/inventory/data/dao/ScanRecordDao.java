@@ -66,4 +66,17 @@ public interface ScanRecordDao {
     @Query("SELECT MIN(scannedAt) FROM ScanRecord " +
            "WHERE taskId = :taskId AND matchedAssetId = :assetId")
     Long findFirstScanTime(long taskId, long assetId);
+
+    /**
+     * 清孤儿: matchedAssetId 指向已不存在的 Asset.id 的 ScanRecord.
+     * <p>正常删除路径 (TaskListViewModel.deleteTask / clearCompleted / releaseTaskAssetsToPool)
+     * 已包 runInTransaction, 不会产生新孤儿. 此方法是兜底 —
+     * 历史版本串行调用产生的孤儿 / 外部直接改 DB 导致的孤儿, 启动时统一清.</p>
+     * <p>必须在 {@link ExtraClaimDao#deleteOrphans()} 之前调用,
+     * 因为 ExtraClaim.scanRecordId 是 ScanRecord.id 的 FK, 不能跨表联删.</p>
+     * @return 实际删除条数 (Room 返回 affected rows)
+     */
+    @Query("DELETE FROM ScanRecord WHERE matchedAssetId IS NOT NULL " +
+           "AND matchedAssetId NOT IN (SELECT id FROM Asset)")
+    int deleteOrphans();
 }

@@ -163,6 +163,17 @@
             android:backgroundTint="@color/colorPrimary"
             android:textColor="@android:color/white" />
 
+        <!-- 初始化数据库按钮 (危险操作, outline 样式与主按钮视觉区分) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/initDbBtn"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/import_init_db"
+            android:textColor="@color/colorDanger"
+            app:strokeColor="@color/colorDanger" />
+
         <!-- Tip box -->
         <TextView
             android:layout_width="match_parent"

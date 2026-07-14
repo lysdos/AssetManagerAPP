@@ -80,11 +80,14 @@ public class TaskListViewModel extends AndroidViewModel {
 
     public void deleteTask(long taskId) {
         diskIO.execute(() -> {
-            // 先删 ExtraClaim (依赖 ScanRecord.id)
-            app.db.extraClaimDao().deleteByTask(taskId);
-            app.db.scanRecordDao().deleteByTask(taskId);
-            app.db.assetDao().deleteByTask(taskId);
-            app.db.inventoryTaskDao().deleteById(taskId);
+            // 整体进单事务: ExtraClaim → ScanRecord → Asset → InventoryTask 任一失败都回滚,
+            // 避免孤儿 ScanRecord (matchedAssetId 指向已删 Asset) 残留.
+            app.db.runInTransaction(() -> {
+                app.db.extraClaimDao().deleteByTask(taskId);
+                app.db.scanRecordDao().deleteByTask(taskId);
+                app.db.assetDao().deleteByTask(taskId);
+                app.db.inventoryTaskDao().deleteById(taskId);
+            });
         });
     }
 
@@ -92,31 +95,41 @@ public class TaskListViewModel extends AndroidViewModel {
         diskIO.execute(() -> {
             // 已完成任务关联的资产 + 扫描记录一并清除, 不再回流库存池
             // (任务已完成 → 资产/扫描记录的"任务上下文"已无意义)
-            List<InventoryTask> done = app.db.inventoryTaskDao().findAllCompleted();
-            for (InventoryTask t : done) {
-                app.db.extraClaimDao().deleteByTask(t.id);
-                app.db.scanRecordDao().deleteByTask(t.id);
-                app.db.assetDao().deleteByTask(t.id);
-            }
-            app.db.inventoryTaskDao().deleteAllCompleted();
+            app.db.runInTransaction(() -> {
+                List<InventoryTask> done = app.db.inventoryTaskDao().findAllCompleted();
+                for (InventoryTask t : done) {
+                    app.db.extraClaimDao().deleteByTask(t.id);
+                    app.db.scanRecordDao().deleteByTask(t.id);
+                    app.db.assetDao().deleteByTask(t.id);
+                }
+                app.db.inventoryTaskDao().deleteAllCompleted();
+            });
         });
     }
 
     /**
-     * 重置 A：把任务下资产释放回库存池(taskId=0)，保留 InventoryTask 行。
-     * 同步删除该任务下的扫描记录(资产引用 taskId 不再有效)。
-     * 仅对 PAUSED / COMPLETED 任务有意义 — IN_PROGRESS 提示先暂停。
-     *
-     * @return 实际释放的资产条数
+     * 「释放资产回库存池」：把任务下资产释放回库存池 (taskId=0), 清扫描记录 + 补全记录,
+     * <b>同时删除 InventoryTask 行</b> — 任务壳子本身没意义了 (资产已交还, 没有
+     * "任务上下文"可保留), 一并删掉避免「释放→恢复→扫到空任务全盘盈」的诡异链路.
+     * <p>与 {@link #deleteTask} 的区别: 释放保留资产在 pool (供新任务分配), 删除连带删资产.
+     * 仅对 PAUSED / COMPLETED 任务有意义 — IN_PROGRESS 提示先暂停.
      */
     public void releaseTaskAssetsToPool(long taskId, ReleaseCallback cb) {
         diskIO.execute(() -> {
-            int released = app.db.assetDao().releaseTaskToPool(taskId);
-            // ExtraClaim 跟着 ScanRecord 一起删
-            app.db.extraClaimDao().deleteByTask(taskId);
-            app.db.scanRecordDao().deleteByTask(taskId);
-            app.db.inventoryTaskDao().recomputeScannedCount(taskId);
-            if (cb != null) cb.onReleased(taskId, released);
+            final int[] releasedHolder = {0};
+            app.db.runInTransaction(() -> {
+                releasedHolder[0] = app.db.assetDao().releaseTaskToPool(taskId);
+                app.db.extraClaimDao().deleteByTask(taskId);
+                app.db.scanRecordDao().deleteByTask(taskId);
+                app.db.inventoryTaskDao().deleteById(taskId);
+            });
+            // 释放后任务壳子没了, session 不能继续指向已删 taskId —
+            // 否则扫描页还显示空数据, UI 端找不到任务卡也走不到正常路径.
+            Long cur = app.session.getCurrentTaskId();
+            if (cur != null && cur == taskId) {
+                app.session.clear();
+            }
+            if (cb != null) cb.onReleased(taskId, releasedHolder[0]);
         });
     }
 

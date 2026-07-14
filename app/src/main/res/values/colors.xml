@@ -33,6 +33,9 @@
     <color name="colorExport">#4CAF50</color>
     <color name="colorResetBg">#FFEBEE</color>
 
+    <!-- 危险操作 (初始化数据库 / 删除任务等): Material Red 800 -->
+    <color name="colorDanger">#C62828</color>
+
     <!-- Tip box variants (info/warning/error) -->
     <color name="tipInfoBg">#E3F2FD</color>
     <color name="tipInfoFg">#1565C0</color>

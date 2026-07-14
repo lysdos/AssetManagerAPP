@@ -8,6 +8,12 @@
 
     <!-- Import -->
     <string name="import_start">开始导入</string>
+    <!-- 初始化数据库: 危险操作, 清空所有业务表 -->
+    <string name="import_init_db">🗑️ 初始化数据库</string>
+    <string name="import_init_db_title">⚠️ 危险操作</string>
+    <string name="import_init_db_msg">初始化将删除全部业务数据，包括：\n\n• 所有盘点任务\n• 任务下资产和扫描记录\n• 盘盈补全信息\n\n此操作不可撤销，是否继续？</string>
+    <string name="import_init_db_confirm">确认初始化</string>
+    <string name="import_init_db_done">数据库已初始化，当前无任何数据</string>
 
     <!-- Scan -->
     <string name="scan_start">开始扫描</string>
@@ -25,16 +31,20 @@
     <string name="import_file_selected">已选择：%1$s</string>
     <string name="import_progress">正在导入 %1$d / %2$d …</string>
     <string name="import_done">已导入 %1$d 条</string>
-    <string name="import_done_fmt">✅ 导入成功！已添加 %1$d 条到库存池</string>
+    <!-- 重复导入时, 显示"已存在 M 条已覆盖更新"; M=0 时省略后半句 -->
+    <string name="import_done_fmt">✅ 导入完成！已处理 %1$d 条</string>
+    <string name="import_done_fmt_with_updates">✅ 导入完成！已处理 %1$d 条（含 %2$d 条已存在的覆盖更新）</string>
     <string name="import_importing_fmt">正在导入 %1$d / %2$d …</string>
     <string name="import_progress_pre">正在解析文件…</string>
     <string name="import_progress_parsed">解析完成：%1$d 条可导入，%2$d 条错误</string>
+    <!-- 解析阶段提示重复: 其中 N 条将覆盖; N=0 时不显示 -->
+    <string name="import_progress_parsed_with_dup">解析完成：%1$d 条可导入，其中 %2$d 条已存在将覆盖，%3$d 条错误</string>
     <string name="err_import_failed_fmt">导入失败：%1$s</string>
     <string name="import_failed">导入失败：%1$s</string>
     <string name="scan_title">🔍 扫描管理</string>
     <string name="scan_stat_in_stock">在库设备</string>
     <string name="scan_stat_scanned">已盘点</string>
-    <string name="scan_stat_anomaly">异常</string>
+    <string name="scan_stat_anomaly">盘亏</string>
     <string name="scan_stat_extra">盘盈</string>
     <string name="scan_stat_extra_sub">待确认</string>
     <string name="scan_stat_sub_today">+%1$d 今日</string>
@@ -42,7 +52,7 @@
     <string name="scan_info_checked_desc">已完成扫码盘点的设备清单，包含盘点人、时间及状态。</string>
     <string name="scan_info_checked_sub">⏱ 最后盘点：%1$s</string>
     <string name="scan_info_recent">📋 最近盘点结果</string>
-    <string name="scan_info_recent_desc">正常 %1$d 台，盘亏 %2$d 台，盘盈 %3$d 台。</string>
+    <string name="scan_info_recent_desc">已盘 %1$d 台，盘亏 %2$d 台，盘盈 %3$d 台。</string>
     <string name="scan_start_inventory">➕ 开始盘点</string>
     <string name="scan_clear_task">🗑️ 数据重置</string>
     <string name="scan_clear_task_confirm_title">清除当前任务？</string>
@@ -100,7 +110,7 @@
     <string name="task_action_release_to_pool">释放资产回库存池</string>
     <string name="task_msg_release_done">已释放 %1$d 条资产到库存池</string>
     <string name="task_msg_release_none">该任务下暂无资产</string>
-    <string name="task_msg_confirm_release">确认释放 %1$d 条资产到库存池？\n该任务的扫描记录将一并清除，操作不可撤销。</string>
+    <string name="task_msg_confirm_release">确认释放该任务？\n\n该任务下的 %1$d 条资产将返回库存池（供新任务分配），扫描记录将一并清除，任务本身也将被删除。\n\n此操作不可撤销。</string>
     <string name="task_msg_in_progress_cant_release">（非删除选项）进行中的任务如果想把资源释放回资源池，需暂停后再选择释放资产选项</string>
 
     <!-- Create task dialog -->

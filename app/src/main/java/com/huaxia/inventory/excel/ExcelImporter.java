@@ -11,6 +11,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -110,6 +111,10 @@ public final class ExcelImporter {
             int epcIdx = spec.epcColumnIndex();
 
             List<Asset> pending = new ArrayList<>(batchSize);
+            // 文件级 epc 去重: 同一 xlsx 文件内, 重复固资编号只保留首条, 后续行走 onError.
+            // 跨文件的"重复导入"由 AssetDao.upsertOne ON CONFLICT(epc) DO UPDATE 处理 —
+            // 那是设计上允许的"覆盖更新", 不算错误.
+            HashSet<String> seenEpcs = new HashSet<>(1024);
             while (rows.hasNext()) {
                 Row row = rows.next();
                 try {
@@ -120,6 +125,12 @@ public final class ExcelImporter {
                         handler.onError("Row " + excelRow + ": invalid 固资编号 '"
                                 + (rawCode == null ? "" : rawCode)
                                 + "' (需 16、17 或 24 位十进制, 请将单元格设为文本格式), skipped");
+                        excelRow++;
+                        continue;
+                    }
+                    if (!seenEpcs.add(code)) {
+                        handler.onError("Row " + excelRow + ": 固资编号 '" + code
+                                + "' 在本文件中重复出现, 已跳过该行");
                         excelRow++;
                         continue;
                     }

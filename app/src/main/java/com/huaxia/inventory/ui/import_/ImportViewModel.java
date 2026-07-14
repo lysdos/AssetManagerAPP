@@ -30,14 +30,22 @@ public class ImportViewModel extends AndroidViewModel {
         public final String fileName;
         public final int successCount;
         public final int errorCount;
+        /**
+         * 解析成功的行中, 命中 DB 已存在 epc 的条数.
+         * 仅统计 (同文件内 HashSet 去重后) 的 epc 与 DB 现有 epc 的交集 —
+         * 导入时这些会被 ON CONFLICT(epc) DO UPDATE 覆盖.
+         */
+        public final int duplicateCount;
         public final List<String> errorSample;
         public final List<Asset> preview;
         /** 提交时需要重新打开文件。 */
         public final Uri sourceUri;
-        public ParsedFile(String n, int s, int eCount, List<String> eSample,
+        public ParsedFile(String n, int s, int eCount, int dCount,
+                          List<String> eSample,
                           List<Asset> p, Uri src) {
             this.fileName = n; this.successCount = s;
-            this.errorCount = eCount; this.errorSample = eSample;
+            this.errorCount = eCount; this.duplicateCount = dCount;
+            this.errorSample = eSample;
             this.preview = p; this.sourceUri = src;
         }
     }
@@ -45,15 +53,34 @@ public class ImportViewModel extends AndroidViewModel {
     private static final String TAG = "ImportVM";
 
     public static class ImportProgress {
-        public final int imported;   // 已写入数据库条数
+        public final int imported;   // 已写入数据库条数（含新增 + 覆盖更新）
+        public final int updated;    // 本批中命中 DB 已存在 epc 的覆盖条数
         public final int total;      // 总条数（来自预期值或解析结果）
         /**
          * 导入后归属 taskId. 库存池模式固定 = 0;
          * 旧的"导入即建任务"模式才会传具体 taskId (现已废弃).
          */
         public final long taskId;
-        public ImportProgress(int imported, int total, long taskId) {
-            this.imported = imported; this.total = total; this.taskId = taskId;
+        public ImportProgress(int imported, int updated, int total, long taskId) {
+            this.imported = imported; this.updated = updated;
+            this.total = total; this.taskId = taskId;
+        }
+    }
+
+    /**
+     * 导入完成结果.
+     * @param imported 入库总条数 = 新增 + 覆盖更新
+     * @param updated  命中已存在 epc 的覆盖更新条数
+     * @param added    实际新增条数 = imported - updated
+     */
+    public static class ImportResult {
+        public final int imported;
+        public final int updated;
+        public final int added;
+        public ImportResult(int imported, int updated) {
+            this.imported = imported;
+            this.updated = updated;
+            this.added = imported - updated;
         }
     }
 
@@ -64,10 +91,10 @@ public class ImportViewModel extends AndroidViewModel {
     private final MutableLiveData<String> parseError = new MutableLiveData<>();
     private final MutableLiveData<ImportProgress> importProgress = new MutableLiveData<>();
     /**
-     * 导入完成信号。值 = 实际写入条数（>=0），仅作触发使用。
+     * 导入完成信号。值 = {@link ImportResult}, 仅作触发使用.
      * 库存池模式不再创建 InventoryTask，因此这里没有 taskId。
      */
-    private final MutableLiveData<Long> importDone = new MutableLiveData<>();
+    private final MutableLiveData<ImportResult> importDone = new MutableLiveData<>();
     private final MutableLiveData<String> importError = new MutableLiveData<>();
 
     public ImportViewModel(@NonNull Application app) {
@@ -80,7 +107,7 @@ public class ImportViewModel extends AndroidViewModel {
     public LiveData<ParsedFile> parsedFile() { return parsedFile; }
     public LiveData<String> parseError() { return parseError; }
     public LiveData<ImportProgress> importProgress() { return importProgress; }
-    public LiveData<Long> importDone() { return importDone; }
+    public LiveData<ImportResult> importDone() { return importDone; }
     public LiveData<String> importError() { return importError; }
 
     /**
@@ -91,13 +118,18 @@ public class ImportViewModel extends AndroidViewModel {
         diskIO.execute(() -> {
             try (InputStream in = app.getContentResolver().openInputStream(uri)) {
                 Log.i(TAG, "openInputStream returned " + (in == null ? "null" : "ok"));
-                int[] counters = {0, 0};
+                int[] counters = {0, 0, 0};  // [success, error, duplicate]
                 List<Asset> preview = new ArrayList<>(PREVIEW_MAX);
                 List<String> errors = new ArrayList<>(ERROR_SAMPLE_MAX);
                 ExcelImporter.stream(in, 0L, STREAM_BATCH,
                         new ExcelImporter.BatchHandler() {
                             @Override public void onBatch(List<Asset> batch) {
                                 counters[0] += batch.size();
+                                // 解析阶段只读 DB, 不写 — 统计"已存在 epc"条数.
+                                // 每批 500 条调一次 IN 查询, 3400 行 ≈ 7 次, 可接受.
+                                List<String> batchEpcs = new ArrayList<>(batch.size());
+                                for (Asset a : batch) batchEpcs.add(a.epc);
+                                counters[2] += db.assetDao().findExistingEpcs(batchEpcs).size();
                                 for (Asset a : batch) {
                                     if (preview.size() < PREVIEW_MAX) preview.add(a);
                                     else break;
@@ -109,9 +141,12 @@ public class ImportViewModel extends AndroidViewModel {
                                 if (errors.size() < ERROR_SAMPLE_MAX) errors.add(message);
                             }
                         });
-                Log.i(TAG, "stream() returned success=" + counters[0] + " error=" + counters[1]);
+                Log.i(TAG, "stream() returned success=" + counters[0]
+                        + " error=" + counters[1]
+                        + " duplicate=" + counters[2]);
                 parsedFile.postValue(new ParsedFile(
-                        displayName, counters[0], counters[1], errors, preview, uri));
+                        displayName, counters[0], counters[1], counters[2],
+                        errors, preview, uri));
                 Log.i(TAG, "parsedFile.postValue success=" + counters[0]);
             } catch (Exception e) {
                 Log.e(TAG, "parseFile FAILED", e);
@@ -119,7 +154,7 @@ public class ImportViewModel extends AndroidViewModel {
                         + (e.getMessage() == null ? "" : ": " + e.getMessage());
                 parseError.postValue(msg);
                 parsedFile.postValue(new ParsedFile(
-                        displayName, 0, 0,
+                        displayName, 0, 0, 0,
                         Collections.singletonList("Parse error: " + msg),
                         Collections.emptyList(), uri));
                 Log.w(TAG, "posted parsedFile(success=0) due to exception");
@@ -148,27 +183,34 @@ public class ImportViewModel extends AndroidViewModel {
         diskIO.execute(() -> {
             try {
                 // 库存池模式: 直接以 taskId=0 导入, 不创建 InventoryTask
-                importProgress.postValue(new ImportProgress(0, expectedTotal, 0L));
+                importProgress.postValue(new ImportProgress(0, 0, expectedTotal, 0L));
 
                 int[] imported = {0};
+                int[] updated = {0};
                 try (InputStream in = app.getContentResolver().openInputStream(sourceUri)) {
                     ExcelImporter.stream(in, 0L, STREAM_BATCH,
                             new ExcelImporter.BatchHandler() {
                                 @Override public void onBatch(List<Asset> batch) {
-                                    // insertAll 内部单事务，单批 500 条 SQLite 写入 ≈ 5-15ms
-                                    db.assetDao().insertAll(batch);
+                                    // upsertBatch 走单事务 ON CONFLICT(epc) DO UPDATE —
+                                    // 重复 epc 覆盖业务字段, 保留 id / taskId / inventory_time.
+                                    // 统计 updated: 批量查 DB 中已存在的 epc 数.
+                                    List<String> batchEpcs = new ArrayList<>(batch.size());
+                                    for (Asset a : batch) batchEpcs.add(a.epc);
+                                    int updatedInBatch = db.assetDao().findExistingEpcs(batchEpcs).size();
+                                    db.assetDao().upsertBatch(batch);
                                     imported[0] += batch.size();
+                                    updated[0] += updatedInBatch;
                                     importProgress.postValue(new ImportProgress(
-                                            imported[0], expectedTotal, 0L));
+                                            imported[0], updated[0], expectedTotal, 0L));
                                 }
                                 @Override public void onError(String message) {
                                     // 提交阶段不再处理行错误（解析阶段已统计）
                                 }
                             });
                 }
-                long count = imported[0];
-                importDone.postValue(count);
-                cb.onCommitted(count);
+                ImportResult result = new ImportResult(imported[0], updated[0]);
+                importDone.postValue(result);
+                cb.onCommitted(result.imported);
             } catch (Exception e) {
                 Log.e(TAG, "commitToTask FAILED", e);
                 String msg = e.getClass().getSimpleName()
@@ -179,9 +221,9 @@ public class ImportViewModel extends AndroidViewModel {
     }
 
     /**
-     * @param taskId 旧版是任务 id; 库存池模式下固定 0; 此参数保留仅为兼容调用方
+     * @param count 实际入库条数 (新增 + 覆盖更新); 库存池模式下旧版 taskId 语义已废弃
      */
     public interface ImportCallback {
-        void onCommitted(long taskId);
+        void onCommitted(long count);
     }
 }

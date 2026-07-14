@@ -48,6 +48,22 @@ public class InventoryApp extends Application {
                 .fallbackToDestructiveMigration()
                 .build();
 
+        // 启动时一次性清理孤儿. 正常删除路径 (TaskListViewModel 三处) 已包 runInTransaction,
+        // 不会产生新孤儿; 这里是兜底清历史遗留 — 历史版本 (v4 之前) 串行调 DAO,
+        // 中途崩溃 / 进程被杀都可能留孤儿. 顺序: 先 ScanRecord 再 ExtraClaim
+        // (ExtraClaim.scanRecordId 是 ScanRecord.id FK, 必须父表先清).
+        executors.diskIO.execute(() -> {
+            int removedScans = db.scanRecordDao().deleteOrphans();
+            int removedClaims = db.extraClaimDao().deleteOrphans();
+            if (removedScans > 0 || removedClaims > 0) {
+                Log.i(TAG, "[InventoryApp] orphan cleanup removed "
+                        + removedScans + " ScanRecord(s), "
+                        + removedClaims + " ExtraClaim(s)");
+            } else {
+                Log.i(TAG, "[InventoryApp] orphan cleanup: no orphans found");
+            }
+        });
+
         // 诊断: R8 minify 在 debug 开启后, com.rscja.team.mtk.* 等平台实现类
         // 会被 R8 误判为"不可达"剥掉. 用 Class.forName 探一下, 找出哪些类丢了.
         checkRfidClasses();

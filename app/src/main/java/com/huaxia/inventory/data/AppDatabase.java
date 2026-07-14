@@ -15,7 +15,7 @@ import com.huaxia.inventory.data.entity.ScanRecord;
 
 @Database(
         entities = {InventoryTask.class, Asset.class, ScanRecord.class, ExtraClaim.class},
-        version = 4,
+        version = 5,
         exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     public abstract InventoryTaskDao inventoryTaskDao();
@@ -40,6 +40,19 @@ public abstract class AppDatabase extends RoomDatabase {
      */
     @SuppressWarnings("unused")
     public static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+        @Override
+        public void migrate(SupportSQLiteDatabase db) {
+            // 不实现 — fallbackToDestructiveMigration 会处理。
+        }
+    };
+
+    /**
+     * v4 → v5: Asset.epc 改为单列 UNIQUE.
+     * 走 fallbackToDestructiveMigration() — 全表 DROP 后按新 @Entity 索引重建.
+     * 不手写迁移 (要 DROP 旧 UNIQUE 复合索引 + CREATE 新单列 UNIQUE 索引, 走框架更稳).
+     */
+    @SuppressWarnings("unused")
+    public static final Migration MIGRATION_4_5 = new Migration(4, 5) {
         @Override
         public void migrate(SupportSQLiteDatabase db) {
             // 不实现 — fallbackToDestructiveMigration 会处理。

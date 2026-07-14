@@ -24,6 +24,62 @@ public interface AssetDao {
     @Query("SELECT * FROM Asset WHERE taskId = :taskId AND epc = :epc LIMIT 1")
     Asset findByEpc(long taskId, String epc);
 
+    /**
+     * 全局 epc 查询 (不限 taskId). 给导入流程用 — 重复导入时按 epc 是否已存在决定
+     * "新增"还是"覆盖更新"计数.
+     * 注意 taskId 不会被这条查询过滤, 因为覆盖更新时要保留原 row 的 taskId.
+     */
+    @Query("SELECT * FROM Asset WHERE epc = :epc LIMIT 1")
+    Asset findByEpcGlobal(String epc);
+
+    /**
+     * 批量预检: 给定 epc 集合, 返回数据库中已存在的 epc 子集.
+     * 用于导入流程统计 "覆盖更新 N 条".
+     * 单批 500 条调用一次, IN 子句压力可控 (SQLite 建议上限 1000).
+     */
+    @Query("SELECT epc FROM Asset WHERE epc IN (:epcs)")
+    java.util.List<String> findExistingEpcs(java.util.List<String> epcs);
+
+    /**
+     * 单行 upsert by epc. 重复导入同一 epc 时, 覆盖业务字段 (assetType/assetModel/serialNumber/
+     * custodian/dept/rawRowJson/excelRowIndex), <b>明确保留</b> id / taskId / inventory_time —
+     *   - id 不动 → ScanRecord.matchedAssetId FK 持续有效, 已盘点关联不丢.
+     *   - taskId 不动 → 库存池划拨到任务后再导入不会把资产踢回 pool.
+     *   - inventory_time 不动 → 盘点时间不被覆盖更新抹掉 (导出 Excel "盘点时间"列保留).
+     * 必须用 raw @Query, 不能用 Room @Upsert annotation — @Upsert 走 INSERT OR REPLACE on PK,
+     * 会 DELETE 旧行后 INSERT, 导致 id 变 + inventory_time 清空.
+     */
+    @Query("INSERT INTO Asset (taskId, excelRowIndex, epc, assetType, assetModel, " +
+           "serialNumber, custodian, dept, raw_row_json, inventory_time) " +
+           "VALUES (:taskId, :excelRowIndex, :epc, :assetType, :assetModel, " +
+           ":serialNumber, :custodian, :dept, :rawRowJson, :inventoryTime) " +
+           "ON CONFLICT(epc) DO UPDATE SET " +
+           "excelRowIndex = excluded.excelRowIndex, " +
+           "assetType = excluded.assetType, " +
+           "assetModel = excluded.assetModel, " +
+           "serialNumber = excluded.serialNumber, " +
+           "custodian = excluded.custodian, " +
+           "dept = excluded.dept, " +
+           "raw_row_json = excluded.raw_row_json")
+    long upsertOne(long taskId, int excelRowIndex, String epc,
+                   String assetType, String assetModel,
+                   String serialNumber, String custodian, String dept,
+                   String rawRowJson, @Nullable Long inventoryTime);
+
+    /**
+     * 批量 upsert, 走单事务. 每批 500 条调用一次, 性能 ≈ 单批 INSERT 同量级.
+     * @Transaction 让 Room 框架包 BEGIN/COMMIT, 中途失败整体回滚.
+     */
+    @androidx.room.Transaction
+    default void upsertBatch(java.util.List<Asset> assets) {
+        for (Asset a : assets) {
+            upsertOne(a.taskId, a.excelRowIndex, a.epc,
+                    a.assetType, a.assetModel,
+                    a.serialNumber, a.custodian, a.dept,
+                    a.rawRowJson, a.inventoryTime);
+        }
+    }
+
     @Query("SELECT COUNT(*) FROM Asset WHERE taskId = :taskId")
     int countByTask(long taskId);
 

@@ -16,13 +16,16 @@ import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.DialogFragment;
 import androidx.lifecycle.ViewModelProvider;
 import com.google.android.material.button.MaterialButton;
+import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
 
 /**
@@ -44,6 +47,7 @@ public class ImportDialogFragment extends DialogFragment {
     private LinearLayout uploadArea, fileInfoRow;
     private TextView fileInfoNameTv, progressTv, errorTv;
     private MaterialButton startImportBtn;
+    private MaterialButton initDbBtn;
 
     private Uri pickedUri;
     private String pickedName;
@@ -92,6 +96,7 @@ public class ImportDialogFragment extends DialogFragment {
         progressTv = v.findViewById(R.id.progressTv);
         errorTv = v.findViewById(R.id.errorTv);
         startImportBtn = v.findViewById(R.id.startImportBtn);
+        initDbBtn = v.findViewById(R.id.initDbBtn);
         ImageButton closeBtn = v.findViewById(R.id.importCloseBtn);
         Button clearFileBtn = v.findViewById(R.id.clearFileBtn);
 
@@ -99,6 +104,7 @@ public class ImportDialogFragment extends DialogFragment {
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
         clearFileBtn.setOnClickListener(btn -> clearPicked());
         startImportBtn.setOnClickListener(btn -> startCommit());
+        initDbBtn.setOnClickListener(btn -> confirmInitDb());
         closeBtn.setOnClickListener(btn -> dismiss());
 
         importVm.parsedFile().observe(getViewLifecycleOwner(), pf -> {
@@ -109,8 +115,13 @@ public class ImportDialogFragment extends DialogFragment {
             if (pf.successCount > 0) {
                 startImportBtn.setEnabled(true);
                 uploadArea.setEnabled(true);
-                progressTv.setText(getString(R.string.import_progress_parsed,
-                        pf.successCount, pf.errorCount));
+                // duplicateCount > 0 → 追加"其中 N 条将覆盖"提示; = 0 → 用简洁文案
+                String text = pf.duplicateCount > 0
+                        ? getString(R.string.import_progress_parsed_with_dup,
+                                pf.successCount, pf.duplicateCount, pf.errorCount)
+                        : getString(R.string.import_progress_parsed,
+                                pf.successCount, pf.errorCount);
+                progressTv.setText(text);
             } else {
                 showError(getString(R.string.import_failed, pf.fileName));
                 uploadArea.setEnabled(true);
@@ -125,12 +136,22 @@ public class ImportDialogFragment extends DialogFragment {
         });
         importVm.importProgress().observe(getViewLifecycleOwner(), prog -> {
             if (prog == null || !commited) return;
-            progressTv.setText(getString(R.string.import_importing_fmt,
-                    prog.imported, prog.total));
+            // 进度展示: N/M 主体, 当 updated > 0 时附 "已覆盖 X 条" 让用户实时看到.
+            String text = getString(R.string.import_importing_fmt,
+                    prog.imported, prog.total);
+            if (prog.updated > 0) {
+                text = text + "  ·  已覆盖 " + prog.updated + " 条";
+            }
+            progressTv.setText(text);
         });
-        importVm.importDone().observe(getViewLifecycleOwner(), taskId -> {
-            if (taskId == null || !commited) return;
-            progressTv.setText(getString(R.string.import_done_fmt, pickedSuccessCount));
+        importVm.importDone().observe(getViewLifecycleOwner(), result -> {
+            if (result == null || !commited) return;
+            // 0 覆盖 → 简洁文案; N 覆盖 → 含"覆盖更新"明细
+            String text = result.updated > 0
+                    ? getString(R.string.import_done_fmt_with_updates,
+                            result.imported, result.updated)
+                    : getString(R.string.import_done_fmt, result.imported);
+            progressTv.setText(text);
             startImportBtn.setEnabled(false);
             uploadArea.setEnabled(false);
             // 1.2s 后自动关闭, 让用户看清完成提示
@@ -192,6 +213,44 @@ public class ImportDialogFragment extends DialogFragment {
         errorTv.setVisibility(View.GONE);
         startImportBtn.setEnabled(false);
         uploadArea.setEnabled(true);
+    }
+
+    /**
+     * 初始化数据库二次确认: 红色标题"⚠️ 危险操作" + 列出删除内容,
+     * 用户主动点"确认初始化"才执行.
+     * 执行走 diskIO 线程 (db.clearAllTables 是 Room 同步 API, 在 diskIO 跑不阻塞 UI).
+     */
+    private void confirmInitDb() {
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.import_init_db_title)
+                .setMessage(R.string.import_init_db_msg)
+                .setPositiveButton(R.string.import_init_db_confirm, (d, w) -> doInitDb())
+                .setNegativeButton(R.string.action_cancel, null)
+                .show();
+    }
+
+    private void doInitDb() {
+        InventoryApp app = (InventoryApp) requireActivity().getApplication();
+        // 清库期间禁用主按钮防双击; 完成后弹 Toast 提示并自动关闭 dialog.
+        startImportBtn.setEnabled(false);
+        initDbBtn.setEnabled(false);
+        app.executors.diskIO.execute(() -> {
+            // clearAllTables 是 Room 内置单事务全表清空 API,
+            // 但不会清掉 ExtraClaim 等无 @Entity 标注的表 — 检查一下:
+            //   - Asset / ScanRecord / InventoryTask / ExtraClaim 都在 @Database(entities=...) 里,
+            //     clearAllTables 会清. 不在 entities 里的表 (无) 不受影响.
+            // 同时清 SharedPreferences 里 session.currentTaskId, 否则下次启动
+            // 还会引用已删的 taskId (虽然 SQL 查询会空结果, 但 session 残留不干净).
+            app.db.clearAllTables();
+            app.session.clear();
+            requireActivity().runOnUiThread(() -> {
+                Toast.makeText(requireContext(),
+                        R.string.import_init_db_done, Toast.LENGTH_SHORT).show();
+                mainHandler.postDelayed(() -> {
+                    if (isAdded()) dismiss();
+                }, 800);
+            });
+        });
     }
 
     private void showError(String msg) {

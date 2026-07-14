@@ -8,7 +8,10 @@ import androidx.room.PrimaryKey;
 
 @Entity(indices = {
         @Index("taskId"),
-        @Index(value = {"taskId", "epc"})
+        // epc 单列唯一 — 重复导入时按 epc 覆盖 (AssetDao.upsertOne ON CONFLICT(epc) DO UPDATE).
+        // 注意: ON CONFLICT 子句明确排除 taskId / inventory_time,
+        // 保留 Asset.id 不变 → ScanRecord.matchedAssetId FK 持续有效; 盘点时间不被抹.
+        @Index(value = {"epc"}, unique = true)
 })
 public class Asset {
     @PrimaryKey(autoGenerate = true)

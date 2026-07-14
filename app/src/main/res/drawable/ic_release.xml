@@ -3,7 +3,8 @@
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportHeight="24"
+    android:tint="?attr/colorControlNormal">
     <!-- 释放/回滚箭头：从箱中取出 -->
     <path
         android:fillColor="@android:color/white"
