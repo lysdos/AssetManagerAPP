@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 释放资产回库存池：仅 PAUSED/COMPLETED 显示 -->
-    <item
-        android:id="@+id/menu_task_release_to_pool"
-        android:title="@string/task_action_release_to_pool"
-        android:icon="@drawable/ic_release" />
-    <!-- 删除任务：所有状态都显示 -->
+    <!-- 删除任务：所有状态都显示。语义 = 释放资产回库存池 + 清扫描 + 删任务壳 + 清 session. -->
     <item
         android:id="@+id/menu_task_delete"
         android:title="@string/task_action_delete"

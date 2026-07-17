@@ -78,16 +78,28 @@ public class TaskListViewModel extends AndroidViewModel {
         diskIO.execute(() -> cb.onLoaded(app.db.assetDao().distinctDeptPool()));
     }
 
-    public void deleteTask(long taskId) {
+    /**
+     * 删除任务 = 释放资产回库存池 + 清扫描记录 + 删任务壳 + 清 session.
+     * 业务口径: ⋮ → "删除任务" 是"放弃这个任务"的唯一入口, 资产不丢 (留在库存池
+     * 供下一个任务分配), 扫描/补全记录因为 taskId 上下文失效一并清掉.
+     * <p>单事务: 任一步失败整体回滚, 无孤儿 ScanRecord.
+     * <p>若是当前正在盘点的任务 (session.currentTaskId == taskId), 清 session
+     * 让扫描页归零, 否则会指向已删任务壳导致 UI 空指针.
+     */
+    public void deleteTask(long taskId, DeleteCallback cb) {
         diskIO.execute(() -> {
-            // 整体进单事务: ExtraClaim → ScanRecord → Asset → InventoryTask 任一失败都回滚,
-            // 避免孤儿 ScanRecord (matchedAssetId 指向已删 Asset) 残留.
+            final int[] releasedHolder = {0};
             app.db.runInTransaction(() -> {
+                releasedHolder[0] = app.db.assetDao().releaseTaskToPool(taskId);
                 app.db.extraClaimDao().deleteByTask(taskId);
                 app.db.scanRecordDao().deleteByTask(taskId);
-                app.db.assetDao().deleteByTask(taskId);
                 app.db.inventoryTaskDao().deleteById(taskId);
             });
+            Long cur = app.session.getCurrentTaskId();
+            if (cur != null && cur == taskId) {
+                app.session.clear();
+            }
+            if (cb != null) cb.onDeleted(taskId, releasedHolder[0]);
         });
     }
 
@@ -104,32 +116,6 @@ public class TaskListViewModel extends AndroidViewModel {
                 }
                 app.db.inventoryTaskDao().deleteAllCompleted();
             });
-        });
-    }
-
-    /**
-     * 「释放资产回库存池」：把任务下资产释放回库存池 (taskId=0), 清扫描记录 + 补全记录,
-     * <b>同时删除 InventoryTask 行</b> — 任务壳子本身没意义了 (资产已交还, 没有
-     * "任务上下文"可保留), 一并删掉避免「释放→恢复→扫到空任务全盘盈」的诡异链路.
-     * <p>与 {@link #deleteTask} 的区别: 释放保留资产在 pool (供新任务分配), 删除连带删资产.
-     * 仅对 PAUSED / COMPLETED 任务有意义 — IN_PROGRESS 提示先暂停.
-     */
-    public void releaseTaskAssetsToPool(long taskId, ReleaseCallback cb) {
-        diskIO.execute(() -> {
-            final int[] releasedHolder = {0};
-            app.db.runInTransaction(() -> {
-                releasedHolder[0] = app.db.assetDao().releaseTaskToPool(taskId);
-                app.db.extraClaimDao().deleteByTask(taskId);
-                app.db.scanRecordDao().deleteByTask(taskId);
-                app.db.inventoryTaskDao().deleteById(taskId);
-            });
-            // 释放后任务壳子没了, session 不能继续指向已删 taskId —
-            // 否则扫描页还显示空数据, UI 端找不到任务卡也走不到正常路径.
-            Long cur = app.session.getCurrentTaskId();
-            if (cur != null && cur == taskId) {
-                app.session.clear();
-            }
-            if (cb != null) cb.onReleased(taskId, releasedHolder[0]);
         });
     }
 
@@ -181,5 +167,5 @@ public class TaskListViewModel extends AndroidViewModel {
     public interface PreviewCallback { void onCount(int count); }
     public interface LoadDeptCallback { void onLoaded(List<String> depts); }
     public interface SwitchCallback { void onSwitched(long taskId, boolean ok); }
-    public interface ReleaseCallback { void onReleased(long taskId, int assetCount); }
+    public interface DeleteCallback { void onDeleted(long taskId, int releasedAssetCount); }
 }

@@ -83,22 +83,8 @@ public class TaskListFragment extends Fragment {
                 // 已完成任务：切到扫描页查看盘点结果 (currentTaskId 不变)
                 requireActivity().runOnUiThread(() -> navigateToScan());
             }
-            @Override public void onDeleteTask(InventoryTask task) {
-                new AlertDialog.Builder(requireContext())
-                        .setMessage(R.string.task_msg_confirm_delete)
-                        .setPositiveButton(R.string.task_action_delete, (d, w) -> vm.deleteTask(task.id))
-                        .setNegativeButton(R.string.action_cancel, null)
-                        .show();
-            }
-            @Override public void onMoreClicked(InventoryTask task, String status, View anchor) {
-                // IN_PROGRESS 状态下 ⋮ 菜单中"释放资产"被隐藏 (业务上释放需先暂停),
-                // 用 Snackbar 提示用户原因, 菜单照常弹 — 让"删除"仍可点.
-                if ("IN_PROGRESS".equals(status)) {
-                    com.google.android.material.snackbar.Snackbar.make(requireView(),
-                            R.string.task_msg_in_progress_cant_release,
-                            com.google.android.material.snackbar.Snackbar.LENGTH_SHORT).show();
-                }
-                showTaskMorePopup(task, status, anchor);
+            @Override public void onMoreClicked(InventoryTask task, View anchor) {
+                showTaskMorePopup(task, anchor);
             }
         });
         rv.setAdapter(adapter);
@@ -158,16 +144,12 @@ public class TaskListFragment extends Fragment {
     }
 
     /**
-     * ⋮ 弹 PopupMenu：按任务状态显示不同菜单项。
-     *   - IN_PROGRESS: 仅"删除任务" (释放资产需要先暂停)
-     *   - PAUSED / COMPLETED: "释放资产回库存池" + "删除任务"
+     * ⋮ 弹 PopupMenu — 当前只有一项: "删除任务", 语义=释放资产回库存池.
+     * 保留 PopupMenu 框架以备后续加更多动作 (导出/复制/查看详情 等).
      */
-    private void showTaskMorePopup(InventoryTask task, String status, View anchor) {
+    private void showTaskMorePopup(InventoryTask task, View anchor) {
         PopupMenu popup = new PopupMenu(requireContext(), anchor);
         popup.getMenuInflater().inflate(R.menu.popup_task_more, popup.getMenu());
-        // IN_PROGRESS 隐藏"释放资产"项 — 提示先暂停
-        boolean canRelease = "PAUSED".equals(status) || "COMPLETED".equals(status);
-        popup.getMenu().findItem(R.id.menu_task_release_to_pool).setVisible(canRelease);
 
         // 反射强制显示 icon (PopupMenu 默认不显示)
         try {
@@ -181,17 +163,8 @@ public class TaskListFragment extends Fragment {
         } catch (Exception ignored) {}
 
         popup.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            if (id == R.id.menu_task_release_to_pool) {
-                confirmRelease(task);
-                return true;
-            }
-            if (id == R.id.menu_task_delete) {
-                new AlertDialog.Builder(requireContext())
-                        .setMessage(R.string.task_msg_confirm_delete)
-                        .setPositiveButton(R.string.task_action_delete, (d, w) -> vm.deleteTask(task.id))
-                        .setNegativeButton(R.string.action_cancel, null)
-                        .show();
+            if (item.getItemId() == R.id.menu_task_delete) {
+                confirmAndDelete(task);
                 return true;
             }
             return false;
@@ -199,32 +172,19 @@ public class TaskListFragment extends Fragment {
         popup.show();
     }
 
-    private void confirmRelease(InventoryTask task) {
-        // 先预览该任务下资产数, 让用户在二次确认对话框里看到具体数字
-        // 这里直接 new Thread 而不是 vm 方法, 是为了避免再为个 count 加 VM API.
-        new Thread(() -> {
-            int n = ((InventoryApp) requireActivity().getApplication()).db.assetDao().countByTask(task.id);
-            requireActivity().runOnUiThread(() -> {
-                if (!isAdded()) return;
-                if (n <= 0) {
-                    Toast.makeText(requireContext(), R.string.task_msg_release_none,
-                            Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                new AlertDialog.Builder(requireContext())
-                        .setMessage(getString(R.string.task_msg_confirm_release, n))
-                        .setPositiveButton(R.string.task_action_release_to_pool,
-                                (d, w) -> doRelease(task))
-                        .setNegativeButton(R.string.action_cancel, null)
-                        .show();
-            });
-        }).start();
-    }
-
-    private void doRelease(InventoryTask task) {
-        vm.releaseTaskAssetsToPool(task.id, (taskId, count) ->
-                requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(),
-                        getString(R.string.task_msg_release_done, count),
-                        Toast.LENGTH_SHORT).show()));
+    /**
+     * 通用删除入口: 二次确认 → 调 vm.deleteTask → Toast 反馈释放条数.
+     * 复用给卡片直接按钮和 ⋮ 弹窗两条路径.
+     */
+    private void confirmAndDelete(InventoryTask task) {
+        new AlertDialog.Builder(requireContext())
+                .setMessage(R.string.task_msg_confirm_delete)
+                .setPositiveButton(R.string.task_action_delete, (d, w) ->
+                        vm.deleteTask(task.id, (taskId, released) ->
+                                requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(),
+                                        getString(R.string.task_msg_release_done, released),
+                                        Toast.LENGTH_SHORT).show())))
+                .setNegativeButton(R.string.action_cancel, null)
+                .show();
     }
 }

@@ -101,17 +101,15 @@
     <string name="task_dept_fmt">归属：%1$s</string>
     <string name="task_dept_unlimited_fmt">归属：不限部门</string>
     <string name="task_no_dept">不限部门</string>
-    <string name="task_msg_confirm_delete">确认删除该任务？此操作将删除任务下所有资产和扫描记录。</string>
+    <!-- ⋮ → "删除任务" 的二次确认. 行为=资产回 pool + 清扫描 + 删任务壳, 资产不丢. -->
+    <string name="task_msg_confirm_delete">确认删除该任务？\n\n该任务下的资产将返回库存池（供新任务分配），扫描记录与任务本身将被清除。\n\n此操作不可撤销。</string>
     <string name="task_msg_confirm_clear_done">确认清除所有已完成任务？</string>
     <string name="task_msg_paused">任务「%1$s」已暂停</string>
     <string name="task_msg_resumed">任务「%1$s」已恢复，可继续盘点</string>
     <string name="task_content_desc_delete">删除任务</string>
     <string name="task_content_desc_more">更多操作</string>
-    <string name="task_action_release_to_pool">释放资产回库存池</string>
+    <!-- ⋮ → "删除任务" 的提示. 语义 = 释放资产回库存池 + 清扫描 + 删任务壳. -->
     <string name="task_msg_release_done">已释放 %1$d 条资产到库存池</string>
-    <string name="task_msg_release_none">该任务下暂无资产</string>
-    <string name="task_msg_confirm_release">确认释放该任务？\n\n该任务下的 %1$d 条资产将返回库存池（供新任务分配），扫描记录将一并清除，任务本身也将被删除。\n\n此操作不可撤销。</string>
-    <string name="task_msg_in_progress_cant_release">（非删除选项）进行中的任务如果想把资源释放回资源池，需暂停后再选择释放资产选项</string>
 
     <!-- Create task dialog -->
     <string name="task_create_title">创建盘点任务</string>

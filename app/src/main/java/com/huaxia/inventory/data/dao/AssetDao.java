@@ -178,8 +178,8 @@ public interface AssetDao {
 
     /**
      * 把任务下资产释放回库存池(taskId = 0)。
-     * 调用时机: ⋮ 重置 A → "释放资产回库存池".
-     * 同步删除该任务的扫描记录(ScanRecord 引用 taskId 不再有效).
+     * 调用时机: ⋮ 菜单 "删除任务" (TaskListViewModel.deleteTask).
+     * 同步删除该任务的扫描记录 + 补全记录 (引用 taskId 不再有效).
      */
     @Query("UPDATE Asset SET taskId = 0 WHERE taskId = :taskId")
     int releaseTaskToPool(long taskId);

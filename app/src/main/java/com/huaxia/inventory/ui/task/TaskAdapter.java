@@ -24,13 +24,11 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.VH> {
         void onPauseTask(InventoryTask task);
         void onResumeTask(InventoryTask task);
         void onViewTask(InventoryTask task);
-        void onDeleteTask(InventoryTask task);
         /**
          * ⋮ 按钮被点击 — 由宿主 fragment 弹 PopupMenu 处理具体菜单项。
-         * @param status  当前任务状态
          * @param anchor  弹菜单的锚点 view
          */
-        void onMoreClicked(InventoryTask task, String status, View anchor);
+        void onMoreClicked(InventoryTask task, View anchor);
     }
 
     private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
@@ -86,7 +84,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.VH> {
                 R.string.task_meta_total_fmt, Math.max(t.expectedCount, 0)));
 
         h.more.setOnClickListener(v -> {
-            if (listener != null) listener.onMoreClicked(t, status, v);
+            if (listener != null) listener.onMoreClicked(t, v);
         });
     }
 
