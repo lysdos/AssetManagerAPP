@@ -146,7 +146,6 @@ public class ScanRecordDaoTest {
         a.taskId = taskId;
         a.excelRowIndex = 1;
         a.epc = epc;
-        a.assetName = "Asset";
         a.rawRowJson = "{}";
         return a;
     }

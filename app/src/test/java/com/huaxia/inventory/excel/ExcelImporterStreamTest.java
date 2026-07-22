@@ -18,15 +18,15 @@ public class ExcelImporterStreamTest {
     @Test
     public void stream_yieldsBatchesInOrder() throws Exception {
         String[] headers = {
-                "序号", "设备名称", "设备类型", "设备型号", "所属机构",
-                "详细地点", "放置地点", "资产状态", "固资编号"
+                "序号", "设备类型", "设备型号", "序列号",
+                "固资编号", "领用部门", "领用人", "盘点日期"
         };
         // 7 行有效，batch=3 应触发 3 次回调（3+3+1）
         String[][] rows = new String[7][];
         for (int i = 0; i < 7; i++) {
             rows[i] = new String[]{
-                    String.valueOf(i + 1), "D" + i, "X", "M", "O",
-                    "L", "P", "S", String.format("%016d", 3500309099000000L + i)
+                    String.valueOf(i + 1), "X", "M", "D" + i,
+                    String.format("%016d", 3500309099000000L + i), "O", "L", "P"
             };
         }
 
@@ -63,14 +63,14 @@ public class ExcelImporterStreamTest {
     @Test
     public void stream_collectsErrorsWithoutHalting() throws Exception {
         String[] headers = {
-                "序号", "设备名称", "设备类型", "设备型号", "所属机构",
-                "详细地点", "放置地点", "资产状态", "固资编号"
+                "序号", "设备类型", "设备型号", "序列号",
+                "固资编号", "领用部门", "领用人", "盘点日期"
         };
         String[][] rows = {
-                {"1", "OK1", "X", "X", "X", "X", "X", "X", "3500309099027210"},
-                {"2", "BAD_LEN", "X", "X", "X", "X", "X", "X", "3500309"},      // 短
-                {"3", "OK2", "X", "X", "X", "X", "X", "X", "3500309019310435"},
-                {"4", "BAD_EMPTY", "X", "X", "X", "X", "X", "X", ""}            // 空
+                {"1", "X", "X", "OK1", "3500309099027210", "X", "X", "X"},
+                {"2", "X", "X", "BAD_LEN", "3500309", "X", "X", "X"},      // 短
+                {"3", "X", "X", "OK2", "3500309019310435", "X", "X", "X"},
+                {"4", "X", "X", "BAD_EMPTY", "", "X", "X", "X"}            // 空
         };
         final List<Asset> all = new ArrayList<>();
         final List<String> errors = new ArrayList<>();
@@ -88,11 +88,11 @@ public class ExcelImporterStreamTest {
     public void parse_isCompatibleWrapperOverStream() throws Exception {
         // parse() 内部走 stream()，应保持旧行为
         String[] headers = {
-                "序号", "设备名称", "设备类型", "设备型号", "所属机构",
-                "详细地点", "放置地点", "资产状态", "固资编号"
+                "序号", "设备类型", "设备型号", "序列号",
+                "固资编号", "领用部门", "领用人", "盘点日期"
         };
         String[][] rows = {
-                {"1", "P1", "X", "X", "X", "X", "X", "X", "3500309099027210"}
+                {"1", "X", "X", "P1", "3500309099027210", "X", "X", "X"}
         };
         try (java.io.InputStream in = buildXlsx(headers, rows)) {
             ExcelImporter.Result r = ExcelImporter.parse(in, 1L);

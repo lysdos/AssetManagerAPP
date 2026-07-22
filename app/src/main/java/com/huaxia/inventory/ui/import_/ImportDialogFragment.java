@@ -243,6 +243,9 @@ public class ImportDialogFragment extends DialogFragment {
             // 还会引用已删的 taskId (虽然 SQL 查询会空结果, 但 session 残留不干净).
             app.db.clearAllTables();
             app.session.clear();
+            // 跟 ResultFragment / ScanFragment 一致: diskIO 异步回调里 requireActivity 前
+            // 必须 isAdded 守卫, 否则 dialog 已被 dismiss 后会 IllegalStateException 崩溃.
+            if (!isAdded()) return;
             requireActivity().runOnUiThread(() -> {
                 Toast.makeText(requireContext(),
                         R.string.import_init_db_done, Toast.LENGTH_SHORT).show();

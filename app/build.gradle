@@ -25,14 +25,29 @@ android {
         targetCompatibility JavaVersion.VERSION_11
     }
 
-    buildTypes {
+    signingConfigs {
+        // ⚠️ dev 用 jks, storePassword / keyPassword / keyAlias 都是 devpass / devkey.
+        // 正式发版前必须换成项目自己的密钥 (理想做法: 把密钥信息放 local.properties,
+        // build.gradle 用 rootProject.file + Properties 读, 密钥不进 git).
+        release {
+            storeFile file('keystore/dev.jks')
+            storePassword 'devpass'
+            keyAlias 'devkey'
+            keyPassword 'devpass'
+        }
+    }
+
+buildTypes {
         debug {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         release {
-            minifyEnabled false
+            // 必须开 minify: R8 误剥 rscja team.* 类需要 proguard-rules.pro 的 keep 兜住.
+            // (历史反直觉配置 debug=true/release=false 是为了排查, 现已修.)
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
 

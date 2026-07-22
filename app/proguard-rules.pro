@@ -7,6 +7,23 @@
 -keep class org.apache.commons.compress.archivers.zip.** { *; }
 # rscja UHF SDK (DeviceAPI)
 -keep class com.rscja.deviceapi.** { *; }
+# rscja SDK 平台实现层 — 反射 + ServiceLoader 加载, R8 看不到直接引用,
+# 漏 keep 会让 mtk 设备运行时 ClassNotFoundException.
+# InventoryApp.checkRfidClasses() 启动时用 Class.forName 探针验证这些类都在.
+-keep class com.rscja.team.** { *; }
+-keep class com.rscja.utility.** { *; }
+-keep class com.rscja.CWDeviceInfo { *; }
+-keep class com.rscja.system.** { *; }
+
+# rscja DeviceAPI AAR 把多平台条码引擎适配打进 SDK (Datalogic / imagealgorithmlab
+# / rscja cwq / MTK Zebra), com.rscja.team.mtk.barcode.f.* 通过反射加载, 设备上
+# 只跑其中一套, 其它三套是死引用. 这些类不在 classpath — 反射加载本来就 try/catch
+# ClassNotFoundException, -dontwarn 让 R8 跳过 missing-class 检查, 不影响运行时.
+# 不加 -keep: keep 一个不在 classpath 的类等于无效规则, R8 仍会抱怨.
+-dontwarn com.datalogic.iptech.evl.**
+-dontwarn com.imagealgorithmlab.barcode.**
+-dontwarn com.rscja.cwq.decodeapi.**
+-dontwarn vendor.mediatek.hardware.zebra.**
 
 # POI OOXML schema — XmlBeans 反射加载, R8 看不到引用, 必须 keep
 # 只 keep xlsx 用的 namespace (spreadsheetml + drawingml + sharedtypes +
