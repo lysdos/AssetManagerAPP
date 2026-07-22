@@ -189,6 +189,11 @@
     <string name="manual_scan_active_tip">将条码对准手持机扫描窗口</string>
     <string name="manual_scan_start_btn">🔫 启动扫码</string>
     <string name="manual_scan_stop_btn">⏹️ 停止扫码</string>
+    <!-- 硬件扫码模式占位面板文案 (双路径切换时使用) -->
+    <string name="manual_scan_hardware_idle_title">硬件扫码模式</string>
+    <string name="manual_scan_hardware_idle_tip">PDA 物理扫码头</string>
+    <string name="manual_scan_hardware_active_title">硬件扫码中</string>
+    <string name="manual_scan_hardware_active_tip">按 PDA 扳机键扫描条形码</string>
 
     <!-- Power setting -->
     <string name="action_power_setting">功率设置</string>

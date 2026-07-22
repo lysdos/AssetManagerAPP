@@ -27,16 +27,22 @@
             android:layout_marginBottom="12dp"
             android:visibility="gone">
 
+            <!-- 摄像头预览 (CameraX 兜底路径用, 硬件模式下 hidden) -->
             <androidx.camera.view.PreviewView
                 android:id="@+id/previewView"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
+                android:visibility="gone"
                 app:scaleType="fillCenter" />
 
             <com.huaxia.inventory.barcode.ScanFrameView
                 android:id="@+id/scanFrameOverlay"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent" />
+                android:layout_height="match_parent"
+                android:visibility="gone" />
+
+            <!-- 硬件扫码模式占位 (默认显示, 切到 CameraX 模式时 hidden) -->
+            <include layout="@layout/view_scan_mode_placeholder" />
         </FrameLayout>
 
         <LinearLayout

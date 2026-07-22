@@ -40,8 +40,7 @@ public class _DiagnoseUserFilesTest {
                                 if (first5Epc.size() < 5) {
                                     first5Epc.add("row=" + a.excelRowIndex
                                             + " epcLen=" + a.epc.length()
-                                            + " epc='" + a.epc + "'"
-                                            + " name='" + a.assetName + "'");
+                                            + " epc='" + a.epc + "'");
                                 }
                             }
                         }

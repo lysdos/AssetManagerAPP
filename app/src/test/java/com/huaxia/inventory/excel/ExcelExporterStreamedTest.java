@@ -154,7 +154,6 @@ public class ExcelExporterStreamedTest {
         a.taskId = taskId;
         a.excelRowIndex = 1;
         a.epc = epc;
-        a.assetName = "Asset";
         a.rawRowJson = "{\"设备名称\":\"Asset\",\"固资编号\":\"" + epc + "\"}";
         return a;
     }

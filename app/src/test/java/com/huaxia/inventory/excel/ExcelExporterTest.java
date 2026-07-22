@@ -69,7 +69,6 @@ public class ExcelExporterTest {
         a.taskId = 1L;
         a.excelRowIndex = 4;
         a.epc = "3500309099027210";
-        a.assetName = "测试设备";
         a.rawRowJson = json;
 
         List<String> headers = new ArrayList<>(raw.keySet());
@@ -92,7 +91,6 @@ public class ExcelExporterTest {
         a.taskId = 1L;
         a.excelRowIndex = (int) id + 3;
         a.epc = epc;
-        a.assetName = name;
         a.rawRowJson = "{}";
         return a;
     }

@@ -140,7 +140,6 @@ public class AssetDaoTest {
             a.taskId = 1;
             a.excelRowIndex = i;
             a.epc = "EPC" + i;
-            a.assetName = "Asset " + i;
             a.rawRowJson = "{}";
             dao.insert(a);
         }
@@ -199,7 +198,6 @@ public class AssetDaoTest {
         a.taskId = taskId;
         a.excelRowIndex = 1;
         a.epc = epc;
-        a.assetName = name;
         a.rawRowJson = "{}";
         return a;
     }

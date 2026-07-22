@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  硬件扫码模式占位面板 — 在 cameraContainer 里跟 PreviewView 互斥显示.
+  硬件 SDK 已 open + setCallback, 不需要摄像头预览, 但保留 260dp 高度
+  防止双路径切换时页面长度抖动.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/scanModePlaceholder"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@drawable/bg_scan_mode_placeholder"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/placeholderIconTv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚡"
+        android:textSize="56sp" />
+
+    <TextView
+        android:id="@+id/placeholderTitleTv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/manual_scan_hardware_idle_title"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@color/colorPrimary" />
+
+    <TextView
+        android:id="@+id/placeholderTipTv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/manual_scan_hardware_idle_tip"
+        android:textSize="13sp"
+        android:textColor="@color/textHint" />
+</LinearLayout>
