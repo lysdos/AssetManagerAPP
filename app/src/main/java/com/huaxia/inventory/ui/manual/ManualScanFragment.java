@@ -27,6 +27,8 @@ import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.TextInputEditText;
 import com.huaxia.inventory.R;
 import com.huaxia.inventory.barcode.BarcodeCameraController;
+import com.huaxia.inventory.barcode.BarcodeHardwareController;
+import com.huaxia.inventory.barcode.ScanFrameView;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.ScanRecord;
 import com.huaxia.inventory.util.BeepPlayer;
@@ -43,7 +45,12 @@ public class ManualScanFragment extends Fragment {
     private MaterialButton startScanBtn, stopScanBtn;
     private FrameLayout cameraContainer;
     private PreviewView previewView;
+    private ScanFrameView scanFrameOverlay;
     private BarcodeCameraController barcodeController;
+    private BarcodeHardwareController hardwareController;
+    private View scanModePlaceholder;
+    private TextView placeholderIconTv, placeholderTitleTv, placeholderTipTv;
+    private boolean useHardware = false;
     private TextInputEditText inputEt;
     private TextView tipTv;
     private CardView detailCard;
@@ -91,6 +98,11 @@ public class ManualScanFragment extends Fragment {
         stopScanBtn = v.findViewById(R.id.stopScanBtn);
         cameraContainer = v.findViewById(R.id.cameraContainer);
         previewView = v.findViewById(R.id.previewView);
+        scanFrameOverlay = v.findViewById(R.id.scanFrameOverlay);
+        scanModePlaceholder = v.findViewById(R.id.scanModePlaceholder);
+        placeholderIconTv = v.findViewById(R.id.placeholderIconTv);
+        placeholderTitleTv = v.findViewById(R.id.placeholderTitleTv);
+        placeholderTipTv = v.findViewById(R.id.placeholderTipTv);
         inputEt = v.findViewById(R.id.inputEpEt);
         tipTv = v.findViewById(R.id.tipTv);
         detailCard = v.findViewById(R.id.detailCard);
@@ -156,11 +168,64 @@ public class ManualScanFragment extends Fragment {
     }
 
     /**
-     * 进入扫码模式: UI 切到「正在扫码」, 启动/停止按钮互换, 显示摄像头预览.
-     * 检测到权限 → startCamera; 没权限 → 弹系统授权, 结果由 cameraPermissionLauncher 接.
+     * 进入扫码模式: 双路径分发 — 硬件 SDK 优先, CameraX 兜底.
+     * 硬件 SDK 在 InventoryApp.onCreate 已经预热过, 这里直接判 {@link BarcodeHardwareController#isReady()}.
      */
     private void startScan() {
         Log.i(TAG, "[ManualScanFragment] startScan() pressed");
+        if (BarcodeHardwareController.isReady()) {
+            Log.i(TAG, "[ManualScanFragment] using hardware barcode decoder (rscja)");
+            startHardwareScan();
+        } else {
+            Log.i(TAG, "[ManualScanFragment] hardware not ready, falling back to CameraX");
+            startCameraWithPermissionCheck();
+        }
+    }
+
+    /** 硬件扫码路径: 硬件扫码 ~50-200ms 出结果, 不需要"扫码中"视觉锚点,
+     *  完全隐藏 cameraContainer 让下方输入框/查询按钮上移, 节省 260dp 户外 PDA 屏幕. */
+    private void startHardwareScan() {
+        useHardware = true;
+        cameraContainer.setVisibility(View.GONE);
+        scanModePlaceholder.setVisibility(View.VISIBLE);
+        previewView.setVisibility(View.GONE);
+        scanFrameOverlay.setVisibility(View.GONE);
+        setPlaceholderActive(true);
+
+        scanStatusCard.setBackgroundResource(R.drawable.bg_scan_status_active);
+        scanStatusIconTv.setText(R.string.manual_scan_active_icon);
+        scanStatusTextTv.setText(R.string.manual_scan_active);
+        scanStatusTextTv.setTextColor(ContextCompat.getColor(requireContext(), R.color.colorPrimary));
+        scanStatusTipTv.setText(R.string.manual_scan_active_tip);
+        startScanBtn.setVisibility(View.GONE);
+        stopScanBtn.setVisibility(View.VISIBLE);
+
+        if (hardwareController == null) {
+            hardwareController = new BarcodeHardwareController();
+        }
+        hardwareController.startScan(new BarcodeHardwareController.Callback() {
+            @Override
+            public void onBarcodeDetected(@NonNull String rawCode) {
+                if (!isAdded()) return;
+                vm.onBarcodeScanned(rawCode);
+            }
+
+            @Override
+            public void onStartFailed(@NonNull String reason) {
+                Log.w(TAG, "[ManualScanFragment] hardware scan failed: " + reason);
+                if (!isAdded()) return;
+                // 中途失败 (硬件掉线等) — 这次 session 后续直接走 CameraX, 不再尝试硬件
+                Snackbar.make(requireView(),
+                        R.string.manual_scan_camera_init_failed,
+                        Snackbar.LENGTH_LONG).show();
+                stopScan();
+            }
+        });
+    }
+
+    /** CameraX 路径: 先检查权限, 没有就弹系统授权. */
+    private void startCameraWithPermissionCheck() {
+        useHardware = false;
         if (ContextCompat.checkSelfPermission(requireContext(),
                 Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCamera();
@@ -172,6 +237,10 @@ public class ManualScanFragment extends Fragment {
 
     private void startCamera() {
         cameraContainer.setVisibility(View.VISIBLE);
+        scanModePlaceholder.setVisibility(View.GONE);
+        previewView.setVisibility(View.VISIBLE);
+        scanFrameOverlay.setVisibility(View.VISIBLE);
+
         scanStatusCard.setBackgroundResource(R.drawable.bg_scan_status_active);
         scanStatusIconTv.setText(R.string.manual_scan_active_icon);
         scanStatusTextTv.setText(R.string.manual_scan_active);
@@ -202,10 +271,30 @@ public class ManualScanFragment extends Fragment {
         });
     }
 
+    /** 切换占位面板 idle/active 文案. */
+    private void setPlaceholderActive(boolean active) {
+        if (active) {
+            placeholderTitleTv.setText(R.string.manual_scan_hardware_active_title);
+            placeholderTipTv.setText(R.string.manual_scan_hardware_active_tip);
+        } else {
+            placeholderTitleTv.setText(R.string.manual_scan_hardware_idle_title);
+            placeholderTipTv.setText(R.string.manual_scan_hardware_idle_tip);
+        }
+    }
+
     private void stopScan() {
-        Log.i(TAG, "[ManualScanFragment] stopScan() pressed");
-        if (barcodeController != null) barcodeController.stopScan();
+        Log.i(TAG, "[ManualScanFragment] stopScan() pressed, useHardware=" + useHardware);
+        if (useHardware && hardwareController != null) {
+            hardwareController.stopScan();
+        } else if (!useHardware && barcodeController != null) {
+            barcodeController.stopScan();
+        }
         forceIdleState();
+        // 重置 cameraContainer: 硬件模式恢复占位, CameraX 模式隐藏 preview
+        scanModePlaceholder.setVisibility(View.VISIBLE);
+        previewView.setVisibility(View.GONE);
+        scanFrameOverlay.setVisibility(View.GONE);
+        setPlaceholderActive(false);
         cameraContainer.setVisibility(View.GONE);
         inputEt.setText("");
         View focused = requireActivity().getCurrentFocus();
@@ -232,6 +321,10 @@ public class ManualScanFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        if (hardwareController != null) {
+            hardwareController.release();
+            hardwareController = null;
+        }
         if (barcodeController != null) {
             barcodeController.release();
             barcodeController = null;

@@ -6,6 +6,8 @@
     <color name="statusMissing">#C62828</color>
     <color name="statusExtra">#EF6C00</color>
     <color name="bgSurface">#F5F5F5</color>
+    <!-- 硬件扫码模式占位面板背景: 浅蓝 (跟 tagBlueBg 一致, 这里语义化独立命名便于维护) -->
+    <color name="bgScanModePlaceholder">#E3F2FD</color>
     <color name="cardCorner">#FFFFFF</color>
     <color name="tagBlueBg">#E3F2FD</color>
     <color name="tagBlueFg">#1565C0</color>

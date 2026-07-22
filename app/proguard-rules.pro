@@ -14,6 +14,10 @@
 -keep class com.rscja.utility.** { *; }
 -keep class com.rscja.CWDeviceInfo { *; }
 -keep class com.rscja.system.** { *; }
+# rscja 硬件扫码 SDK (BarcodeDecoder / BarcodeFactory / BarcodeUtility).
+# ManualScanFragment 用 BarcodeFactory.getInstance().getBarcodeDecoder() + setDecodeCallback,
+# 反射加载, 必须 keep.
+-keep class com.rscja.barcode.** { *; }
 
 # rscja DeviceAPI AAR 把多平台条码引擎适配打进 SDK (Datalogic / imagealgorithmlab
 # / rscja cwq / MTK Zebra), com.rscja.team.mtk.barcode.f.* 通过反射加载, 设备上

@@ -4,6 +4,7 @@ import android.app.Application;
 import android.content.SharedPreferences;
 import android.util.Log;
 import androidx.room.Room;
+import com.huaxia.inventory.barcode.BarcodeHardwareController;
 import com.huaxia.inventory.data.AppDatabase;
 import com.huaxia.inventory.rfid.RfidController;
 import com.huaxia.inventory.rfid.SdkRfidAdapter;
@@ -63,6 +64,11 @@ public class InventoryApp extends Application {
                 Log.i(TAG, "[InventoryApp] orphan cleanup: no orphans found");
             }
         });
+
+        // 预热硬件扫码 SDK (rscja BarcodeDecoder).
+        // 跟 RFID init 同模式: 后台线程 open, 不阻塞 app 启动.
+        // 失败不致命, ManualScanFragment 会静默降级到 CameraX + ML Kit.
+        executors.diskIO.execute(() -> BarcodeHardwareController.prewarm(this));
 
         // 诊断: R8 minify 在 debug 开启后, com.rscja.team.mtk.* 等平台实现类
         // 会被 R8 误判为"不可达"剥掉. 用 Class.forName 探一下, 找出哪些类丢了.
