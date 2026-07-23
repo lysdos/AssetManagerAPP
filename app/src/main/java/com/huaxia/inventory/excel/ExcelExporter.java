@@ -108,28 +108,29 @@ public final class ExcelExporter {
                 }
             }
 
-            // 3) 分页流式写盘盈 (含补全信息)
+            // 3) 分页流式写盘盈 (含补全信息).
+            // ExtraClaim 按页收集 id 并查 IN (Android SQLite 单次 IN 上限 999),
+            // 避免盘盈 > 999 时崩溃; 同时不再累积所有 ScanRecord 到堆,
+            // 写完一页后清空 pageIds 与 claimMap, 峰值内存仅一页.
             int totalExtras = scanRecordDao.countExtras(taskId);
             if (totalExtras > 0) {
                 writer.writeRow("");  // 空行
                 writer.writeRow("【盘盈记录】");
                 writer.writeRow(fullHeaders.toArray(new String[0]));
-                // 一次性加载所有 ScanRecord id 对应的 ExtraClaim, 避免写每行时 N+1 查询
-                List<ScanRecord> allExtraRecords = new ArrayList<>(totalExtras);
                 for (int offset = 0; offset < totalExtras; offset += STREAM_PAGE_SIZE) {
-                    allExtraRecords.addAll(scanRecordDao.pageExtra(
-                            taskId, STREAM_PAGE_SIZE, offset));
-                }
-                List<Long> extraIds = new ArrayList<>(allExtraRecords.size());
-                for (ScanRecord r : allExtraRecords) extraIds.add(r.id);
-                Map<Long, ExtraClaim> claimMap = new HashMap<>();
-                if (extraClaimDao != null) {
-                    for (ExtraClaim c : extraClaimDao.findByScanRecordIds(extraIds)) {
-                        claimMap.put(c.scanRecordId, c);
+                    List<ScanRecord> pageRecords = scanRecordDao.pageExtra(
+                            taskId, STREAM_PAGE_SIZE, offset);
+                    List<Long> pageIds = new ArrayList<>(pageRecords.size());
+                    for (ScanRecord r : pageRecords) pageIds.add(r.id);
+                    Map<Long, ExtraClaim> claimMap = new HashMap<>();
+                    if (extraClaimDao != null) {
+                        for (ExtraClaim c : extraClaimDao.findByScanRecordIds(pageIds)) {
+                            claimMap.put(c.scanRecordId, c);
+                        }
                     }
-                }
-                for (ScanRecord s : allExtraRecords) {
-                    writeExtraRow(writer, originalHeaders, s, claimMap.get(s.id));
+                    for (ScanRecord s : pageRecords) {
+                        writeExtraRow(writer, originalHeaders, s, claimMap.get(s.id));
+                    }
                 }
             }
         }

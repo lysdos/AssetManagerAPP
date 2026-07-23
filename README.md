@@ -4,7 +4,7 @@ Android RFID 资产盘点应用，运行在 UROVO 工业 PDA 上。
 
 ## 功能
 
-- 从 Excel 导入资产清单（35 列）
+- 从 Excel 导入资产清单（8 个必需列：序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期）
 - RFID 扫描标签，实时匹配 EPC
 - 统计 已盘 / 盘亏 / 盘盈
 - 导出盘点结果 Excel
@@ -144,6 +144,6 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 ## 开发者注意事项
 
 - RFID 回调 (`onInventoryTag`) 在 SDK 内部 worker 线程，不要在回调内直接操作 UI
-- 启动 RFID 扫描时 `epc` 字段必须先做归一化 (trim + uppercase + 16进制 + 4 倍数)
+- 启动 RFID 扫描时 `epc` 字段必须先做归一化 (trim + 纯十进制 + 16/17/24 位三分支，详见 `EpcNormalizer.normalize`；2026-06-16 后已废弃 hex 转换)
 - EPC 去重使用 `HashSet` + DB 唯一索引双重保护
-- 导出 Excel 时从首个 asset 的 `rawRowJson` 重建 35 列表头顺序
+- 导出 Excel 时从首个 asset 的 `rawRowJson` 重建 8 个必需列表头顺序 (序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期)，并丢弃"盘点日期"列；尾部追加两列 `RESULT_COLUMNS = ["盘点状态", "盘点时间"]`

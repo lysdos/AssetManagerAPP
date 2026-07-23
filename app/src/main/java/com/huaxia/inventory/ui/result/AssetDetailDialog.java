@@ -150,6 +150,23 @@ public final class AssetDetailDialog {
         cancelBtn.setEnabled(true);
     }
 
+    /**
+     * 复制 Asset 用于 ResultFragment 的异步保存流程。
+     *
+     * <p>必须复制全部持久化字段, 缺一即破坏后续语义:
+     * <ul>
+     *   <li>{@code id / taskId / excelRowIndex} — Room @Update 按 id 匹配主键,
+     *       ResultFragment 用 taskId 写入 ScanRecord.</li>
+     *   <li>{@code rawRowJson} — 导出路径会读这份 JSON 重建 Excel 列,
+     *       不复制会导致导出丢字段.</li>
+     *   <li>{@code inventoryTime} — ResultFragment 会先覆盖它(用最早扫描时间),
+     *       但列表显示依赖该字段; 不复制会让用户看到的盘点时间被改写.</li>
+     *   <li>其余业务字段 ({@code assetType / assetModel / serialNumber / custodian / dept})
+     *       — dialog 立刻改写, 但保留旧值作为回退.</li>
+     * </ul>
+     *
+     * <p>新增 Asset 字段时必须同步更新本方法, 否则复制会静默丢字段.</p>
+     */
     private static Asset copyAsset(Asset source) {
         Asset copy = new Asset();
         copy.id = source.id;

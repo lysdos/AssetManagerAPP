@@ -121,9 +121,9 @@ public class ScanViewModel extends AndroidViewModel {
             rec.matchedAssetId = matched == null ? null : matched.id;
             long newId = db.scanRecordDao().insert(rec);
             rec.id = newId;
-            db.inventoryTaskDao().recomputeScannedCount(taskId);
             latestScan.postValue(rec);
-            // 用去抖合并：300ms 内的多次扫描只触发一次 SQL 聚合，5/秒节奏下负载降 1500×
+            // recomputeScannedCount 已并入 scheduleRecomputeStats 内部的 recomputeStats,
+            // 避免每次新 EPC 都跑一次 COUNT(DISTINCT matchedAssetId) 全表子查询.
             scheduleRecomputeStats();
         });
     }
@@ -155,6 +155,10 @@ public class ScanViewModel extends AndroidViewModel {
     private void recomputeStats() {
         long taskId = currentTaskId;
         diskIO.execute(() -> {
+            // 300ms 去抖合并: 一次 recomputeStats 同时刷新"已盘去重计数"
+            // (SQL UPDATE+COUNT(DISTINCT)) 和"统计聚合 (matched/extra/lastScannedAt)",
+            // 避免每个新 EPC 都触发全表子查询.
+            db.inventoryTaskDao().recomputeScannedCount(taskId);
             ScanAggregate agg = db.scanRecordDao().aggregateStats(taskId);
             int matched = agg.matchedCount;
             int extras = agg.extraCount;

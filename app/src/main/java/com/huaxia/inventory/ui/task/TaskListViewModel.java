@@ -33,16 +33,19 @@ public class TaskListViewModel extends AndroidViewModel {
             t.status = "IN_PROGRESS";
             t.dept = effectiveDept;
             t.expectedCount = countPoolAssetsForDept(effectiveDept);
-            long id = app.db.inventoryTaskDao().insert(t);
-            // 把库存池(taskId=0)中匹配部门的资产划拨到新任务.
-            // 不限部门 → 把整个库存池划过去; 否则只划匹配部门的.
-            int assigned = app.db.assetDao().assignPoolToTask(id, effectiveDept);
-            // 若划拨条数与预计不符(可能是历史数据导致), 修正 expectedCount 为实际数.
-            if (assigned != t.expectedCount) {
-                t.expectedCount = assigned;
-                app.db.inventoryTaskDao().update(t);
-            }
-            if (cb != null) cb.onCreated(id);
+            // 单事务: 插入任务 + 划拨库存池资产 + 修正 expectedCount —
+            // 任一步失败整体回滚, 防止进程被杀留下"任务壳 + 0 划拨"孤儿.
+            // 与 deleteTask / clearCompleted 风格一致.
+            final long[] idHolder = {0L};
+            app.db.runInTransaction(() -> {
+                idHolder[0] = app.db.inventoryTaskDao().insert(t);
+                int assigned = app.db.assetDao().assignPoolToTask(idHolder[0], effectiveDept);
+                if (assigned != t.expectedCount) {
+                    t.expectedCount = assigned;
+                    app.db.inventoryTaskDao().update(t);
+                }
+            });
+            if (cb != null) cb.onCreated(idHolder[0]);
         });
     }
 
