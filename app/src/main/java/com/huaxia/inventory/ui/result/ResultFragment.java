@@ -2,6 +2,7 @@ package com.huaxia.inventory.ui.result;
 
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -29,6 +31,8 @@ import java.util.List;
 import java.util.Set;
 
 public class ResultFragment extends Fragment {
+
+    private static final String TAG = "ResultFragment";
 
     public static final String ARG_TAB = "tab";
 
@@ -237,19 +241,26 @@ public class ResultFragment extends Fragment {
         AssetDetailDialog.show(this, asset, isMatched, this::onAssetDetailSaved);
     }
 
-    private void onAssetDetailSaved(Asset updated) {
+    private void onAssetDetailSaved(Asset pendingSave,
+                                    AssetDetailDialog.SaveCompletion completion) {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        long taskId = currentTaskId;
-        long assetId = updated.id;
+        long taskId = pendingSave.taskId;
         app.executors.diskIO.execute(() -> {
-            // 盘点时间: 优先用该资产最早一次扫描时间, 否则用当前时间
-            Long firstScanAt = app.db.scanRecordDao().findFirstScanTime(taskId, assetId);
-            updated.inventoryTime = (firstScanAt != null && firstScanAt > 0)
-                    ? firstScanAt
-                    : System.currentTimeMillis();
-            app.db.assetDao().update(updated);
-            if (isAdded()) {
-                requireActivity().runOnUiThread(() -> {
+            try {
+                Asset existing = app.db.assetDao().findByEpcGlobal(pendingSave.epc);
+                if (existing != null && existing.id != pendingSave.id) {
+                    postAssetSaveResult(completion::onDuplicateEpc);
+                    return;
+                }
+
+                Long firstScanAt = app.db.scanRecordDao().findFirstScanTime(
+                        taskId, pendingSave.id);
+                pendingSave.inventoryTime = (firstScanAt != null && firstScanAt > 0)
+                        ? firstScanAt
+                        : System.currentTimeMillis();
+                app.db.assetDao().update(pendingSave);
+                postAssetSaveResult(() -> {
+                    completion.onSuccess();
                     View v = getView();
                     if (v != null) {
                         Snackbar.make(v, R.string.msg_asset_saved,
@@ -257,7 +268,22 @@ public class ResultFragment extends Fragment {
                     }
                     vm.refresh();
                 });
+            } catch (android.database.sqlite.SQLiteConstraintException e) {
+                postAssetSaveResult(completion::onDuplicateEpc);
+            } catch (RuntimeException e) {
+                Log.e(TAG, "asset save failed", e);
+                postAssetSaveResult(completion::onError);
             }
+        });
+    }
+
+    private void postAssetSaveResult(Runnable action) {
+        if (!isAdded()) return;
+        FragmentActivity activity = getActivity();
+        if (activity == null) return;
+        activity.runOnUiThread(() -> {
+            if (!isAdded()) return;
+            action.run();
         });
     }
 

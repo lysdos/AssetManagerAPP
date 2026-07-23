@@ -2,6 +2,25 @@ plugins {
     id 'com.android.application'
 }
 
+// 从 local.properties 读 release 签名; 任一字段缺失返回 null。
+static def loadSigningProps(File rootDir) {
+    File propsFile = new File(rootDir, 'local.properties')
+    if (!propsFile.exists()) return null
+    Properties p = new Properties()
+    propsFile.withInputStream { p.load(it) }
+    String storeFile = p.getProperty('RELEASE_STORE_FILE')
+    String storePassword = p.getProperty('RELEASE_STORE_PASSWORD')
+    String keyAlias = p.getProperty('RELEASE_KEY_ALIAS')
+    String keyPassword = p.getProperty('RELEASE_KEY_PASSWORD')
+    if (!storeFile || !storePassword || !keyAlias || !keyPassword) return null
+    return [storeFile: storeFile, storePassword: storePassword,
+            keyAlias: keyAlias, keyPassword: keyPassword]
+}
+
+static boolean hasSigningProps(File rootDir) {
+    return loadSigningProps(rootDir) != null
+}
+
 android {
     namespace 'com.huaxia.inventory'
     compileSdk 34
@@ -26,18 +45,23 @@ android {
     }
 
     signingConfigs {
-        // ⚠️ dev 用 jks, storePassword / keyPassword / keyAlias 都是 devpass / devkey.
-        // 正式发版前必须换成项目自己的密钥 (理想做法: 把密钥信息放 local.properties,
-        // build.gradle 用 rootProject.file + Properties 读, 密钥不进 git).
+        // release 凭据仅从 local.properties 读取 (不入 git)。
+        // 任一字段缺失或整文件不存在时 assembleRelease 不会生成带真实口令的 APK,
+        // 而是回退到 debug 签名并打印告警 — 避免误生成 dev 证书包.
         release {
-            storeFile file('keystore/dev.jks')
-            storePassword 'devpass'
-            keyAlias 'devkey'
-            keyPassword 'devpass'
+            def props = loadSigningProps(rootDir)
+            storeFile props != null
+                    ? rootProject.file(props.storeFile)
+                    : file('keystore/dev.jks')
+            if (props != null) {
+                storePassword props.storePassword
+                keyAlias props.keyAlias
+                keyPassword props.keyPassword
+            }
         }
     }
 
-buildTypes {
+    buildTypes {
         debug {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -47,7 +71,15 @@ buildTypes {
             // (历史反直觉配置 debug=true/release=false 是为了排查, 现已修.)
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            if (hasSigningProps(rootDir)) {
+                signingConfig signingConfigs.release
+            } else {
+                // 回退到 debug 签名并打印告警 — assembleDebug 始终正常.
+                println("⚠️ release 未配置签名凭据 — 回退到 debug 签名. " +
+                        "请填写 local.properties 中 RELEASE_STORE_FILE / RELEASE_STORE_PASSWORD / " +
+                        "RELEASE_KEY_ALIAS / RELEASE_KEY_PASSWORD 后重新构建.")
+                signingConfig signingConfigs.debug
+            }
         }
     }
 

@@ -163,13 +163,4 @@ public class MainActivity extends AppCompatActivity {
             ((InventoryApp) getApplication()).rfid.powerOff();
         }
     }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        // 仅释放 Activity 独占的 RFID 句柄. executors 是 Application 单例 —
-        // 跟 JVM 同生死, 千万不能在 Activity onDestroy 里 shutdown.
-        // 否则下一个 Activity 实例重建时所有 ViewModel 的 diskIO.execute() 都会崩.
-        ((InventoryApp) getApplication()).rfid.release();
-    }
 }

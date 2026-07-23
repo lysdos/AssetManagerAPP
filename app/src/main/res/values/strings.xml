@@ -155,6 +155,8 @@
     <string name="action_save">保存</string>
     <string name="action_cancel">取消</string>
     <string name="msg_asset_saved">已保存</string>
+    <string name="err_epc_duplicate">该固资编号已存在，请修改后重试</string>
+    <string name="err_asset_save_failed">保存失败，请重试</string>
 
     <!-- Extra (盘盈) detail dialog -->
     <string name="dialog_extra_title">盘盈补全</string>

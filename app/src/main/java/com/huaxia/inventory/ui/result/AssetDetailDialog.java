@@ -28,7 +28,13 @@ import java.util.Map;
 public final class AssetDetailDialog {
 
     public interface SaveCallback {
-        void onSave(Asset updatedAsset);
+        void onSave(Asset pendingSave, SaveCompletion completion);
+    }
+
+    public interface SaveCompletion {
+        void onSuccess();
+        void onDuplicateEpc();
+        void onError();
     }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -71,9 +77,11 @@ public final class AssetDetailDialog {
                 .setView(view)
                 .create();
 
-        view.findViewById(R.id.dlgCancelBtn).setOnClickListener(v -> dialog.dismiss());
+        View cancelBtn = view.findViewById(R.id.dlgCancelBtn);
+        View saveBtn = view.findViewById(R.id.dlgSaveBtn);
+        cancelBtn.setOnClickListener(v -> dialog.dismiss());
 
-        view.findViewById(R.id.dlgSaveBtn).setOnClickListener(v -> {
+        saveBtn.setOnClickListener(v -> {
             String newEpcDisplay = epcEt.getText().toString().trim();
             String normalized = EpcNormalizer.normalize(newEpcDisplay);
             if (normalized == null) {
@@ -82,31 +90,80 @@ public final class AssetDetailDialog {
                 return;
             }
 
-            asset.epc = normalized;
-            asset.assetType = typeEt.getText().toString().trim();
-            asset.assetModel = modelEt.getText().toString().trim();
-            asset.serialNumber = serialEt.getText().toString().trim();
-            asset.dept = deptEt.getText().toString().trim();
-            asset.custodian = borrowerEt.getText().toString().trim();
+            epcEt.setError(null);
+            Asset pending = copyAsset(asset);
+            pending.epc = normalized;
+            pending.assetType = typeEt.getText().toString().trim();
+            pending.assetModel = modelEt.getText().toString().trim();
+            pending.serialNumber = serialEt.getText().toString().trim();
+            pending.dept = deptEt.getText().toString().trim();
+            pending.custodian = borrowerEt.getText().toString().trim();
 
             Map<String, Object> headers = parseHeaders(asset.rawRowJson);
             headers.put("固资编号", EpcNormalizer.toDisplayForm(normalized));
-            headers.put("设备类型", asset.assetType);
-            headers.put("设备型号", asset.assetModel);
-            headers.put("序列号", asset.serialNumber);
-            headers.put("领用部门", asset.dept);
-            headers.put("领用人", asset.custodian);
+            headers.put("设备类型", pending.assetType);
+            headers.put("设备型号", pending.assetModel);
+            headers.put("序列号", pending.serialNumber);
+            headers.put("领用部门", pending.dept);
+            headers.put("领用人", pending.custodian);
             try {
-                asset.rawRowJson = MAPPER.writeValueAsString(headers);
+                pending.rawRowJson = MAPPER.writeValueAsString(headers);
             } catch (Exception e) {
-                asset.rawRowJson = "{}";
+                pending.rawRowJson = "{}";
             }
 
-            dialog.dismiss();
-            onSave.onSave(asset);
+            saveBtn.setEnabled(false);
+            cancelBtn.setEnabled(false);
+            dialog.setCancelable(false);
+            dialog.setCanceledOnTouchOutside(false);
+            onSave.onSave(pending, new SaveCompletion() {
+                @Override
+                public void onSuccess() {
+                    if (dialog.isShowing()) dialog.dismiss();
+                }
+
+                @Override
+                public void onDuplicateEpc() {
+                    if (!dialog.isShowing()) return;
+                    restoreEditing(dialog, saveBtn, cancelBtn);
+                    epcEt.setError(fragment.getString(R.string.err_epc_duplicate));
+                    epcEt.requestFocus();
+                }
+
+                @Override
+                public void onError() {
+                    if (!dialog.isShowing()) return;
+                    restoreEditing(dialog, saveBtn, cancelBtn);
+                    Toast.makeText(view.getContext(), R.string.err_asset_save_failed,
+                            Toast.LENGTH_SHORT).show();
+                }
+            });
         });
 
         dialog.show();
+    }
+
+    private static void restoreEditing(AlertDialog dialog, View saveBtn, View cancelBtn) {
+        dialog.setCancelable(true);
+        dialog.setCanceledOnTouchOutside(true);
+        saveBtn.setEnabled(true);
+        cancelBtn.setEnabled(true);
+    }
+
+    private static Asset copyAsset(Asset source) {
+        Asset copy = new Asset();
+        copy.id = source.id;
+        copy.taskId = source.taskId;
+        copy.excelRowIndex = source.excelRowIndex;
+        copy.epc = source.epc;
+        copy.assetType = source.assetType;
+        copy.assetModel = source.assetModel;
+        copy.serialNumber = source.serialNumber;
+        copy.custodian = source.custodian;
+        copy.dept = source.dept;
+        copy.rawRowJson = source.rawRowJson;
+        copy.inventoryTime = source.inventoryTime;
+        return copy;
     }
 
     private static String safe(String s) { return s == null ? "" : s; }
