@@ -11,6 +11,12 @@ import java.util.zip.*;
  * <p>
  * 内部维护滑动窗口：每 {@link #FLUSH_THRESHOLD} 行刷写到临时文件，
  * 最终 finish() 时组装 ZIP。峰值内存 ≈ FLUSH_THRESHOLD * 单行大小。
+ *
+ * <p><b>tmpDir 选择</b>: 必须传入 Android 应用的 {@code context.getCacheDir()},
+ * 而非 {@code System.getProperty("java.io.tmpdir")}. 原因: Android 上
+ * {@code java.io.tmpdir} 通常落到 {@code /sdcard} 或 {@code /data/local/tmp},
+ * 前者会被 Scoped Storage/SAF 拒绝写, 后者权限不一定有;
+ * {@code context.getCacheDir()} 位于应用私有目录, 无需权限, 系统压力下也会被自动清理.</p>
  */
 public final class XlsxStreamWriter implements AutoCloseable {
 
@@ -25,14 +31,28 @@ public final class XlsxStreamWriter implements AutoCloseable {
     private final List<FlushedChunk> chunks = new ArrayList<>();
 
     private int nextFileId;
-    private File tempDir;
+    private final File tempDir;
 
-    public XlsxStreamWriter(OutputStream out, List<String> headers) {
+    /**
+     * @param parentTmpDir 临时文件父目录, 推荐传入 {@code context.getCacheDir()}.
+     *                      不允许为 null. (强制要求, 不留默认 tmpdir 是因为
+     *                      Android JVM 的 {@code java.io.tmpdir} 不可写.)
+     */
+    public XlsxStreamWriter(OutputStream out, List<String> headers, File parentTmpDir) {
+        if (parentTmpDir == null) {
+            throw new IllegalArgumentException("parentTmpDir must not be null; "
+                    + "pass context.getCacheDir() on Android");
+        }
         this.out = out;
         this.headers = headers;
-        this.tempDir = new File(System.getProperty("java.io.tmpdir"),
-                "xlsx_stream_" + System.nanoTime());
-        tempDir.mkdirs();
+        this.tempDir = new File(parentTmpDir, "xlsx_stream_" + System.nanoTime());
+        // 父目录可能在初始化前未创建, 这里 mkdirs 兜底.
+        if (!tempDir.exists() && !tempDir.mkdirs()) {
+            throw new UncheckedIOException(new IOException(
+                    "Cannot create tempDir at " + tempDir.getAbsolutePath()
+                            + " (parent=" + parentTmpDir.getAbsolutePath()
+                            + ", exists=" + parentTmpDir.exists() + ")"));
+        }
     }
 
     // ---- 公共 API ----
@@ -73,12 +93,12 @@ public final class XlsxStreamWriter implements AutoCloseable {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
+        // finish 失败必须外抛 — 调用方 (ExcelExporter.exportStreamed) 才能感知导出
+        // 是否成功结束. 此前 catch IOException ignored 让 cleanup 掩盖原始错误,
+        // xlsx 可能损坏但调用方以为成功.
         if (!finished) {
-            try {
-                finish();
-            } catch (IOException ignored) {
-            }
+            finish();
         }
         cleanup();
     }

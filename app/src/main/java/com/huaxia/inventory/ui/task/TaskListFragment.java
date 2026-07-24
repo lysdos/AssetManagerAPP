@@ -1,6 +1,7 @@
 package com.huaxia.inventory.ui.task;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -22,6 +23,8 @@ import com.huaxia.inventory.ui.scan.ScanFragment;
 import java.util.List;
 
 public class TaskListFragment extends Fragment {
+
+    private static final String TAG = "TaskList";
 
     private TaskListViewModel vm;
     private TaskAdapter adapter;
@@ -91,7 +94,13 @@ public class TaskListFragment extends Fragment {
 
         MaterialButton createBtn = v.findViewById(R.id.taskCreateBtn);
         createBtn.setOnClickListener(btn ->
-                new CreateTaskDialogFragment().show(getChildFragmentManager(), "create_task"));
+                // 用 parentFragmentManager 而不是 getChildFragmentManager —
+                // 后者在底部 nav 切走 (TaskListFragment 被 replace) 时, 父
+                // fragment 销毁连带 dialog 也被强制 detach, 但 dialog 内部
+                // listener 闭包仍引用 fragment 实例, 后续事件 dispatch 到
+                // detach 的 fragment 触发 NPE / 内存 anchor. parentFragmentManager
+                // 让 dialog 跟随 Activity 完整生命周期管理.
+                new CreateTaskDialogFragment().show(getParentFragmentManager(), "create_task"));
 
         MaterialButton clearDoneBtn = v.findViewById(R.id.taskClearDoneBtn);
         clearDoneBtn.setOnClickListener(btn ->
@@ -151,7 +160,9 @@ public class TaskListFragment extends Fragment {
         PopupMenu popup = new PopupMenu(requireContext(), anchor);
         popup.getMenuInflater().inflate(R.menu.popup_task_more, popup.getMenu());
 
-        // 反射强制显示 icon (PopupMenu 默认不显示)
+        // 反射强制显示 icon (PopupMenu 默认不显示).
+        // catch 必须有 Log.w, 不能完全静默 — AndroidX 版本变化时反射入口
+        // 可能改名/移字段, 不留 trace 后期排障找不到根因.
         try {
             java.lang.reflect.Field f = popup.getClass().getDeclaredField("mPopup");
             f.setAccessible(true);
@@ -160,7 +171,10 @@ public class TaskListFragment extends Fragment {
                 helper.getClass().getMethod("setForceShowIcon", boolean.class)
                         .invoke(helper, true);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Log.w(TAG, "[TaskListFragment] forceShowIcon reflection failed (ignored) "
+                    + "— AndroidX version may have moved mPopup field", e);
+        }
 
         popup.setOnMenuItemClickListener(item -> {
             if (item.getItemId() == R.id.menu_task_delete) {

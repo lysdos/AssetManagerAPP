@@ -191,13 +191,26 @@ public class ImportViewModel extends AndroidViewModel {
                     ExcelImporter.stream(in, 0L, STREAM_BATCH,
                             new ExcelImporter.BatchHandler() {
                                 @Override public void onBatch(List<Asset> batch) {
-                                    // upsertBatch 走单事务 ON CONFLICT(epc) DO UPDATE —
-                                    // 重复 epc 覆盖业务字段, 保留 id / taskId / inventory_time.
-                                    // 统计 updated: 批量查 DB 中已存在的 epc 数.
-                                    List<String> batchEpcs = new ArrayList<>(batch.size());
-                                    for (Asset a : batch) batchEpcs.add(a.epc);
-                                    int updatedInBatch = db.assetDao().findExistingEpcs(batchEpcs).size();
-                                    db.assetDao().upsertBatch(batch);
+                                    // 单事务: findExistingEpcs + upsertBatch — 防止 diskIO
+                                    // 队列上另一任务 (例如 ResultFragment.refreshStats /
+                                    // ScanViewModel.recomputeStats 间接触发 Asset 写入)
+                                    // 在步骤 1 与步骤 2 之间插入新 Asset, 导致 updated
+                                    // 计数与实际 ON CONFLICT 路径覆盖数偏差.
+                                    final int[] updatedInBatchHolder = {0};
+                                    try {
+                                        db.runInTransaction(() -> {
+                                            List<String> batchEpcs = new ArrayList<>(batch.size());
+                                            for (Asset a : batch) batchEpcs.add(a.epc);
+                                            updatedInBatchHolder[0] = db.assetDao()
+                                                    .findExistingEpcs(batchEpcs).size();
+                                            db.assetDao().upsertBatch(batch);
+                                        });
+                                    } catch (Exception ex) {
+                                        Log.e(TAG, "commit batch (size=" + batch.size()
+                                                + ") failed", ex);
+                                        throw ex;
+                                    }
+                                    int updatedInBatch = updatedInBatchHolder[0];
                                     imported[0] += batch.size();
                                     updated[0] += updatedInBatch;
                                     importProgress.postValue(new ImportProgress(

@@ -15,11 +15,16 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class ExcelExporterTest {
+
+    @Rule public TemporaryFolder tmp = new TemporaryFolder();
 
     @Test
     public void exportsAllFoundAndMissingAndExtras() throws Exception {
@@ -33,7 +38,7 @@ public class ExcelExporterTest {
         // 只用原始列，RESULT_COLUMNS（盘点状态/时间/强度）由导出器自动追加
         List<String> headers = Arrays.asList("序号", "设备名称", "固资编号");
 
-        ExcelExporter.export(out, "测试任务", headers, assets, scans, id -> id == 1L);
+        ExcelExporter.export(out, "测试任务", headers, assets, scans, id -> id == 1L, tmp.getRoot());
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {
             Sheet s = wb.getSheetAt(0);
@@ -74,7 +79,7 @@ public class ExcelExporterTest {
         List<String> headers = new ArrayList<>(raw.keySet());
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ExcelExporter.export(out, "任务", headers, Arrays.asList(a), new ArrayList<>(), id -> true);
+        ExcelExporter.export(out, "任务", headers, Arrays.asList(a), new ArrayList<>(), id -> true, tmp.getRoot());
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {
             Sheet s = wb.getSheetAt(0);

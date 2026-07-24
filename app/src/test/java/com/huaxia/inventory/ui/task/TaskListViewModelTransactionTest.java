@@ -10,15 +10,20 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 防回归: TaskListViewModel.createTask 必须把"插入任务 + 划拨资产 + 修正
- * expectedCount"三步全部包进单个 runInTransaction 的 lambda 内,
+ * 防回归: TaskListViewModel.createTask 必须把"插入任务 + 划拨库存池资产"
+ * 两步全部包进单个 runInTransaction 的 lambda 内,
  * 与同文件 deleteTask / clearCompleted 风格一致, 防止进程被杀后留下
- * "任务壳 + 0 划拨"孤儿。
+ * "任务壳 + 0 划拨"孤儿.
+ *
+ * <p>2026-07-24 更新: P0#9 修复后, 事务内只放 insert + assignPool (写新数据),
+ * expectedCount 修正的 update(fresh) 移到事务外 — 让 assignPoolToTask 先
+ * commit, 再独立 UPDATE. 所以测试只要求 insert + assignPool 在事务内,
+ * update(fresh) 在事务外但必须用 findById 拿真实 rowid 的 fresh row.</p>
  */
 public class TaskListViewModelTransactionTest {
 
     @Test
-    public void createTask_allThreeStepsInsideRunInTransaction() throws Exception {
+    public void createTask_insertAndAssignRunInsideRunInTransaction() throws Exception {
         File moduleDir = new File(System.getProperty("user.dir"));
         File source = new File(moduleDir,
                 "src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
@@ -35,29 +40,33 @@ public class TaskListViewModelTransactionTest {
         assertTrue("createTask method body not found", body.length() > 0);
 
         // 提取 runInTransaction 的第一个 lambda 体 (花括号配对).
-        // 我们只关心最近的直接包住三步的 lambda, 不允许出现第二个独立的 runInTransaction.
+        // insert + assignPool 必须在同一个 lambda 内, 不允许被拆到 lambda 外.
         int runTxIdx = body.indexOf("runInTransaction");
         assertTrue("createTask body must call runInTransaction. Body:\n" + body,
                 runTxIdx >= 0);
 
-        // runInTransaction 必须只出现一次 — 多重嵌套会让三步无法同时落在一个事务里.
-        assertEquals("createTask body must invoke runInTransaction exactly once — " +
-                "multiple calls would defeat the all-or-nothing guarantee. Body:\n" + body,
+        // runInTransaction 必须只出现一次 — 多重嵌套会让 insert + assignPool 无法同时落在一个事务里.
+        assertEquals("createTask body must invoke runInTransaction exactly once — "
+                + "multiple calls would defeat the all-or-nothing guarantee. Body:\n" + body,
                 1, countOccurrences(body, "runInTransaction"));
 
         String txLambdaBody = extractFollowingLambdaBody(body, runTxIdx);
         assertTrue("Could not extract runInTransaction lambda body from createTask", txLambdaBody.length() > 0);
 
-        // 三步必须在同一个 lambda 内 — 不允许被拆到 lambda 外.
         assertTrue("insert must run inside runInTransaction lambda. Lambda body:\n" + txLambdaBody,
                 txLambdaBody.contains("inventoryTaskDao().insert("));
         assertTrue("assignPoolToTask must run inside runInTransaction lambda. Lambda body:\n"
                 + txLambdaBody,
                 txLambdaBody.contains("assetDao().assignPoolToTask("));
-        // update 是条件性的; 我们只确保事务里有它 (修正 expectedCount 的入口).
-        assertTrue("inventoryTaskDao().update must run inside runInTransaction lambda. " +
-                "Lambda body:\n" + txLambdaBody,
-                txLambdaBody.contains("inventoryTaskDao().update("));
+
+        // update(fresh) 在事务外 (catchup). 但必须基于 fresh row 而非 t —
+        // t.id 在 Insert 后还停在 0, update(t) 走 WHERE id=0 命中 0 行.
+        assertTrue("createTask must call findById(idHolder[0]) to fetch fresh row. "
+                + "Body:\n" + body,
+                body.contains("findById(idHolder[0])"));
+        assertTrue("createTask update must target fresh row, not the original t. "
+                + "Body:\n" + body,
+                body.contains("update(fresh)"));
     }
 
     /** 返回方法签名后第一个匹配的 '{' 之后到对应 '}' 之间的内容。 */

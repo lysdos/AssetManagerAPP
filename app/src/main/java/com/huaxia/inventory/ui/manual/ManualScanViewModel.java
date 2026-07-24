@@ -18,7 +18,9 @@ import java.util.List;
  * in that:
  * <ul>
  *   <li>Input comes from a text field (16/17/24-digit decimal), not from the RFID SDK,
- *       so we go through {@link EpcNormalizer} directly without the hex→fromHex step.</li>
+ *       so we go through {@link EpcNormalizer} directly. EpcNormalizer contract:
+ *       accepts pure decimal 16/17/24-digit strings, pads to 24 digits, rejects
+ *       hex/non-digit input.</li>
  *   <li>The user explicitly confirms each check (no debounced bulk writes).</li>
  *   <li>History is the recent N ScanRecords of the current task, sourced from DB.</li>
  * </ul>
@@ -158,7 +160,25 @@ public class ManualScanViewModel extends AndroidViewModel {
             rec.rssi = "manual";
             rec.scannedAt = System.currentTimeMillis();
             rec.matchedAssetId = assetId;
-            app.db.scanRecordDao().insert(rec);
+            // 单一事务: findByEpc + insert — 避免手动确认与 RFID 扫描并发时,
+            // 窗口内另一线程先插同 EPC 导致 UNIQUE 约束触发 / matchedAssetId 漂移.
+            long[] newIdHolder = {-1L};
+            app.db.runInTransaction(() -> {
+                ScanRecord concurrent = app.db.scanRecordDao().findByEpc(tid, epc);
+                if (concurrent != null) {
+                    return;
+                }
+                newIdHolder[0] = app.db.scanRecordDao().insert(rec);
+            });
+            long newId = newIdHolder[0];
+            // OnConflictStrategy.IGNORE 在跨事务的并发窗口里返回 -1L 时,
+            // 视为已存在的 SCAN — 把 outcome 改成 DUPLICATE, 不要重复计数.
+            if (newId == -1L) {
+                ScanRecord prev = app.db.scanRecordDao().findByEpc(tid, epc);
+                checkEvent.postValue(new CheckEvent(CheckOutcome.DUPLICATE,
+                        epc, prev == null ? null : prev.scannedAt));
+                return;
+            }
             app.db.inventoryTaskDao().recomputeScannedCount(tid);
             checkEvent.postValue(new CheckEvent(CheckOutcome.CHECKED, epc, null));
             // Refresh local lookup/history so the UI reflects the new state without
@@ -209,18 +229,35 @@ public class ManualScanViewModel extends AndroidViewModel {
                         normalized, rawCode, existing.scannedAt));
                 return;
             }
-            Asset matched = app.db.assetDao().findByEpc(tid, normalized);
             ScanRecord rec = new ScanRecord();
             rec.taskId = tid;
             rec.epc = normalized;
             rec.tid = null;
             rec.rssi = "scan";
             rec.scannedAt = System.currentTimeMillis();
-            rec.matchedAssetId = matched == null ? null : matched.id;
-            app.db.scanRecordDao().insert(rec);
+            long[] newIdHolder = {-1L};
+            // findByEpc(Asset) + insert 包单事务 — 防并发同 EPC 窗口内
+            // (a) matchedAssetId 落到 stale Asset.id, (b) ScanRecord UNIQUE 约束.
+            app.db.runInTransaction(() -> {
+                Asset matched = app.db.assetDao().findByEpc(tid, normalized);
+                rec.matchedAssetId = matched == null ? null : matched.id;
+                newIdHolder[0] = app.db.scanRecordDao().insert(rec);
+            });
+            long newId = newIdHolder[0];
+            // OnConflictStrategy.IGNORE 在跨事务的并发窗口里返回 -1L 时,
+            // 视为已存在的 SCAN — 用 SCANNED_DUPLICATE 告知 UI, 不要重复计数.
+            if (newId == -1L) {
+                ScanRecord prev = app.db.scanRecordDao().findByEpc(tid, normalized);
+                scanEvent.postValue(new ScanEvent(ScanOutcome.SCANNED_DUPLICATE,
+                        normalized, rawCode,
+                        prev == null ? null : prev.scannedAt));
+                return;
+            }
             app.db.inventoryTaskDao().recomputeScannedCount(tid);
             scanEvent.postValue(new ScanEvent(
-                    matched == null ? ScanOutcome.SCANNED_EXTRA : ScanOutcome.SCANNED_FOUND,
+                    rec.matchedAssetId == null
+                            ? ScanOutcome.SCANNED_EXTRA
+                            : ScanOutcome.SCANNED_FOUND,
                     normalized, rawCode, null));
             refreshHistory();
         });

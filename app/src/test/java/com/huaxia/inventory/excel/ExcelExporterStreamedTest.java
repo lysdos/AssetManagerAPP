@@ -15,6 +15,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
@@ -35,6 +36,7 @@ import static org.junit.Assert.assertTrue;
 public class ExcelExporterStreamedTest {
 
     @Rule public InstantTaskExecutorRule rule = new InstantTaskExecutorRule();
+    @Rule public TemporaryFolder tmp = new TemporaryFolder();
 
     private AppDatabase db;
 
@@ -60,7 +62,8 @@ public class ExcelExporterStreamedTest {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ExcelExporter.exportStreamed(out, "测试",
                 Arrays.asList("设备名称", "固资编号", "电子标签"),
-                db.assetDao(), db.scanRecordDao(), db.extraClaimDao(), taskId);
+                db.assetDao(), db.scanRecordDao(), db.extraClaimDao(), taskId,
+                tmp.getRoot());
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {
             Sheet s = wb.getSheetAt(0);
@@ -110,7 +113,8 @@ public class ExcelExporterStreamedTest {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ExcelExporter.exportStreamed(out, "strip",
                 Arrays.asList("设备名称", "固资编号", "电子标签"),
-                db.assetDao(), db.scanRecordDao(), db.extraClaimDao(), taskId);
+                db.assetDao(), db.scanRecordDao(), db.extraClaimDao(), taskId,
+                tmp.getRoot());
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {
             Sheet s = wb.getSheetAt(0);

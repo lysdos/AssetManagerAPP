@@ -33,6 +33,13 @@ public class ResultViewModel extends AndroidViewModel {
     private final MutableLiveData<List<Asset>> assets = new MutableLiveData<>();
     private final MutableLiveData<List<ExtraWithClaim>> extras = new MutableLiveData<>();
     private final MutableLiveData<Stats> stats = new MutableLiveData<>(new Stats(0, 0, 0, 0));
+    /**
+     * 当前任务的 found 资产 id 集合. 只在 {@link #bindToTask} 时一次性拉取,
+     * 不随翻页/列表刷新重算. UI (AssetResultAdapter + AssetDetailDialog)
+     * 通过 observe 取, 不再各自在主线程/UI observer 内调
+     * {@code assetDao().findFound(taskId)} 全量加载.
+     */
+    private final MutableLiveData<java.util.Set<Long>> matchedIds = new MutableLiveData<>(new java.util.HashSet<>());
     private final MutableLiveData<ResultTab> activeTab = new MutableLiveData<>(ResultTab.FOUND);
     private final MutableLiveData<Integer> currentPage = new MutableLiveData<>(0);
     private long currentTaskId = -1L;
@@ -47,15 +54,20 @@ public class ResultViewModel extends AndroidViewModel {
     public LiveData<List<Asset>> assets() { return assets; }
     public LiveData<List<ExtraWithClaim>> extras() { return extras; }
     public LiveData<Stats> stats() { return stats; }
+    public LiveData<java.util.Set<Long>> matchedIds() { return matchedIds; }
     public LiveData<ResultTab> activeTab() { return activeTab; }
     public LiveData<Integer> currentPage() { return currentPage; }
 
     public void bindToTask(long taskId) {
         this.currentTaskId = taskId;
         // 进结果页前先把所有 found 资产的 inventoryTime 回填一次 (幂等, 已有值的不动).
-        // 这样导出/弹窗显示的盘点时间, 对每条 found 资产都有值.
+        // 然后一次性拉 found id 集合到 matchedIds — 不再让 UI 在 observer 内各自调
+        // assetDao().findFound(taskId) 全表加载.
         diskIO.execute(() -> {
             db.assetDao().backfillFoundInventoryTime(taskId);
+            java.util.Set<Long> foundIds = new java.util.HashSet<>();
+            for (Asset a : db.assetDao().findFound(taskId)) foundIds.add(a.id);
+            matchedIds.postValue(foundIds);
             refresh();
         });
     }

@@ -74,7 +74,9 @@
     <string name="action_next">下一页</string>
     <string name="err_parse_failed">Excel 解析失败：%1$s</string>
     <string name="err_empty_result">暂无数据</string>
-    <string name="err_export_failed">导出失败：%1$s</string>
+    <!-- P1#24: 不暴露内部异常细节 (URI/路径/SQL 消息), 用户只看固定文案;
+         Log.e 已写到受控通道供运维诊断. -->
+    <string name="err_export_failed">导出失败，请重试</string>
 
     <!-- Task tab -->
     <string name="task_title">📋 盘点任务</string>

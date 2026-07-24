@@ -66,55 +66,74 @@
 ```
 huaxiaapp/
 ├── libs/DeviceAPI_ver20230301_release.aar  # 厂商 SDK（rscja DeviceAPI）
-├── uhf-uart-demo/uhf-uart-demo/            # 厂商 demo 源码（API 调用参考）
+├── uhf-uart-demo/uhf-uart-demo/            # 厂商 demo 源码（API 调用参考，已废弃)
 ├── app/
 │   ├── build.gradle
+│   ├── keystore/dev.jks                     # release 签名 (已 git 跟踪, 配套 local.properties)
 │   └── src/main/
 │       ├── AndroidManifest.xml
 │       ├── java/com/huaxia/inventory/
-│       │   ├── InventoryApp.java              # Application：触发 RFID init
-│       │   ├── MainActivity.java              # 单 Activity 容器
+│       │   ├── InventoryApp.java            # Application: 触发 RFID init + BarcodeHardwareController prewarm
+│       │   ├── MainActivity.java            # 单 Activity 容器 + BottomNavigationView
 │       │   ├── data/
-│       │   │   ├── AppDatabase.java
+│       │   │   ├── AppDatabase.java         # Room v6 (4 表: InventoryTask / Asset / ScanRecord / ExtraClaim)
+│       │   │   ├── StatusDerivation.java    # FOUND/MISSING/EXTRA 状态推算
 │       │   │   ├── entity/
 │       │   │   │   ├── InventoryTask.java
 │       │   │   │   ├── Asset.java
 │       │   │   │   ├── ScanRecord.java
-│       │   │   │   └── TaskStatus.java
+│       │   │   │   └── ExtraClaim.java
 │       │   │   └── dao/
 │       │   │       ├── InventoryTaskDao.java
 │       │   │       ├── AssetDao.java
-│       │   │       └── ScanRecordDao.java
+│       │   │       ├── ScanRecordDao.java
+│       │   │       ├── ExtraClaimDao.java
+│       │   │       ├── ScanAggregate.java
+│       │   │       └── CategoryCount.java
 │       │   ├── rfid/
-│       │   │   ├── SdkRfidAdapter.java        # 适配 rscja 同步轮询 SDK
-│       │   │   └── RfidController.java        # 封装 SDK 生命周期
+│       │   │   ├── SdkRfidAdapter.java      # 适配 rscja 同步轮询 SDK
+│       │   │   └── RfidController.java      # 封装 SDK 生命周期 (init / powerOn / powerOff / startInventory)
+│       │   ├── barcode/                     # (手动盘点页) 扫码 SDK 封装
+│       │   │   ├── BarcodeHardwareController.java  # rscja BarcodeDecoder
+│       │   │   ├── BarcodeCameraController.java    # CameraX + ML Kit 降级方案
+│       │   │   └── ScanFrameView.java
 │       │   ├── excel/
 │       │   │   ├── ExcelImporter.java
-│       │   │   └── ExcelExporter.java
+│       │   │   ├── ExcelExporter.java        # full + exportStreamed (按页 IN 查询)
+│       │   │   ├── XlsxStreamWriter.java     # SAX 方式 OOXML, 绕过 SXSSFWorkbook 在 Android 上的崩溃
+│       │   │   └── HeaderSpec.java           # 8 个必需列 + REQUIRED
 │       │   ├── session/
-│       │   │   └── InventorySession.java      # 当前任务共享状态
+│       │   │   └── InventorySession.java     # 当前任务共享状态 (LiveData<Long>)
 │       │   ├── ui/
-│       │   │   ├── common/
-│       │   │   │   └── AssetListAdapter.java  # 列表 item 复用
-│       │   │   ├── import_/
-│       │   │   │   ├── ImportFragment.java
-│       │   │   │   └── ImportViewModel.java
-│       │   │   ├── scan/
+│       │   │   ├── import_/                 # 导入 dialog (导入走池, 不再建任务)
+│       │   │   ├── manual/                  # 手动盘点页 (文本输入 + 硬件扫码 + 摄像头兜底)
+│       │   │   │   ├── ManualScanFragment.java
+│       │   │   │   └── ManualScanViewModel.java
+│       │   │   ├── scan/                    # RFID 盘点扫描页
 │       │   │   │   ├── ScanFragment.java
-│       │   │   │   ├── ScanViewModel.java
-│       │   │   │   └── RecentScanAdapter.java
-│       │   │   └── result/
-│       │   │       ├── ResultFragment.java
-│       │   │       ├── ResultViewModel.java
-│       │   │       └── ResultTabAdapter.java
+│       │   │   │   └── ScanViewModel.java
+│       │   │   ├── result/                  # 盘点结果页 (4 个 tab + 导出)
+│       │   │   │   ├── ResultFragment.java
+│       │   │   │   ├── ResultViewModel.java
+│       │   │   │   ├── AssetResultAdapter.java
+│       │   │   │   ├── ExtraResultAdapter.java
+│       │   │   │   ├── AssetDetailDialog.java
+│       │   │   │   ├── ExtraDetailDialog.java
+│       │   │   │   ├── ResultTab.java
+│       │   │   │   ├── ExtraWithClaim.java
+│       │   │   │   └── CategoryCount.java
+│       │   │   ├── task/                    # 任务列表 + 创建任务 dialog (库存池模式)
+│       │   │   ├── setting/                 # 功率设置 dialog
+│       │   │   └── util/                    # TagPills 等共享组件
 │       │   └── util/
-│       │       ├── AppExecutors.java          # 线程池
-│       │       ├── EpcNormalizer.java         # EPC 字符串归一化
-│       │       └── DateUtil.java
+│       │       ├── AppExecutors.java        # 4 线程 diskIO + 单线程 excelIO + mainHandler
+│       │       ├── EpcNormalizer.java       # EPC 字符串归一化 (decimal 16/17/24位, hex 拒绝)
+│       │       ├── DateUtil.java
+│       │       └── BeepPlayer.java          # SoundPool beep 反馈
 │       └── res/
 │           ├── layout/
 │           ├── values/strings.xml (zh + en)
-│           ├── drawable/
+│           ├── drawable/                    # 状态色 / 圆角 / dashed / pill 背景
 │           └── menu/
 └── docs/superpowers/specs/...
 ```

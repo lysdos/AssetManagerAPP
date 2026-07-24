@@ -45,9 +45,10 @@ android {
     }
 
     signingConfigs {
-        // release 凭据仅从 local.properties 读取 (不入 git)。
-        // 任一字段缺失或整文件不存在时 assembleRelease 不会生成带真实口令的 APK,
-        // 而是回退到 debug 签名并打印告警 — 避免误生成 dev 证书包.
+        // release 凭据从 local.properties 读取. 为方便乙方 clone 后直接 assembleRelease,
+        // local.properties + app/keystore/dev.jks 当前已 git 跟踪 (交付包的一部分),
+        // 凭据覆盖风险依赖外部分发管控 (zip+单独渠道) 与仓库的 private/visibility.
+        // 任一字段缺失或整文件不存在时 assembleRelease 回退到 debug 签名并打印告警.
         release {
             def props = loadSigningProps(rootDir)
             storeFile props != null
@@ -63,12 +64,13 @@ android {
 
     buildTypes {
         debug {
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // debug 不开 R8: 让堆栈与 IDE 调试可直接读类名/方法名, 排查时不再受混淆干扰.
+            minifyEnabled false
         }
         release {
-            // 必须开 minify: R8 误剥 rscja team.* 类需要 proguard-rules.pro 的 keep 兜住.
-            // (历史反直觉配置 debug=true/release=false 是为了排查, 现已修.)
+            // release 开 R8: 默认 proguard-android-optimize + proguard-rules.pro.
+            // proguard-rules.pro 中保留了 rscja team.* 等可能被 R8 误剥的类,
+            // 兜底 rscja 反射调用与 setRfidPower 等反射入口.
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (hasSigningProps(rootDir)) {
@@ -108,6 +110,10 @@ dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.lifecycle:lifecycle-viewmodel:2.7.0'
     implementation 'androidx.lifecycle:lifecycle-livedata:2.7.0'
+    // 引入 lifecycle-process 拿到 ProcessLifecycleOwner, 让 MainActivity
+    // 能监听"应用真进后台"事件 (区别于 Activity.onStop 的瞬时),
+    // 避免短离场 (权限弹窗/系统对话框) 误触发 RFID powerOff.
+    implementation 'androidx.lifecycle:lifecycle-process:2.7.0'
     implementation 'androidx.fragment:fragment:1.6.2'
     implementation 'androidx.activity:activity:1.8.2'
 

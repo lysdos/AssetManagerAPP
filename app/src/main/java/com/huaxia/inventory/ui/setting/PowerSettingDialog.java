@@ -38,21 +38,9 @@ public class PowerSettingDialog extends DialogFragment {
     private MaterialButton btnPreset30;
 
     private int currentPower;
-    private OnPowerChangedListener listener;
-
-    /**
-     * 功率变更回调接口。
-     */
-    public interface OnPowerChangedListener {
-        void onPowerChanged(int power);
-    }
 
     public static PowerSettingDialog newInstance() {
         return new PowerSettingDialog();
-    }
-
-    public void setOnPowerChangedListener(OnPowerChangedListener listener) {
-        this.listener = listener;
     }
 
     @Nullable
@@ -185,12 +173,10 @@ public class PowerSettingDialog extends DialogFragment {
                     getString(R.string.power_setting_saved, currentPower),
                     Toast.LENGTH_SHORT).show();
             Log.i(TAG, "Power saved and applied: " + currentPower + " dBm");
-
-            // 通知监听器
-            if (listener != null) {
-                listener.onPowerChanged(currentPower);
-            }
-
+            // 不再有回调机制 — MainActivity 之前从未注册过,
+            // 这是历史死代码. dialog 内成功提示已经把功率变更告诉用户,
+            // MainActivity 侧不需要再单独反馈 — 若将来需要, 应该用
+            // InventoryApp 共享 MutableLiveData<Integer> 给订阅者.
             dismiss();
         } else {
             Toast.makeText(getContext(), R.string.power_setting_failed,

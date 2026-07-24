@@ -337,6 +337,19 @@ public class ScanFragment extends Fragment {
         scanBtn.setText(R.string.scan_start_inventory);
         applyScanBtnGreen();
         app.rfid.unregisterCallback(rfidCallback);
+        // beepPlayer 的 release 调用移到 onDestroyView — 旋转屏幕后回到此 Fragment
+        // 会触发 onPause → onDestroyView → 重新 onCreateView. 旧 release 路径下:
+        // 第二次进 onViewCreated 时 soundPool != null 走 no-op, 但 SoundPool 已被
+        // release — play() 静默. 现在的方案: init 在 onViewCreated, release 在
+        // onDestroyView, 让 SoundPool 生命周期跟 View 一致.
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        // 释放 SoundPool 等与 View 关联的本地资源. 注意: rfid 句柄与 beepPlayer
+        // 一致都在 onDestroyView 清理 — rfid 在 Application 级别, release 由
+        // ScanViewModel/SdkRfidAdapter 自管, 这里不调.
         beepPlayer.release();
     }
 }

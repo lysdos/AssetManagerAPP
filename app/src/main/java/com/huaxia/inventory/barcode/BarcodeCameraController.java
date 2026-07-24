@@ -68,6 +68,13 @@ public class BarcodeCameraController {
     private final ExecutorService analyzerExecutor;
     private final BarcodeAnalyzer analyzer;
 
+    /**
+     * analyzer 线程向主线程 post 结果时复用的 Handler — 避免 emit 每次 new Handler(Looper.getMainLooper()).
+     * 共享实例与匿名 Handler 等价于同一个 Looper 队列, GC 压力大幅降低; 同时让 {@link #release}
+     * 可以 removeCallbacks(&afTriggerRunnable) 清掉所有 in-flight emit.
+     */
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
     private ProcessCameraProvider cameraProvider;
     private Callback activeCallback;
     private Camera camera;
@@ -219,6 +226,13 @@ public class BarcodeCameraController {
         scanner.close();
         analyzerExecutor.shutdown();
         cameraProvider = null;
+        // 清掉 in-flight emit + 2s 去抖窗口 — 否则重建 controller 时仍沿用旧状态,
+        // 首条相同码被 2s 窗口吞掉, 用户看到"扫码没反应".
+        mainHandler.removeCallbacksAndMessages(null);
+        synchronized (this) {
+            lastEmitMs = 0L;
+            lastEmitCode = "";
+        }
     }
 
     /** 周期性下发 AF trigger (CONTROL_AF_TRIGGER_START). 失败/不支持均 silently ignore.
@@ -277,7 +291,10 @@ public class BarcodeCameraController {
                 lastEmitCode = raw;
                 lastEmitMs = now;
             }
-            Log.i(TAG, "[BarcodeCameraController] detected: '" + raw + "'");
+            // 日志只报告长度, 不打印 raw 内容 — 条码是固资编号, 暴露给 logcat / 厂商
+            // 诊断采集就有泄露面. 用 redactTail 保留末 4 位用于模式匹配定位.
+            Log.i(TAG, "[BarcodeCameraController] detected (len=" + raw.length()
+                    + ", tail=" + com.huaxia.inventory.excel.ExcelExporter.redactTail(raw) + ")");
             emit(raw);
         } finally {
             imageProxy.close();
@@ -287,8 +304,10 @@ public class BarcodeCameraController {
     private void emit(String raw) {
         Callback cb = activeCallback;
         if (cb == null) return;
-        // analyzer 线程 -> main 线程. 直接用 main Looper 的 Handler 不依赖 context.
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+        // analyzer 线程 -> main 线程. 复用 mainHandler 字段而非每次 new Handler —
+        // 高频回调 (30fps → 去抖后仍可能 100-500ms 一次) 持续创建 Handler 实例 + 内部
+        // MessageQueue + Looper wrapper 在 ART 上有可观察 GC 压力.
+        mainHandler.post(() -> {
             Callback c = activeCallback;
             if (c != null) c.onBarcodeDetected(raw);
         });

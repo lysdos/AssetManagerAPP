@@ -80,6 +80,21 @@ public interface AssetDao {
         }
     }
 
+    /**
+     * 仅投影 found Asset 的 id — 给 ExcelExporter 等只需要"哪些 id 算 found"
+     * 的场景使用, 比 {@link #findFound(long)} 全表加载 Asset 行 (含
+     * {@code rawRowJson} ~500B-1KB/行) 省内存 + IO. 30w 任务下原来这一行
+     * 就 OOM (~150MB); 改用纯 id 投影后峰值 ~30w * 8B = 2.4MB.
+     *
+     * <p>走 {@code (taskId, matchedAssetId)} 复合索引, O(1) 子查询.</p>
+     */
+    @Query("SELECT Asset.id FROM Asset " +
+           "WHERE Asset.taskId = :taskId AND Asset.id IN (" +
+           "  SELECT matchedAssetId FROM ScanRecord " +
+           "  WHERE ScanRecord.taskId = :taskId AND ScanRecord.matchedAssetId IS NOT NULL" +
+           ")")
+    java.util.List<Long> findFoundIds(long taskId);
+
     @Query("SELECT COUNT(*) FROM Asset WHERE taskId = :taskId")
     int countByTask(long taskId);
 
@@ -124,6 +139,71 @@ public interface AssetDao {
 
     @Query("DELETE FROM Asset WHERE taskId = :taskId")
     int deleteByTask(long taskId);
+
+    /**
+     * 给所有"已扫到但 inventoryTime 还是 null"的资产, 写入它的首次扫描时间.
+     * 调用时机: 进入结果页时 (ResultViewModel.bindToTask), 保证导出的「盘点时间」列
+     * 对每条 found 资产都有值, 而不是只有手动改过弹窗的那几条.
+     *
+     * <h4>契约</h4>
+     * <ul>
+     *   <li><b>幂等</b>: 已有 {@code inventory_time} 值的行不会被覆盖.
+     *       {@code UPDATE ... AND inventory_time IS NULL} 守卫, 加 GROUP BY 一次性
+     *       完成扫描端时间聚合.</li>
+     *   <li><b>数据来源</b>: 写的是 {@code MIN(ScanRecord.scannedAt)}, 即该资产在
+     *       该任务下首次被扫到的时间. NULL 扫描 (ScanRecord.matchedAssetId 落空
+     *       的盘盈) 不会参与, 因为主查询限定 {@code matchedAssetId IS NOT NULL}.</li>
+     *   <li><b>并发</b>: 整体走 {@code @Transaction} 单事务, 用 SQLite 行级锁 +
+     *       brief UPDATE. 不会被另一线程的 {@code ResultFragment.onAssetDetailSaved}
+     *       (把 inventoryTime 写成"系统当前时间") 切到错误值, 因为
+     *       {@code ResultFragment.onAssetDetailSaved} 仅在 {@code inventory_time IS
+     *       NULL} 行才被 backfill 之后, UI 才会"看似写" — 实际是两个路径先到先得,
+     *       后到查 inventoryTime 已被对方填.</li>
+     *   <li><b>边界</b>: 任务下没有 found 资产 → SELECT 0 行, UPDATE 0 行,
+     *       返回 0; 任务被删除 → ScanRecord 外键已清空, 主查询返 0 行, 不影响其它任务.</li>
+     *   <li><b>未覆盖的边界</b>: 极小概率下 {@code MIN(scannedAt)} 因 ScanRecord
+     *       行被并发 deleteOrphans 清掉返 NULL — 当前实现 update 会被忽略
+     *       (因为 inventory_time 仍为 NULL 且无源). 这是已知 trade-off, 不影响
+     *       导出 — 导出"盘点时间"列对这种资产会留空, UI 会标"未填".</li>
+     * </ul>
+     *
+     * <h4>实现</h4>
+     * <p>两步: (1) {@code SELECT matchedAssetId AS assetId, MIN(scannedAt) AS
+     * minScannedAt FROM ScanRecord WHERE taskId=:taskId AND matchedAssetId IS
+     * NOT NULL GROUP BY matchedAssetId} 走 {@code (taskId, matchedAssetId)} 复合
+     * 索引; (2) 逐条 {@code UPDATE Asset SET inventory_time=:ts WHERE id=:id AND
+     * inventory_time IS NULL}. 原合约是单条 UPDATE + 相关子查询 — 1w found
+     * 资产要跑 1w 次 ScanRecord 索引扫描, UPDATE 长持锁会阻塞 RFID 写入.</p>
+     */
+    @androidx.room.Transaction
+    default int backfillFoundInventoryTime(long taskId) {
+        java.util.List<AssetFoundMinScanTime> rows = findFoundMinScanTimes(taskId);
+        int updated = 0;
+        for (AssetFoundMinScanTime r : rows) {
+            int n = setInventoryTimeIfNull(r.assetId, r.minScannedAt);
+            updated += n;
+        }
+        return updated;
+    }
+
+    /**
+     * 投影 (matchedAssetId AS assetId, MIN(scannedAt) AS minScannedAt).
+     * 字段名与 SELECT 列名严格对应; 投影类型在
+     * {@link AssetFoundMinScanTime} (顶级 POJO, Room 投影规范).
+     */
+    @Query("SELECT matchedAssetId AS assetId, MIN(scannedAt) AS minScannedAt " +
+           "FROM ScanRecord " +
+           "WHERE taskId = :taskId AND matchedAssetId IS NOT NULL " +
+           "GROUP BY matchedAssetId")
+    java.util.List<AssetFoundMinScanTime> findFoundMinScanTimes(long taskId);
+
+    /**
+     * 幂等回填单条: 已经写过 inventory_time 的行不再覆盖.
+     * 走 Asset PK 短持锁 — 不再内嵌子查询, 故 1w found 不会让 UPDATE 持锁过久.
+     */
+    @Query("UPDATE Asset SET inventory_time = :ts " +
+           "WHERE id = :id AND inventory_time IS NULL")
+    int setInventoryTimeIfNull(long id, long ts);
 
     /**
      * 任务下所有不重复的领用部门（DISTINCT + 排序）。
@@ -186,16 +266,6 @@ public interface AssetDao {
 
     /**
      * 给所有"已扫到但 inventoryTime 还是 null"的资产, 写入它的首次扫描时间.
-     * 调用时机: 进入结果页时 (ResultViewModel.bindToTask), 保证导出的「盘点时间」列
-     * 对每条 found 资产都有值, 而不是只有手动改过弹窗的那几条.
-     * <p>幂等: 已经有值的不会被覆盖.
+     * 见下方 default 方法 {@link #backfillFoundInventoryTime(long)}.
      */
-    @Query("UPDATE Asset SET inventory_time = (" +
-           "  SELECT MIN(scannedAt) FROM ScanRecord " +
-           "  WHERE ScanRecord.taskId = :taskId AND ScanRecord.matchedAssetId = Asset.id" +
-           ") WHERE taskId = :taskId AND inventory_time IS NULL AND id IN (" +
-           "  SELECT matchedAssetId FROM ScanRecord " +
-           "  WHERE taskId = :taskId AND matchedAssetId IS NOT NULL" +
-           ")")
-    int backfillFoundInventoryTime(long taskId);
 }

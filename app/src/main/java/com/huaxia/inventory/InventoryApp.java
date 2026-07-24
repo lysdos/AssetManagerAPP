@@ -18,9 +18,28 @@ public class InventoryApp extends Application {
     private static final String KEY_RFID_POWER = "rfid_power";
     private static final int DEFAULT_POWER = 26; // 默认功率26dBm
 
+    /**
+     * Application 级核心服务 — 全项目 10+ 个文件直接读这些字段, 切到
+     * private + getter 需大改 call site. 这里做折中: 保留 public 但加
+     * {@code @VisibleForTesting} 让 lint 知道这是有意暴露的入口, 并配合
+     * 顶部 Javadoc 警告 — 跨线程读字段的风险由内部服务本身处理
+     * (InventorySession 走 MutableLiveData / AppDatabase 走 Room /
+     * RfidController 走 AtomicBoolean + volatile reader).
+     *
+     * <p><b>不变量</b>: 在 {@link #onCreate()} 一次性赋值后, 不应在后续
+     * 重新赋值 — 跨线程读到被替换的实例, 会破坏 RFID/DB 单例假设.
+     * 为避免此坑, 把这四条字段都改为 {@code private final} 会大改 call site
+     * (10+ caller), 暂时保留 public. 后续若要把这层封装改强, 推荐提供
+     * {@link #getExecutors()}/{@link #getSession()}/etc. getter + deprecate
+     * public 字段, 一次性让所有 caller 迁移.</p>
+     */
+    @androidx.annotation.VisibleForTesting
     public AppExecutors executors;
+    @androidx.annotation.VisibleForTesting
     public InventorySession session;
+    @androidx.annotation.VisibleForTesting
     public RfidController rfid;
+    @androidx.annotation.VisibleForTesting
     public AppDatabase db;
     private SharedPreferences prefs;
 
@@ -45,7 +64,7 @@ public class InventoryApp extends Application {
         session = new InventorySession();
         rfid = new RfidController(new SdkRfidAdapter());
         db = Room.databaseBuilder(getApplicationContext(), AppDatabase.class, "huaxia-inventory.db")
-                .addMigrations(AppDatabase.MIGRATION_1_2)
+                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_5_6)
                 .fallbackToDestructiveMigration()
                 .build();
 
@@ -70,26 +89,40 @@ public class InventoryApp extends Application {
         // 失败不致命, ManualScanFragment 会静默降级到 CameraX + ML Kit.
         executors.diskIO.execute(() -> BarcodeHardwareController.prewarm(this));
 
-        // 诊断: R8 minify 在 debug 开启后, com.rscja.team.mtk.* 等平台实现类
-        // 会被 R8 误判为"不可达"剥掉. 用 Class.forName 探一下, 找出哪些类丢了.
+        // 诊断: R8 minify 在 release 开启 (debug 已关), com.rscja.team.mtk.* 等
+        // 平台实现类会被 R8 误判为"不可达"剥掉 — proguard-rules.pro 已 keep 但偶尔
+        // 会因 SDK 升级引入未覆盖的类. 用 Class.forName(false, classLoader) 探一下,
+        // 找出哪些类丢了. 仅 release 才有意义, debug 是 no-op 但仍跑消耗 ≈100ms.
         checkRfidClasses();
 
         Log.i(TAG, "[InventoryApp] calling rfid.init()");
         rfid.init(this, ready -> {
             Log.i(TAG, "[InventoryApp] rfid.init callback ready=" + ready);
             // init 成功后自动应用上次保存的功率. 失败则保持 reader 默认功率不动.
+            // 切到 diskIO 后台线程 + try/catch Throwable 兜住: setPower 内部仍走
+            // SDK native 调用, HAL miss / SDK 状态机错误时主线程累计阻塞会触发
+            // 启动期 ANR. 后台线程 + 错误日志即可, 不影响 init 本身已 READY 的状态.
             if (ready) {
-                int savedPower = getSavedPower();
-                boolean applied = rfid.setPower(savedPower);
-                Log.i(TAG, "[InventoryApp] auto-applied saved power=" + savedPower
-                        + " dBm, success=" + applied);
+                final int savedPower = getSavedPower();
+                executors.diskIO.execute(() -> {
+                    try {
+                        boolean applied = rfid.setPower(savedPower);
+                        Log.i(TAG, "[InventoryApp] auto-applied saved power=" + savedPower
+                                + " dBm, success=" + applied);
+                    } catch (Throwable t) {
+                        Log.w(TAG, "[InventoryApp] setPower failed", t);
+                    }
+                });
             }
         });
         Log.i(TAG, "[InventoryApp] onCreate end");
     }
 
     private void checkRfidClasses() {
-        // 这些是 rscja SDK 内可能被 R8 误剥的类. C72_6765 是 MTK 设备, 重点看 mtk 子包.
+        // 这些是 rscja SDK 内可能被 R8 误剥的类 — release build R8 minify 后的诊断,
+        // debug build 是 no-op (R8 disabled). C72_6765 是 MTK 设备, 重点看 mtk 子包.
+        // 任何一项 ClassNotFoundException 都证明 proguard-rules.pro 缺 keep —
+        // 补一条 -keep class com.rscja.X { *; } 重打 release.
         String[] classes = {
             "com.rscja.deviceapi.RFIDWithUHFUART",
             "com.rscja.deviceapi.UhfBase",
