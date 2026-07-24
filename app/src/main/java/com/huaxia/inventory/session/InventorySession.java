@@ -1,9 +1,34 @@
 package com.huaxia.inventory.session;
 
+import android.os.Looper;
+
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
+/**
+ * 进程级共享当前活动任务的 taskId.
+ *
+ * <p><b>调用线程与可见性</b>:</p>
+ * <ul>
+ *   <li><b>主线程</b>: {@link #setCurrentTaskId(long)} 与 {@link #clear()}
+ *       走 {@link MutableLiveData#setValue} (同步), 紧随其后的
+ *       {@link #getCurrentTaskId()} 立即看到新值. 这是大多数
+ *       触发场景 (用户点 "开始盘点" / "暂停" / "删除" 等) 的路径.</li>
+ *   <li><b>后台线程</b> (例如 {@code diskIO.execute}): 走
+ *       {@link MutableLiveData#postValue} (异步), 必须经一个 Looper 周期
+ *       才能被 {@link #getCurrentTaskId()} 看到. <b>不要</b> 在后台线程
+ *       调用方紧跟读 {@link #getCurrentTaskId()} 并依此决策 —
+ *       需要"立即看到"时, 后台线程要么 {@code postValue} 后用
+ *       参数传递, 要么 {@code new Handler(Looper.getMainLooper()).post(...)}
+ *       把后续决策切回主线程.</li>
+ * </ul>
+ *
+ * <p>主线程统一 {@code setValue}、后台线程统一 {@code postValue},
+ * 是为了让大多数触发场景 (主线程) 拿到同步可见性, 而不强制后台路径走
+ * 异步. 如果后台调用方需要立即读, 应该改用参数 / 局部变量, 而不是
+ * 在 {@code postValue} 后接着 {@code getCurrentTaskId()}.</p>
+ */
 public class InventorySession {
 
     private final MutableLiveData<Long> currentTaskId = new MutableLiveData<>();
@@ -18,10 +43,18 @@ public class InventorySession {
     }
 
     public void setCurrentTaskId(long id) {
-        currentTaskId.postValue(id);
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            currentTaskId.setValue(id);
+        } else {
+            currentTaskId.postValue(id);
+        }
     }
 
     public void clear() {
-        currentTaskId.postValue(null);
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            currentTaskId.setValue(null);
+        } else {
+            currentTaskId.postValue(null);
+        }
     }
 }

@@ -97,13 +97,13 @@ public class PowerSettingRegressionTest {
         assertTrue("savePower() body not terminated — unmatched braces", depth == 0);
         String body = src.substring(braceOpen, i);
 
-        int setPowerAt = body.indexOf("app.rfid.setPower(");
+        int setPowerAt = body.indexOf("app.getRfid().setPower(");
         int savePowerAt = body.indexOf("app.savePower(");
 
-        assertTrue("savePower() must invoke app.rfid.setPower(...)", setPowerAt >= 0);
+        assertTrue("savePower() must invoke app.getRfid().setPower(...)", setPowerAt >= 0);
         assertTrue("savePower() must invoke app.savePower(...) on success", savePowerAt >= 0);
         assertTrue(
-                "savePower() must call app.rfid.setPower(...) BEFORE app.savePower(...).\n"
+                "savePower() must call app.getRfid().setPower(...) BEFORE app.savePower(...).\n"
                         + "Reverse order leaves prefs holding a value the reader never received.\n"
                         + "setPowerAt=" + setPowerAt + ", savePowerAt=" + savePowerAt,
                 setPowerAt < savePowerAt);

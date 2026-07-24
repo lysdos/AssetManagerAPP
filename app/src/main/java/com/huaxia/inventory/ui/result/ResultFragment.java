@@ -2,6 +2,7 @@ package com.huaxia.inventory.ui.result;
 
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -30,6 +32,8 @@ import java.util.Set;
 
 public class ResultFragment extends Fragment {
 
+    private static final String TAG = "ResultFragment";
+
     public static final String ARG_TAB = "tab";
 
     private ResultViewModel vm;
@@ -38,7 +42,20 @@ public class ResultFragment extends Fragment {
     private TextView paginationInfoTv;
     private MaterialButton prevBtn, nextBtn;
 
-    private final Set<Long> matchedIdsCache = new HashSet<>();
+    /**
+     * 当前任务 found 资产 id 集合 — 来自 {@link ResultViewModel#matchedIds()}.
+     * 仅缓存一份, 由 observer 回调更新到 {@link AssetResultAdapter}.
+     * 不再由 ResultFragment 自管 (旧实现: assets observer 内 dispatch findFound
+     * 全表加载 + UI 线程读写 race).
+     */
+    private Set<Long> matchedIdsCache = new HashSet<>();
+    /**
+     * 当前 RecyclerView 上的 AssetResultAdapter 实例 — 两个 observer (assets +
+     * matchedIds) 复用同一个 adapter, 只调 {@link AssetResultAdapter#setItems}
+     * / {@link AssetResultAdapter#setMatchedIds} + notifyDataSetChanged,
+     * 不再多次 {@code new AssetResultAdapter + setAdapter}.
+     */
+    private AssetResultAdapter assetAdapter;
     private ActivityResultLauncher<String> exportLauncher;
     private long currentTaskId = -1L;
 
@@ -77,7 +94,7 @@ public class ResultFragment extends Fragment {
         exportBtn.setOnClickListener(btn -> onExportClicked());
 
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        Long taskId = app.session.getCurrentTaskId();
+        Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
             emptyTv.setVisibility(View.VISIBLE);
             rv.setVisibility(View.GONE);
@@ -116,19 +133,38 @@ public class ResultFragment extends Fragment {
                 emptyTv.setVisibility(View.GONE);
                 rv.setVisibility(View.VISIBLE);
             }
-            InventoryApp a = (InventoryApp) requireActivity().getApplication();
-            a.executors.diskIO.execute(() -> {
-                Set<Long> matched = new HashSet<>();
-                for (Asset as : a.db.assetDao().findFound(currentTaskId)) matched.add(as.id);
-                matchedIdsCache.clear();
-                matchedIdsCache.addAll(matched);
-                if (!isAdded()) return;
-                requireActivity().runOnUiThread(() -> {
-                    if (!isAdded() || rv == null) return;
-                    rv.setAdapter(new AssetResultAdapter(assets, matchedIdsCache,
-                        this::showAssetDetailDialog));
-                });
-            });
+            // matchedIds 由 vm.matchedIds() 一次性拉取, UI 只读 — 不再在 observer
+            // 内 dispatch findFound 全表加载. 复用同一个 assetAdapter 实例, 只调
+            // setItems + setMatchedIds + notifyDataSetChanged — 避免多次
+            // new AssetResultAdapter + setAdapter 让 RecyclerView 内部短链残留.
+            if (assetAdapter == null) {
+                assetAdapter = new AssetResultAdapter(
+                        assets, matchedIdsCache, this::showAssetDetailDialog);
+                rv.setAdapter(assetAdapter);
+            } else {
+                assetAdapter.setItems(assets);
+                assetAdapter.setMatchedIds(matchedIdsCache);
+                assetAdapter.notifyDataSetChanged();
+            }
+        });
+
+        vm.matchedIds().observe(getViewLifecycleOwner(), matched -> {
+            if (matched == null) return;
+            // 每次进结果页或 refresh 时, matchedIds 会更新 (新盘到 / 取消关联都触发).
+            // 更新 matchedIdsCache 即可 — assets observer 会在下一次 setItems 时
+            // 一并应用, 不必此处再 setAdapter. 如果 cache 已更新但 list 没动,
+            // 当前 list 的 render 仍会读取最新 cache (assetAdapter.matchedIds
+            // 字段已变), 下一轮 onBindViewHolder 自然反映.
+            Set<Long> newCache = new HashSet<>(matched);
+            if (newCache.equals(matchedIdsCache)) {
+                return;  // 内容相同, 不更新
+            }
+            matchedIdsCache.clear();
+            matchedIdsCache.addAll(newCache);
+            if (assetAdapter != null) {
+                assetAdapter.setMatchedIds(matchedIdsCache);
+                assetAdapter.notifyDataSetChanged();
+            }
         });
 
         vm.extras().observe(getViewLifecycleOwner(), extras -> {
@@ -184,12 +220,21 @@ public class ResultFragment extends Fragment {
     private void doExport(Uri uri) {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         long taskId = currentTaskId;
-        app.executors.excelIO.execute(() -> {
+        // 在切到 excelIO 之前先 cache Context + ContentResolver + CacheDir —
+        // SAF 文件写盘可能耗时 5s+, 用户在这期间可能通过底部 nav 切走,
+        // 导致 fragment detach; lambda 派发到 detach 的 fragment 后再调
+        // requireContext() 会抛 IllegalStateException, 同时 xlsx 写到一半的
+        // OutputStream 因为 fragment 销毁被 GC 截断损坏. 缓存强引用 + 双层
+        // isAdded 守卫 + 主线程再判 getView() 路径在两个 branch 都保留.
+        final android.content.Context ctx = requireContext();
+        final android.content.ContentResolver resolver = ctx.getContentResolver();
+        final java.io.File cacheDir = ctx.getCacheDir();
+        app.getExecutors().excelIO.execute(() -> {
             try {
-                InventoryTask task = app.db.inventoryTaskDao().findById(taskId);
+                InventoryTask task = app.getDb().inventoryTaskDao().findById(taskId);
 
                 List<String> originalHeaders = new ArrayList<>();
-                List<Asset> firstPage = app.db.assetDao().pageAll(taskId, 1, 0);
+                List<Asset> firstPage = app.getDb().assetDao().pageAll(taskId, 1, 0);
                 if (!firstPage.isEmpty() && firstPage.get(0).rawRowJson != null) {
                     com.fasterxml.jackson.databind.ObjectMapper mapper =
                             new com.fasterxml.jackson.databind.ObjectMapper();
@@ -202,14 +247,14 @@ public class ResultFragment extends Fragment {
                     }
                 }
 
-                try (java.io.OutputStream out =
-                        requireContext().getContentResolver().openOutputStream(uri)) {
+                try (java.io.OutputStream out = resolver.openOutputStream(uri)) {
                     ExcelExporter.exportStreamed(out, task.sourceFileName, originalHeaders,
-                            app.db.assetDao(), app.db.scanRecordDao(),
-                            app.db.extraClaimDao(), taskId);
+                            app.getDb().assetDao(), app.getDb().scanRecordDao(),
+                            app.getDb().extraClaimDao(), taskId, cacheDir);
                 }
                 if (isAdded()) {
                     requireActivity().runOnUiThread(() -> {
+                        if (!isAdded()) return;
                         View v = getView();
                         if (v != null) {
                             Snackbar.make(v, R.string.msg_export_done,
@@ -218,12 +263,16 @@ public class ResultFragment extends Fragment {
                     });
                 }
             } catch (Exception e) {
+                // 异常详情写入受控 Log 通道 (offline + diag), 给用户只看固定文案
+                // (R.string.err_export_failed), 不暴露 SAF URI / 本地路径 / SQL 异常.
+                Log.e(TAG, "doExport failed", e);
                 if (isAdded()) {
                     requireActivity().runOnUiThread(() -> {
+                        if (!isAdded()) return;
                         View v = getView();
                         if (v != null) {
                             Snackbar.make(v,
-                                getString(R.string.err_export_failed, e.getMessage()),
+                                getString(R.string.err_export_failed),
                                 Snackbar.LENGTH_LONG).show();
                         }
                     });
@@ -237,19 +286,48 @@ public class ResultFragment extends Fragment {
         AssetDetailDialog.show(this, asset, isMatched, this::onAssetDetailSaved);
     }
 
-    private void onAssetDetailSaved(Asset updated) {
+    private void onAssetDetailSaved(Asset pendingSave,
+                                    AssetDetailDialog.SaveCompletion completion) {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        long taskId = currentTaskId;
-        long assetId = updated.id;
-        app.executors.diskIO.execute(() -> {
-            // 盘点时间: 优先用该资产最早一次扫描时间, 否则用当前时间
-            Long firstScanAt = app.db.scanRecordDao().findFirstScanTime(taskId, assetId);
-            updated.inventoryTime = (firstScanAt != null && firstScanAt > 0)
-                    ? firstScanAt
-                    : System.currentTimeMillis();
-            app.db.assetDao().update(updated);
-            if (isAdded()) {
-                requireActivity().runOnUiThread(() -> {
+        long taskId = pendingSave.taskId;
+        app.getExecutors().diskIO.execute(() -> {
+            // 单事务: precheck findByEpcGlobal + inventoryTime 计算 + update — 防并发
+            // (a) 其它路径 (导入 / 任务切换) 在 precheck 与 update 之间改写其它字段;
+            // (b) backfillFoundInventoryTime 与 pendingSave.inventoryTime 并发写入
+            // 同一行, 两条路径写入值不一致. 事务内 SQLite 行级锁串行化两条 update,
+            // 先到先写, 后到看到的 inventory_time 与本批最终值一.
+            final boolean[] isDuplicateHolder = {false};
+            final boolean[] successHolder = {false};
+            try {
+                app.getDb().runInTransaction(() -> {
+                    Asset existing = app.getDb().assetDao().findByEpcGlobal(pendingSave.epc);
+                    if (existing != null && existing.id != pendingSave.id) {
+                        isDuplicateHolder[0] = true;
+                        return;
+                    }
+                    Long firstScanAt = app.getDb().scanRecordDao().findFirstScanTime(
+                            taskId, pendingSave.id);
+                    pendingSave.inventoryTime = (firstScanAt != null && firstScanAt > 0)
+                            ? firstScanAt
+                            : System.currentTimeMillis();
+                    app.getDb().assetDao().update(pendingSave);
+                    successHolder[0] = true;
+                });
+            } catch (android.database.sqlite.SQLiteConstraintException e) {
+                // 兜底: 跨事务并发窗口下 epc 唯一索引触发 (TOCTOU).
+                // 日志不打印明文 epc — EPC 是固资编号, 业务敏感, logcat 暴露给运维 / 厂商
+                // 诊断系统采集就有泄露面. 只打印长度 + hash 末 4 位用于排障.
+                Log.w(TAG, "asset save caught SQLiteConstraintException for epc(len="
+                        + (pendingSave.epc == null ? 0 : pendingSave.epc.length()) + ")", e);
+                isDuplicateHolder[0] = true;
+            } catch (RuntimeException e) {
+                Log.e(TAG, "asset save failed", e);
+            }
+            if (isDuplicateHolder[0]) {
+                postAssetSaveResult(completion::onDuplicateEpc);
+            } else if (successHolder[0]) {
+                postAssetSaveResult(() -> {
+                    completion.onSuccess();
                     View v = getView();
                     if (v != null) {
                         Snackbar.make(v, R.string.msg_asset_saved,
@@ -257,7 +335,19 @@ public class ResultFragment extends Fragment {
                     }
                     vm.refresh();
                 });
+            } else {
+                postAssetSaveResult(completion::onError);
             }
+        });
+    }
+
+    private void postAssetSaveResult(Runnable action) {
+        if (!isAdded()) return;
+        FragmentActivity activity = getActivity();
+        if (activity == null) return;
+        activity.runOnUiThread(() -> {
+            if (!isAdded()) return;
+            action.run();
         });
     }
 

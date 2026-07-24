@@ -9,6 +9,12 @@ import androidx.room.PrimaryKey;
 @Entity(indices = {
         @Index("taskId"),
         @Index("matchedAssetId"),
+        // 复合索引: 让 recomputeScannedCount 的
+        // COUNT(DISTINCT matchedAssetId) WHERE taskId=? AND matchedAssetId IS NOT NULL
+        // 走 index-only scan, 否则单列 taskId + 单列 matchedAssetId 只能各自走索引 OR,
+        // 1w+ ScanRecord 全索引扫描. 复合顺序按 SQL WHERE 等值选择度决定:
+        // taskId 决定子集大小, matchedAssetId 决定去重粒度.
+        @Index(value = {"taskId", "matchedAssetId"}),
         @Index(value = {"taskId", "epc"}, unique = true)
 })
 public class ScanRecord {

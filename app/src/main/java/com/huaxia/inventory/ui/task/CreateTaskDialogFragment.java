@@ -27,7 +27,13 @@ public class CreateTaskDialogFragment extends DialogFragment {
     private EditText nameEt, remarkEt;
     private Spinner deptSp;
     private TextView previewTv;
-    private final List<String> deptOptions = new ArrayList<>();
+    /**
+     * Spinner 选项列表. 使用 {@link java.util.concurrent.CopyOnWriteArrayList},
+     * 不是因为 deptOptions 真的有跨线程并发访问 (callbacks 已 runOnUiThread + isAdded
+     * 守卫), 而是为了给未来可能的 dialog 多观察者 / 转屏重建 race 兜底 — 同时 copy-on-write
+     * 读路径无锁, 比强行同步的 {@code synchronized (deptOptions)} 写入更友好.
+     */
+    private final List<String> deptOptions = new java.util.concurrent.CopyOnWriteArrayList<>();
     private int unlimitedPos = 0;
 
     @Nullable

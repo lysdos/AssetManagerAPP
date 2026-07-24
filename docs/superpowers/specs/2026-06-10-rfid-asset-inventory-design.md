@@ -28,10 +28,10 @@
 ## 2. 目标与非目标 (Goals & Non-Goals)
 
 ### 2.1 Goals
-- G1. 从 Excel 导入资产清单，解析 35 列字段并落库
+- G1. 从 Excel 导入资产清单，解析 8 个必需列 (序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期) 并落库
 - G2. 通过 UROVO RFID SDK 扫描标签，实时与导入数据匹配
 - G3. 统计三类盘点状态：在册已盘 / 盘亏 / 盘盈
-- G4. 盘点结果可导出为 Excel（保留原 35 列 + 追加 3 列结果）
+- G4. 盘点结果可导出为 Excel（保留 8 个必需列 + 追加 2 列结果：盘点状态 / 盘点时间）
 - G5. 历史盘点任务可在本地数据库中回看
 - G6. 离线运行，无网络依赖
 
@@ -66,55 +66,74 @@
 ```
 huaxiaapp/
 ├── libs/DeviceAPI_ver20230301_release.aar  # 厂商 SDK（rscja DeviceAPI）
-├── uhf-uart-demo/uhf-uart-demo/            # 厂商 demo 源码（API 调用参考）
+├── uhf-uart-demo/uhf-uart-demo/            # 厂商 demo 源码（API 调用参考，已废弃)
 ├── app/
 │   ├── build.gradle
+│   ├── keystore/dev.jks                     # release 签名 (已 git 跟踪, 配套 local.properties)
 │   └── src/main/
 │       ├── AndroidManifest.xml
 │       ├── java/com/huaxia/inventory/
-│       │   ├── InventoryApp.java              # Application：触发 RFID init
-│       │   ├── MainActivity.java              # 单 Activity 容器
+│       │   ├── InventoryApp.java            # Application: 触发 RFID init + BarcodeHardwareController prewarm
+│       │   ├── MainActivity.java            # 单 Activity 容器 + BottomNavigationView
 │       │   ├── data/
-│       │   │   ├── AppDatabase.java
+│       │   │   ├── AppDatabase.java         # Room v6 (4 表: InventoryTask / Asset / ScanRecord / ExtraClaim)
+│       │   │   ├── StatusDerivation.java    # FOUND/MISSING/EXTRA 状态推算
 │       │   │   ├── entity/
 │       │   │   │   ├── InventoryTask.java
 │       │   │   │   ├── Asset.java
 │       │   │   │   ├── ScanRecord.java
-│       │   │   │   └── TaskStatus.java
+│       │   │   │   └── ExtraClaim.java
 │       │   │   └── dao/
 │       │   │       ├── InventoryTaskDao.java
 │       │   │       ├── AssetDao.java
-│       │   │       └── ScanRecordDao.java
+│       │   │       ├── ScanRecordDao.java
+│       │   │       ├── ExtraClaimDao.java
+│       │   │       ├── ScanAggregate.java
+│       │   │       └── CategoryCount.java
 │       │   ├── rfid/
-│       │   │   ├── SdkRfidAdapter.java        # 适配 rscja 同步轮询 SDK
-│       │   │   └── RfidController.java        # 封装 SDK 生命周期
+│       │   │   ├── SdkRfidAdapter.java      # 适配 rscja 同步轮询 SDK
+│       │   │   └── RfidController.java      # 封装 SDK 生命周期 (init / powerOn / powerOff / startInventory)
+│       │   ├── barcode/                     # (手动盘点页) 扫码 SDK 封装
+│       │   │   ├── BarcodeHardwareController.java  # rscja BarcodeDecoder
+│       │   │   ├── BarcodeCameraController.java    # CameraX + ML Kit 降级方案
+│       │   │   └── ScanFrameView.java
 │       │   ├── excel/
 │       │   │   ├── ExcelImporter.java
-│       │   │   └── ExcelExporter.java
+│       │   │   ├── ExcelExporter.java        # full + exportStreamed (按页 IN 查询)
+│       │   │   ├── XlsxStreamWriter.java     # SAX 方式 OOXML, 绕过 SXSSFWorkbook 在 Android 上的崩溃
+│       │   │   └── HeaderSpec.java           # 8 个必需列 + REQUIRED
 │       │   ├── session/
-│       │   │   └── InventorySession.java      # 当前任务共享状态
+│       │   │   └── InventorySession.java     # 当前任务共享状态 (LiveData<Long>)
 │       │   ├── ui/
-│       │   │   ├── common/
-│       │   │   │   └── AssetListAdapter.java  # 列表 item 复用
-│       │   │   ├── import_/
-│       │   │   │   ├── ImportFragment.java
-│       │   │   │   └── ImportViewModel.java
-│       │   │   ├── scan/
+│       │   │   ├── import_/                 # 导入 dialog (导入走池, 不再建任务)
+│       │   │   ├── manual/                  # 手动盘点页 (文本输入 + 硬件扫码 + 摄像头兜底)
+│       │   │   │   ├── ManualScanFragment.java
+│       │   │   │   └── ManualScanViewModel.java
+│       │   │   ├── scan/                    # RFID 盘点扫描页
 │       │   │   │   ├── ScanFragment.java
-│       │   │   │   ├── ScanViewModel.java
-│       │   │   │   └── RecentScanAdapter.java
-│       │   │   └── result/
-│       │   │       ├── ResultFragment.java
-│       │   │       ├── ResultViewModel.java
-│       │   │       └── ResultTabAdapter.java
+│       │   │   │   └── ScanViewModel.java
+│       │   │   ├── result/                  # 盘点结果页 (4 个 tab + 导出)
+│       │   │   │   ├── ResultFragment.java
+│       │   │   │   ├── ResultViewModel.java
+│       │   │   │   ├── AssetResultAdapter.java
+│       │   │   │   ├── ExtraResultAdapter.java
+│       │   │   │   ├── AssetDetailDialog.java
+│       │   │   │   ├── ExtraDetailDialog.java
+│       │   │   │   ├── ResultTab.java
+│       │   │   │   ├── ExtraWithClaim.java
+│       │   │   │   └── CategoryCount.java
+│       │   │   ├── task/                    # 任务列表 + 创建任务 dialog (库存池模式)
+│       │   │   ├── setting/                 # 功率设置 dialog
+│       │   │   └── util/                    # TagPills 等共享组件
 │       │   └── util/
-│       │       ├── AppExecutors.java          # 线程池
-│       │       ├── EpcNormalizer.java         # EPC 字符串归一化
-│       │       └── DateUtil.java
+│       │       ├── AppExecutors.java        # 4 线程 diskIO + 单线程 excelIO + mainHandler
+│       │       ├── EpcNormalizer.java       # EPC 字符串归一化 (decimal 16/17/24位, hex 拒绝)
+│       │       ├── DateUtil.java
+│       │       └── BeepPlayer.java          # SoundPool beep 反馈
 │       └── res/
 │           ├── layout/
 │           ├── values/strings.xml (zh + en)
-│           ├── drawable/
+│           ├── drawable/                    # 状态色 / 圆角 / dashed / pill 背景
 │           └── menu/
 └── docs/superpowers/specs/...
 ```
@@ -231,20 +250,28 @@ public class ScanRecord {
 
 ### 4.3 导出 Excel 格式
 
-**保留原 35 列 + 追加 3 列结果**（不修改原列，不复用 col 35 的"盘点日期"）:
+> **修订说明**：本节最初描述 "35 列 + 3 列结果" 是 1.0 设计的旧合约。2026-06-10 后改用 8 列新格式 (`HeaderSpec.REQUIRED`)；2026-06-11 删除冗余的 RSSI 列，RESULT_COLUMNS 缩减为 2 列。当前实现与本节一致：8 个必需列 + 2 个结果列。
+
+**保留 8 个必需列 + 追加 2 列结果**（不修改原列，丢弃原"盘点日期"列，由"盘点时间"取代）:
 
 | # | 列名 | 备注 |
 |---|---|---|
-| 1-35 | (原 35 列) | 从 `Asset.rawRowJson` 还原 |
-| 36 | 盘点状态 | "已盘" / "盘亏" / "盘盈" |
-| 37 | 盘点时间 | `yyyy-MM-dd HH:mm:ss` |
-| 38 | 信号强度 | RSSI 字符串 (dBm) |
+| 1 | 序号 | 从 `Asset.rawRowJson` 还原 |
+| 2 | 设备类型 | |
+| 3 | 设备型号 | |
+| 4 | 序列号 | |
+| 5 | 固资编号 | 24 位十进制规范形态 |
+| 6 | 领用部门 | |
+| 7 | 领用人 | |
+| 8 | (原"盘点日期"列丢弃) | 由"盘点时间"取代 |
+| 9 | 盘点状态 | "已盘" / "盘亏" / "盘盈" |
+| 10 | 盘点时间 | `yyyy-MM-dd HH:mm:ss` |
 
 **盘盈记录**: 由于没有对应的 Asset 行，追加在主表后面：
 - 空一行
 - 写入一行 "【盘盈记录】" 标题
 - 重复表头
-- 遍历 `ScanRecord WHERE matchedAssetId IS NULL`，col 1-35 留空，col 36-38 填写
+- 遍历 `ScanRecord WHERE matchedAssetId IS NULL`，col 1-8 留空，col 9-10 填写
 
 ---
 
@@ -300,9 +327,9 @@ public class ScanRecord {
 │   设备: UROVO  功率: 26dBm          │  ← 设备状态
 │                                      │
 │  ── 最近扫描 ──                      │
-│  ⌚ 14:23:05  EPC:3034...  RSSI:-52 │  ← 实时滚动列表
-│  ⌚ 14:23:04  EPC:3034...  RSSI:-51 │     同一 EPC 显示 ✓ 已盘
-│  ⌚ 14:23:03  EPC:3099...  RSSI:-60 │
+│  ⌚ 14:23:05  EPC:3034...            │  ← 实时滚动列表 (2026-06-11 后不再显示 RSSI)
+│  ⌚ 14:23:04  EPC:3034...            │     同一 EPC 显示 ✓ 已盘
+│  ⌚ 14:23:03  EPC:3099...            │
 │  ...                                 │
 │                                      │
 │  [查看结果]  ← 右下角 FAB           │
@@ -333,7 +360,7 @@ public class ScanRecord {
 │  │ 所属: 运营管理部               │   │
 │  │ 地点: 松柏支行                 │   │
 │  │ EPC: 3034...A1B2              │   │
-│  │ [🟢 已盘] 14:23:05 -52dBm    │   │  ← 状态 chip + 时间 + RSSI
+│  │ [🟢 已盘] 14:23:05           │   │  ← 状态 chip + 时间 (2026-06-11 后不再显示 RSSI)
 │  └──────────────────────────────┘   │
 │  ┌──────────────────────────────┐   │
 │  │ #5  UPS / 科士达 6-FML-100   │   │
@@ -450,7 +477,7 @@ public class AppExecutors {
 String clean = EpcNormalizer.normalize(epc);  // trim + uppercase + 长度校验
 if (clean == null) return;
 if (scannedEpcSet.contains(clean)) {
-    recentScans.update(clean, rssi);  // 更新最近列表的 RSSI
+    recentScans.update(clean);  // 2026-06-11 后不再维护 RSSI, 最近列表只刷新 EPC
     return;
 }
 scannedEpcSet.add(clean);
@@ -478,21 +505,21 @@ diskIO.execute(() -> {
 
 ### 6.5 EPC 字符串规范化
 
+> **修订说明**：本节原合约 (trim + uppercase + 长度 4 倍数 + 仅 [0-9A-F]) 是 1.0 设计的 hex 解释。2026-06-16 后确认卡上直接存十进制 16/17/24 位字符串，不再做任何 hex 转换；当前实现与本节差异如下:
+
 ```java
-// EpcNormalizer.normalize()
+// EpcNormalizer.normalize()  — 2026-06-16 后的合约
 public static String normalize(String raw) {
     if (raw == null) return null;
-    String s = raw.trim().toUpperCase(Locale.ROOT);
+    String s = raw.trim();
     if (s.isEmpty()) return null;
-    if (s.length() % 4 != 0) {
-        Log.w(TAG, "EPC length not multiple of 4: " + s);
-        return null;
+    if (!s.matches("[0-9]+")) return null;          // 仅接受纯十进制, 拒绝 hex
+    switch (s.length()) {
+        case 16: return "00000000" + s;              // 16 位左补 8 个 0 → 24 位
+        case 17: return "0000000" + s;               // 17 位左补 7 个 0 → 24 位
+        case 24: return s;                            // 24 位原样
+        default:  return null;                        // 其他长度一律拒绝
     }
-    if (!s.matches("[0-9A-F]+")) {
-        Log.w(TAG, "EPC not hex: " + s);
-        return null;
-    }
-    return s;
 }
 ```
 
@@ -540,12 +567,11 @@ XSSFWorkbook + Sheet "盘点结果"
    ↓
 行 1: 复制源文件标题
 行 2: 制单人 = 当前用户, 编制时间 = now
-行 3: 复制原始 35 列表头 + 追加 3 列
+行 3: 复制原始 8 个必需列表头 + 追加 2 列 (盘点状态 / 盘点时间)
 行 4 ~ N+3: 遍历 Asset
-   ├─ cells 1-35: 从 rawRowJson 还原
-   ├─ cell 36 (盘点状态): "已盘" / "盘亏"
-   ├─ cell 37 (盘点时间): "yyyy-MM-dd HH:mm:ss" 或空
-   └─ cell 38 (信号强度): rssi 或空
+   ├─ cells 1-8: 从 rawRowJson 还原
+   ├─ cell 9 (盘点状态): "已盘" / "盘亏"
+   └─ cell 10 (盘点时间): "yyyy-MM-dd HH:mm:ss" 或空
    ↓
 行 N+5 起: "【盘盈记录】" 段落
    ├─ 同一表头
@@ -599,13 +625,13 @@ workbook.write(outputStream)
 @Test void parsesSampleFile_createsCorrectAssetCount();
 @Test void missingHeaders_listsAllMissingColumns();
 @Test void emptyEpcRow_isSkipped();
-@Test void rawRowJson_roundTripsExactly();   // 解析→导出→比较 35 列
+@Test void rawRowJson_roundTripsExactly();   // 解析→导出→比较 8 列
 
-// 2. EpcNormalizerTest
-@Test void trimsAndUppercases();
-@Test void rejectsOddLength();
-@Test void rejectsNonHex();
-@Test void acceptsValidHex();
+// 2. EpcNormalizerTest  — 2026-06-16 后合约
+@Test void rejects16Digit_padsTo24();
+@Test void rejects17Digit_padsTo24();
+@Test void rejectsNonDigitOrHex();
+@Test void rejectsWrongLength();
 
 // 3. StatusDerivationTest
 @Test void scannedAssetIsFound();
@@ -638,7 +664,7 @@ workbook.write(outputStream)
 | 文件访问 | SAF | 直接文件路径 | Android 11+ 兼容，免权限 |
 | 标签匹配 | EPC 唯一 | TID + EPC | 用户选择 EPC 唯一 |
 | UI 范围 | 精简 3 屏 | 多页+历史+设置 | 用户选择 |
-| 导出格式 | 原 35 列 + 追加 3 列 | 替换 col 35 | 保留原模板兼容性 |
+| 导出格式 | 8 个必需列 + 追加 2 列 | 替换原"盘点日期"列 | 与新导入格式对齐 |
 | RFID 去重 | 内存 HashSet + DB 唯一索引 | 仅 DB 唯一索引 | HashSet 减少 DB 写入 |
 
 ---
@@ -653,7 +679,6 @@ workbook.write(outputStream)
 | 盘盈 | EXTRA | 扫到但不在期望清单中 |
 | 盘点任务 | Inventory Task | 一次完整的导入-扫描-导出流程 |
 | 原数据 | rawRowJson | Excel 行的完整 JSON 序列化，用于导出保真 |
-| 信号强度 | RSSI | Received Signal Strength Indication (dBm) |
 
 ---
 

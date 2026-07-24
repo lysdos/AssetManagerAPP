@@ -40,16 +40,18 @@ public class SdkRfidAdapter {
     private static final String TAG = "SdkRfidAdapter";
     private static final long POLL_IDLE_SLEEP_MS = 20L;
 
-    private RFIDWithUHFUART reader;
+    /**
+     * SDK 单例. {@code volatile} 是必须的: rfid-poll 守护线程在
+     * {@link #pollLoop()} 每次循环重新读这个字段, 一旦 {@link #release()}
+     * 把 reader 置 null, 守护线程下次 {@code readTagFromBuffer()} 之前
+     * 会拿到 null 并立即退出, 避免对已 free 的 SDK 实例调用引发的 Native 崩溃.
+     * 同样在 init 阶段, main 线程先写, 守护线程后读, 也靠 volatile 拿到最新指针.
+     */
+    private volatile RFIDWithUHFUART reader;
     private final AtomicBoolean powered = new AtomicBoolean(false);
     private final AtomicBoolean scanning = new AtomicBoolean(false);
     private final Set<TagListener> listeners = new CopyOnWriteArraySet<>();
     private volatile Thread pollThread;
-
-    /** Test seam: inject a stubbed reader (e.g. a Mockito mock). */
-    SdkRfidAdapter(RFIDWithUHFUART reader) {
-        this.reader = reader;
-    }
 
     /** Default constructor — obtains the SDK singleton on first use. */
     public SdkRfidAdapter() {
@@ -195,14 +197,17 @@ public class SdkRfidAdapter {
     /**
      * Stop continuous EPC inventory and join the polling worker.
      *
-     * @return {@code 0} on success.
+     * <p>顺序固定: 1) {@code scanning.compareAndSet(true, false)} 把
+     * {@link #pollLoop()} 退出门打开; 2) 调 SDK {@code stopInventory()};
+     * 3) 等待守护线程 join 500ms; <b>4) join 之后才把
+     * {@link #pollThread} 置 null</b> — 否则守护线程仍可能在 join 期间
+     * 读到非 null 的 {@code pollThread} 被另一个 startInventory() 复用.</p>
      */
     public int stopInventory() {
         if (!scanning.compareAndSet(true, false)) {
             return 0;
         }
         Thread t = pollThread;
-        pollThread = null;
         try {
             requireReader().stopInventory();
         } catch (Throwable ex) {
@@ -214,6 +219,9 @@ public class SdkRfidAdapter {
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
             }
+            // join 后才清 pollThread — 否则 join 期间下一个 startInventory()
+            // 可能拿到尚未 stop 的旧 Thread 引用, 与新拉的守护线程并存.
+            pollThread = null;
         }
         return 0;
     }
@@ -240,7 +248,13 @@ public class SdkRfidAdapter {
         }
     }
 
-    /** Release SDK resources. Call from {@code onDestroy()} of the owning component. */
+    /**
+     * Release SDK resources. Call from {@code onDestroy()} of the owning component.
+     *
+     * <p>顺序固定: stopInventory → free → 把 {@link #reader} 置 null → 清
+     * {@link #powered}. 后两步让守护线程 (若未及时 join) 通过 volatile 读到
+     * null reader 后退出, 避免对已 free 的 SDK 单例调用.</p>
+     */
     public void release() {
         stopInventory();
         try {
@@ -249,11 +263,19 @@ public class SdkRfidAdapter {
             Log.w(TAG, "free() failed", t);
         }
         powered.set(false);
+        // 留作幂等: 第二次 release 不抛异常.
+        reader = null;
     }
 
     private void pollLoop() {
-        RFIDWithUHFUART r = requireReader();
+        // 每次循环重新读 volatile reader — release() 把 reader 置 null 时,
+        // 守护线程下一轮 (POLL_IDLE_SLEEP_MS <= 500ms 内) 立刻看到并退出,
+        // 不会对已 free 的 SDK 单例调用 readTagFromBuffer().
         while (scanning.get()) {
+            RFIDWithUHFUART r = reader;
+            if (r == null) {
+                return;
+            }
             UHFTAGInfo info = null;
             try {
                 info = r.readTagFromBuffer();

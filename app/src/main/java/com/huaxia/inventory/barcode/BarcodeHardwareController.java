@@ -114,8 +114,21 @@ public class BarcodeHardwareController {
         Log.i(TAG, "[BarcodeHardwareController] stopScan");
         if (decoder != null) {
             decoder.stopScan();
+            // 切断 SDK 单例对 DecodeCallback 的强引用 — 否则即使 activeCallback 已置 null,
+            // SDK 内部仍持有匿名 DecodeCallback, 该 callback 闭包引用本 controller.
+            // 反复 startHardwareScan/stopScan / Fragment 重建后, 旧 controller 仍被 SDK
+            // 持有, 触发 onDecodeComplete 时 (daemon 线程上 in-flight 调用) 进入 emit,
+            // emit 通过 activeCallback 短路 (null) 不崩, 但 controller 不会回收 — Fragment
+            // 视图链也会被牵连不被 GC, 旋转几次后累计.
+            decoder.setDecodeCallback(null);
         }
         activeCallback = null;
+        // 重置 2s 去抖窗口: release 后重建 controller 时, 旧 lastEmitMs 仍生效会吞掉
+        // 重启后第一个扫到的相同码, 看起来像"扫码没反应".
+        synchronized (this) {
+            lastEmitMs = 0L;
+            lastEmitCode = "";
+        }
     }
 
     public void release() {

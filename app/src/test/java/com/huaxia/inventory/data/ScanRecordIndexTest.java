@@ -1,0 +1,74 @@
+package com.huaxia.inventory.data;
+
+import org.junit.Test;
+
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+
+import static org.junit.Assert.assertTrue;
+
+/**
+ * 防回归: ScanRecord 必须保留 {@code @Index(value = {"taskId", "matchedAssetId"})}
+ * 复合索引, 让 {@code InventoryTaskDao.recomputeScannedCount} 的
+ * {@code COUNT(DISTINCT matchedAssetId) WHERE taskId=? AND matchedAssetId IS NOT NULL}
+ * 走 index-only scan — 否则单列索引只能 index-OR, 1w+ ScanRecord 任务变成全索引扫描.
+ * 同时 AppDatabase.version 必须 bump 到 6 且 MIGRATION_5_6 必须注册 —
+ * 否则旧库 (v5) 读到 v6 schema 后 Room 会因未知索引列名抛 IllegalStateException.
+ */
+public class ScanRecordIndexTest {
+
+    @Test
+    public void scanRecordEntity_hasCompositeTaskIdMatchedAssetIdIndex() throws Exception {
+        File moduleDir = new File(System.getProperty("user.dir"));
+        File source = new File(moduleDir,
+                "src/main/java/com/huaxia/inventory/data/entity/ScanRecord.java");
+        if (!source.exists()) {
+            source = new File(moduleDir,
+                    "app/src/main/java/com/huaxia/inventory/data/entity/ScanRecord.java");
+        }
+        assertTrue("ScanRecord.java not found: " + source.getAbsolutePath(),
+                source.exists());
+        String text = new String(Files.readAllBytes(source.toPath()), StandardCharsets.UTF_8);
+
+        // 必须包含复合索引声明 (与声明顺序无关).
+        assertTrue("ScanRecord must declare @Index(value = {\"taskId\", \"matchedAssetId\"}) "
+                + "for COUNT(DISTINCT matchedAssetId) WHERE taskId=? performance. Source:\n"
+                + text,
+                text.contains("@Index(value = {\"taskId\", \"matchedAssetId\"})"));
+    }
+
+    @Test
+    public void appDatabase_versionBumpedToSix_andMigrationRegistered() throws Exception {
+        File moduleDir = new File(System.getProperty("user.dir"));
+        File db = new File(moduleDir,
+                "src/main/java/com/huaxia/inventory/data/AppDatabase.java");
+        if (!db.exists()) {
+            db = new File(moduleDir,
+                    "app/src/main/java/com/huaxia/inventory/data/AppDatabase.java");
+        }
+        File app = new File(moduleDir,
+                "src/main/java/com/huaxia/inventory/InventoryApp.java");
+        if (!app.exists()) {
+            app = new File(moduleDir,
+                    "app/src/main/java/com/huaxia/inventory/InventoryApp.java");
+        }
+        assertTrue("AppDatabase.java not found: " + db.getAbsolutePath(), db.exists());
+        assertTrue("InventoryApp.java not found: " + app.getAbsolutePath(), app.exists());
+
+        String dbText = new String(Files.readAllBytes(db.toPath()), StandardCharsets.UTF_8);
+        String appText = new String(Files.readAllBytes(app.toPath()), StandardCharsets.UTF_8);
+
+        // version 必须升到 6, 否则 Room compile 无法对老库迁移.
+        assertTrue("AppDatabase.version must be 6 after adding composite index. Source:\n"
+                + dbText,
+                dbText.contains("version = 6"));
+        // 必须声明 MIGRATION_5_6.
+        assertTrue("AppDatabase must declare MIGRATION_5_6. Source:\n" + dbText,
+                dbText.contains("MIGRATION_5_6"));
+        // InventoryApp 必须注册 MIGRATION_5_6, 否则 Room 不会跑它会走 fallbackToDestructiveMigration.
+        assertTrue("InventoryApp must register AppDatabase.MIGRATION_5_6 in builder. Source:\n"
+                + appText,
+                appText.contains("AppDatabase.MIGRATION_5_6"));
+    }
+}

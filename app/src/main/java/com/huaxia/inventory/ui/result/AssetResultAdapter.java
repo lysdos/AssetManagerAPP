@@ -19,8 +19,8 @@ public class AssetResultAdapter extends RecyclerView.Adapter<AssetResultAdapter.
         void onAssetClicked(Asset asset);
     }
 
-    private final List<Asset> items;
-    private final Set<Long> matchedIds;
+    private List<Asset> items;
+    private Set<Long> matchedIds;
     @Nullable
     private final OnAssetClickListener clickListener;
 
@@ -34,6 +34,23 @@ public class AssetResultAdapter extends RecyclerView.Adapter<AssetResultAdapter.
         this.matchedIds = matchedIds;
         this.clickListener = clickListener;
     }
+
+    /**
+     * 替换数据集合, 不替换 adapter 实例 — 让 ResultFragment 多个 LiveData observer
+     * 触发时只更新数据, 不反复 new AssetResultAdapter + setAdapter,
+     * 避免 RecyclerView 内部短链残留. 与 setMatchedIds 配对使用,
+     * 单次刷新一般两个 setter 都调, 末尾调一次 notifyDataSetChanged.
+     */
+    public void setItems(List<Asset> items) {
+        this.items = items;
+    }
+
+    public void setMatchedIds(Set<Long> matchedIds) {
+        this.matchedIds = matchedIds;
+    }
+
+    public List<Asset> getItems() { return items; }
+    public Set<Long> getMatchedIds() { return matchedIds; }
 
     @NonNull @Override
     public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {

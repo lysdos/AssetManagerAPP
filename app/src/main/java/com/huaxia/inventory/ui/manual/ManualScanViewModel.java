@@ -18,7 +18,9 @@ import java.util.List;
  * in that:
  * <ul>
  *   <li>Input comes from a text field (16/17/24-digit decimal), not from the RFID SDK,
- *       so we go through {@link EpcNormalizer} directly without the hex→fromHex step.</li>
+ *       so we go through {@link EpcNormalizer} directly. EpcNormalizer contract:
+ *       accepts pure decimal 16/17/24-digit strings, pads to 24 digits, rejects
+ *       hex/non-digit input.</li>
  *   <li>The user explicitly confirms each check (no debounced bulk writes).</li>
  *   <li>History is the recent N ScanRecords of the current task, sourced from DB.</li>
  * </ul>
@@ -111,7 +113,7 @@ public class ManualScanViewModel extends AndroidViewModel {
      * to {@link #lookup()}.
      */
     public void queryByEpc(@Nullable String raw) {
-        Long taskId = app.session.getCurrentTaskId();
+        Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
             lookup.postValue(new LookupResult(null, null, false, true));
             return;
@@ -122,8 +124,8 @@ public class ManualScanViewModel extends AndroidViewModel {
             return;
         }
         long tid = taskId;
-        app.executors.diskIO.execute(() -> {
-            Asset a = app.db.assetDao().findByEpc(tid, normalized);
+        app.getExecutors().diskIO.execute(() -> {
+            Asset a = app.getDb().assetDao().findByEpc(tid, normalized);
             if (a == null) {
                 lookup.postValue(new LookupResult(null, normalized, false, true));
             } else {
@@ -137,7 +139,7 @@ public class ManualScanViewModel extends AndroidViewModel {
      * Posts a {@link CheckEvent} describing the outcome (success, duplicate, no task).
      */
     public void confirmCheck(@NonNull Asset asset, @Nullable String normalizedEpc) {
-        Long taskId = app.session.getCurrentTaskId();
+        Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
             checkEvent.postValue(new CheckEvent(CheckOutcome.NO_TASK, null, null));
             return;
@@ -145,8 +147,8 @@ public class ManualScanViewModel extends AndroidViewModel {
         long tid = taskId;
         String epc = normalizedEpc != null ? normalizedEpc : asset.epc;
         long assetId = asset.id;
-        app.executors.diskIO.execute(() -> {
-            ScanRecord existing = app.db.scanRecordDao().findByEpc(tid, epc);
+        app.getExecutors().diskIO.execute(() -> {
+            ScanRecord existing = app.getDb().scanRecordDao().findByEpc(tid, epc);
             if (existing != null) {
                 checkEvent.postValue(new CheckEvent(CheckOutcome.DUPLICATE, epc, existing.scannedAt));
                 return;
@@ -158,8 +160,26 @@ public class ManualScanViewModel extends AndroidViewModel {
             rec.rssi = "manual";
             rec.scannedAt = System.currentTimeMillis();
             rec.matchedAssetId = assetId;
-            app.db.scanRecordDao().insert(rec);
-            app.db.inventoryTaskDao().recomputeScannedCount(tid);
+            // 单一事务: findByEpc + insert — 避免手动确认与 RFID 扫描并发时,
+            // 窗口内另一线程先插同 EPC 导致 UNIQUE 约束触发 / matchedAssetId 漂移.
+            long[] newIdHolder = {-1L};
+            app.getDb().runInTransaction(() -> {
+                ScanRecord concurrent = app.getDb().scanRecordDao().findByEpc(tid, epc);
+                if (concurrent != null) {
+                    return;
+                }
+                newIdHolder[0] = app.getDb().scanRecordDao().insert(rec);
+            });
+            long newId = newIdHolder[0];
+            // OnConflictStrategy.IGNORE 在跨事务的并发窗口里返回 -1L 时,
+            // 视为已存在的 SCAN — 把 outcome 改成 DUPLICATE, 不要重复计数.
+            if (newId == -1L) {
+                ScanRecord prev = app.getDb().scanRecordDao().findByEpc(tid, epc);
+                checkEvent.postValue(new CheckEvent(CheckOutcome.DUPLICATE,
+                        epc, prev == null ? null : prev.scannedAt));
+                return;
+            }
+            app.getDb().inventoryTaskDao().recomputeScannedCount(tid);
             checkEvent.postValue(new CheckEvent(CheckOutcome.CHECKED, epc, null));
             // Refresh local lookup/history so the UI reflects the new state without
             // waiting for the user to navigate away and back.
@@ -170,14 +190,14 @@ public class ManualScanViewModel extends AndroidViewModel {
 
     /** Re-fetch the most recent N ScanRecords of the current task. */
     public void refreshHistory() {
-        Long taskId = app.session.getCurrentTaskId();
+        Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
             history.postValue(Collections.emptyList());
             return;
         }
         long tid = taskId;
-        app.executors.diskIO.execute(() ->
-                history.postValue(app.db.scanRecordDao().pageRecent(tid, HISTORY_LIMIT)));
+        app.getExecutors().diskIO.execute(() ->
+                history.postValue(app.getDb().scanRecordDao().pageRecent(tid, HISTORY_LIMIT)));
     }
 
     /**
@@ -191,7 +211,7 @@ public class ManualScanViewModel extends AndroidViewModel {
      * still goes through {@link #queryByEpc(String)} + {@link #confirmCheck}.</p>
      */
     public void onBarcodeScanned(@Nullable String rawCode) {
-        Long taskId = app.session.getCurrentTaskId();
+        Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
             scanEvent.postValue(new ScanEvent(ScanOutcome.SCANNED_NO_TASK, null, rawCode, null));
             return;
@@ -202,25 +222,42 @@ public class ManualScanViewModel extends AndroidViewModel {
             return;
         }
         long tid = taskId;
-        app.executors.diskIO.execute(() -> {
-            ScanRecord existing = app.db.scanRecordDao().findByEpc(tid, normalized);
+        app.getExecutors().diskIO.execute(() -> {
+            ScanRecord existing = app.getDb().scanRecordDao().findByEpc(tid, normalized);
             if (existing != null) {
                 scanEvent.postValue(new ScanEvent(ScanOutcome.SCANNED_DUPLICATE,
                         normalized, rawCode, existing.scannedAt));
                 return;
             }
-            Asset matched = app.db.assetDao().findByEpc(tid, normalized);
             ScanRecord rec = new ScanRecord();
             rec.taskId = tid;
             rec.epc = normalized;
             rec.tid = null;
             rec.rssi = "scan";
             rec.scannedAt = System.currentTimeMillis();
-            rec.matchedAssetId = matched == null ? null : matched.id;
-            app.db.scanRecordDao().insert(rec);
-            app.db.inventoryTaskDao().recomputeScannedCount(tid);
+            long[] newIdHolder = {-1L};
+            // findByEpc(Asset) + insert 包单事务 — 防并发同 EPC 窗口内
+            // (a) matchedAssetId 落到 stale Asset.id, (b) ScanRecord UNIQUE 约束.
+            app.getDb().runInTransaction(() -> {
+                Asset matched = app.getDb().assetDao().findByEpc(tid, normalized);
+                rec.matchedAssetId = matched == null ? null : matched.id;
+                newIdHolder[0] = app.getDb().scanRecordDao().insert(rec);
+            });
+            long newId = newIdHolder[0];
+            // OnConflictStrategy.IGNORE 在跨事务的并发窗口里返回 -1L 时,
+            // 视为已存在的 SCAN — 用 SCANNED_DUPLICATE 告知 UI, 不要重复计数.
+            if (newId == -1L) {
+                ScanRecord prev = app.getDb().scanRecordDao().findByEpc(tid, normalized);
+                scanEvent.postValue(new ScanEvent(ScanOutcome.SCANNED_DUPLICATE,
+                        normalized, rawCode,
+                        prev == null ? null : prev.scannedAt));
+                return;
+            }
+            app.getDb().inventoryTaskDao().recomputeScannedCount(tid);
             scanEvent.postValue(new ScanEvent(
-                    matched == null ? ScanOutcome.SCANNED_EXTRA : ScanOutcome.SCANNED_FOUND,
+                    rec.matchedAssetId == null
+                            ? ScanOutcome.SCANNED_EXTRA
+                            : ScanOutcome.SCANNED_FOUND,
                     normalized, rawCode, null));
             refreshHistory();
         });
