@@ -234,15 +234,15 @@ public class ImportDialogFragment extends DialogFragment {
         // 清库期间禁用主按钮防双击; 完成后弹 Toast 提示并自动关闭 dialog.
         startImportBtn.setEnabled(false);
         initDbBtn.setEnabled(false);
-        app.executors.diskIO.execute(() -> {
+        app.getExecutors().diskIO.execute(() -> {
             // clearAllTables 是 Room 内置单事务全表清空 API,
             // 但不会清掉 ExtraClaim 等无 @Entity 标注的表 — 检查一下:
             //   - Asset / ScanRecord / InventoryTask / ExtraClaim 都在 @Database(entities=...) 里,
             //     clearAllTables 会清. 不在 entities 里的表 (无) 不受影响.
             // 同时清 SharedPreferences 里 session.currentTaskId, 否则下次启动
             // 还会引用已删的 taskId (虽然 SQL 查询会空结果, 但 session 残留不干净).
-            app.db.clearAllTables();
-            app.session.clear();
+            app.getDb().clearAllTables();
+            app.getSession().clear();
             // 跟 ResultFragment / ScanFragment 一致: diskIO 异步回调里 requireActivity 前
             // 必须 isAdded 守卫, 否则 dialog 已被 dismiss 后会 IllegalStateException 崩溃.
             if (!isAdded()) return;

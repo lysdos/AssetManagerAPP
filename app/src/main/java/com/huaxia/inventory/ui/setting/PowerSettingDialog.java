@@ -165,7 +165,7 @@ public class PowerSettingDialog extends DialogFragment {
 
         // 先应用到 reader, 成功后才落 prefs. 失败时 prefs 不写, 避免出现
         // "prefs 里是新值但 reader 不知道" 的不一致状态.
-        boolean success = app.rfid.setPower(currentPower);
+        boolean success = app.getRfid().setPower(currentPower);
 
         if (success) {
             app.savePower(currentPower);

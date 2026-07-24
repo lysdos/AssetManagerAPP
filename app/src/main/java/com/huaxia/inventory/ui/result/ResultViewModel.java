@@ -47,8 +47,8 @@ public class ResultViewModel extends AndroidViewModel {
     public ResultViewModel(@NonNull Application application) {
         super(application);
         InventoryApp app = (InventoryApp) application;
-        this.db = app.db;
-        this.diskIO = app.executors.diskIO;
+        this.db = app.getDb();
+        this.diskIO = app.getExecutors().diskIO;
     }
 
     public LiveData<List<Asset>> assets() { return assets; }

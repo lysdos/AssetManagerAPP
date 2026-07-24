@@ -120,7 +120,7 @@ public class ScanFragment extends Fragment {
                 card -> navigateToResult(ResultTab.EXTRA));
 
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        Long taskId = app.session.getCurrentTaskId();
+        Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
             // 没有当前任务 (从未导入, 或刚被数据重置): UI 全部归零, 禁用扫描.
             deviceStatusTv.setText(getString(R.string.scan_device_status,
@@ -165,8 +165,8 @@ public class ScanFragment extends Fragment {
         });
 
         deviceStatusTv.setText(getString(R.string.scan_device_status,
-                app.rfid.getState() == com.huaxia.inventory.rfid.RfidController.State.READY
-                || app.rfid.getState() == com.huaxia.inventory.rfid.RfidController.State.SCANNING
+                app.getRfid().getState() == com.huaxia.inventory.rfid.RfidController.State.READY
+                || app.getRfid().getState() == com.huaxia.inventory.rfid.RfidController.State.SCANNING
                 ? getString(R.string.scan_status_ready)
                 : getString(R.string.scan_status_not_ready)));
 
@@ -188,16 +188,16 @@ public class ScanFragment extends Fragment {
 
     private void confirmClearTask() {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        Long taskId = app.session.getCurrentTaskId();
+        Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
             Snackbar.make(requireView(), R.string.scan_clear_task_failed,
                     Snackbar.LENGTH_SHORT).show();
             return;
         }
         long tid = taskId;
-        app.executors.diskIO.execute(() -> {
-            int assets = app.db.assetDao().countByTask(tid);
-            int scans = app.db.scanRecordDao().countByTask(tid);
+        app.getExecutors().diskIO.execute(() -> {
+            int assets = app.getDb().assetDao().countByTask(tid);
+            int scans = app.getDb().scanRecordDao().countByTask(tid);
             if (!isAdded()) return;
             requireActivity().runOnUiThread(() -> {
                 if (!isAdded()) return;
@@ -248,10 +248,10 @@ public class ScanFragment extends Fragment {
     private void toggleScan() {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         boolean ok;
-        if (app.rfid.isActuallyScanning()) {
-            ok = app.rfid.stopInventory();
+        if (app.getRfid().isActuallyScanning()) {
+            ok = app.getRfid().stopInventory();
         } else {
-            ok = app.rfid.startInventory();
+            ok = app.getRfid().startInventory();
         }
         if (!ok) {
             Snackbar.make(requireView(), R.string.scan_start_failed,
@@ -263,7 +263,7 @@ public class ScanFragment extends Fragment {
     /** Single source of truth for the scan button's appearance. */
     private void updateScanButton() {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        if (app.rfid.isActuallyScanning()) {
+        if (app.getRfid().isActuallyScanning()) {
             scanBtn.setText(R.string.scan_stop);
             applyScanBtnRed();
         } else {
@@ -318,9 +318,9 @@ public class ScanFragment extends Fragment {
         // 但 taskId 不变时不会重跑.
         if (vm != null) vm.refreshStats();
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        app.rfid.registerCallback(rfidCallback);
-        app.rfid.powerOn();
-        if (app.rfid.isPowered()) {
+        app.getRfid().registerCallback(rfidCallback);
+        app.getRfid().powerOn();
+        if (app.getRfid().isPowered()) {
             scanBtn.setEnabled(true);
         } else {
             scanBtn.setEnabled(false);
@@ -333,10 +333,10 @@ public class ScanFragment extends Fragment {
     public void onPause() {
         super.onPause();
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        app.rfid.stopInventory();
+        app.getRfid().stopInventory();
         scanBtn.setText(R.string.scan_start_inventory);
         applyScanBtnGreen();
-        app.rfid.unregisterCallback(rfidCallback);
+        app.getRfid().unregisterCallback(rfidCallback);
         // beepPlayer 的 release 调用移到 onDestroyView — 旋转屏幕后回到此 Fragment
         // 会触发 onPause → onDestroyView → 重新 onCreateView. 旧 release 路径下:
         // 第二次进 onViewCreated 时 soundPool != null 走 no-op, 但 SoundPool 已被

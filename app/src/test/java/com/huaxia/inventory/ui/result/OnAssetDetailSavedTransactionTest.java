@@ -34,9 +34,9 @@ public class OnAssetDetailSavedTransactionTest {
 
         assertEquals("onAssetDetailSaved must invoke db.runInTransaction( exactly once. "
                 + "Body:\n" + body,
-                1, countOccurrences(body, "db.runInTransaction("));
+                1, countOccurrences(body, ".runInTransaction("));
 
-        String lambdaBody = extractFollowingLambdaBody(body, body.indexOf("db.runInTransaction("));
+        String lambdaBody = extractFollowingLambdaBody(body, body.indexOf(".runInTransaction("));
         assertTrue("Could not extract runInTransaction lambda body", lambdaBody.length() > 0);
 
         assertTrue("findByEpcGlobal must be inside the runInTransaction lambda. Lambda:\n"

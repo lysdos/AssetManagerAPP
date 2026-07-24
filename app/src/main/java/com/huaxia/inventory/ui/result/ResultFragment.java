@@ -94,7 +94,7 @@ public class ResultFragment extends Fragment {
         exportBtn.setOnClickListener(btn -> onExportClicked());
 
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        Long taskId = app.session.getCurrentTaskId();
+        Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
             emptyTv.setVisibility(View.VISIBLE);
             rv.setVisibility(View.GONE);
@@ -229,12 +229,12 @@ public class ResultFragment extends Fragment {
         final android.content.Context ctx = requireContext();
         final android.content.ContentResolver resolver = ctx.getContentResolver();
         final java.io.File cacheDir = ctx.getCacheDir();
-        app.executors.excelIO.execute(() -> {
+        app.getExecutors().excelIO.execute(() -> {
             try {
-                InventoryTask task = app.db.inventoryTaskDao().findById(taskId);
+                InventoryTask task = app.getDb().inventoryTaskDao().findById(taskId);
 
                 List<String> originalHeaders = new ArrayList<>();
-                List<Asset> firstPage = app.db.assetDao().pageAll(taskId, 1, 0);
+                List<Asset> firstPage = app.getDb().assetDao().pageAll(taskId, 1, 0);
                 if (!firstPage.isEmpty() && firstPage.get(0).rawRowJson != null) {
                     com.fasterxml.jackson.databind.ObjectMapper mapper =
                             new com.fasterxml.jackson.databind.ObjectMapper();
@@ -249,8 +249,8 @@ public class ResultFragment extends Fragment {
 
                 try (java.io.OutputStream out = resolver.openOutputStream(uri)) {
                     ExcelExporter.exportStreamed(out, task.sourceFileName, originalHeaders,
-                            app.db.assetDao(), app.db.scanRecordDao(),
-                            app.db.extraClaimDao(), taskId, cacheDir);
+                            app.getDb().assetDao(), app.getDb().scanRecordDao(),
+                            app.getDb().extraClaimDao(), taskId, cacheDir);
                 }
                 if (isAdded()) {
                     requireActivity().runOnUiThread(() -> {
@@ -290,7 +290,7 @@ public class ResultFragment extends Fragment {
                                     AssetDetailDialog.SaveCompletion completion) {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         long taskId = pendingSave.taskId;
-        app.executors.diskIO.execute(() -> {
+        app.getExecutors().diskIO.execute(() -> {
             // 单事务: precheck findByEpcGlobal + inventoryTime 计算 + update — 防并发
             // (a) 其它路径 (导入 / 任务切换) 在 precheck 与 update 之间改写其它字段;
             // (b) backfillFoundInventoryTime 与 pendingSave.inventoryTime 并发写入
@@ -299,18 +299,18 @@ public class ResultFragment extends Fragment {
             final boolean[] isDuplicateHolder = {false};
             final boolean[] successHolder = {false};
             try {
-                app.db.runInTransaction(() -> {
-                    Asset existing = app.db.assetDao().findByEpcGlobal(pendingSave.epc);
+                app.getDb().runInTransaction(() -> {
+                    Asset existing = app.getDb().assetDao().findByEpcGlobal(pendingSave.epc);
                     if (existing != null && existing.id != pendingSave.id) {
                         isDuplicateHolder[0] = true;
                         return;
                     }
-                    Long firstScanAt = app.db.scanRecordDao().findFirstScanTime(
+                    Long firstScanAt = app.getDb().scanRecordDao().findFirstScanTime(
                             taskId, pendingSave.id);
                     pendingSave.inventoryTime = (firstScanAt != null && firstScanAt > 0)
                             ? firstScanAt
                             : System.currentTimeMillis();
-                    app.db.assetDao().update(pendingSave);
+                    app.getDb().assetDao().update(pendingSave);
                     successHolder[0] = true;
                 });
             } catch (android.database.sqlite.SQLiteConstraintException e) {

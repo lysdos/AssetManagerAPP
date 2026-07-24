@@ -12,7 +12,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * 防回归: ScanViewModel 的两个写路径 {@code onEpcScanned} 和
  * {@code clearCurrentTask} 必须把多步 DAO 调用包进单个
- * {@code app.db.runInTransaction(...)} lambda, 防并发/进程被杀时留下
+ * {@code app.getDb().runInTransaction(...)} lambda, 防并发/进程被杀时留下
  * "matchedAssetId 漂移 / 孤儿 Asset / ScanRecord 未删".
  */
 public class ScanViewModelTransactionTest {
@@ -67,7 +67,7 @@ public class ScanViewModelTransactionTest {
         String body = extractMethodBody(text, "public void clearCurrentTask()");
         assertTrue("clearCurrentTask body not found", body.length() > 0);
 
-        assertEquals("clearCurrentTask must invoke app.db.runInTransaction( exactly once. "
+        assertEquals("clearCurrentTask must invoke app.getDb().runInTransaction( exactly once. "
                 + "Body:\n" + body,
                 1, countOccurrences(body, "runInTransaction("));
 

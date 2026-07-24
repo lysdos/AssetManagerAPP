@@ -11,7 +11,7 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * 防回归: ManualScanViewModel 的 confirmCheck 与 onBarcodeScanned
- * 必须把"查找 Asset + 写 ScanRecord"两步包进 {@code app.db.runInTransaction},
+ * 必须把"查找 Asset + 写 ScanRecord"两步包进 {@code app.getDb().runInTransaction},
  * 与 ScanViewModel.onEpcScanned 风格一致, 防并发 (RFID 自动扫描 + 手动确认)
  * 同时抢同一 EPC 时 ScanRecord UNIQUE 约束触发 / matchedAssetId 漂移到 stale id.
  */

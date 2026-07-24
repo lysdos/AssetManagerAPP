@@ -35,7 +35,7 @@ public class ScanVmObservesSessionTaskIdTest {
         // 构造器内必须 observeForever session.currentTaskId
         String ctorBody = extractMethodBody(text, "public ScanViewModel(");
         assertTrue("ScanViewModel constructor body not found", ctorBody.length() > 0);
-        assertTrue("ScanViewModel constructor must call app.session.currentTaskId()"
+        assertTrue("ScanViewModel constructor must call app.getSession().currentTaskId()"
                 + ".observeForever(...). Body:\n" + ctorBody,
                 ctorBody.contains("observeForever"));
 
@@ -45,16 +45,16 @@ public class ScanVmObservesSessionTaskIdTest {
                 text.contains("onSessionTaskIdChanged")
                         || text.contains("onSessionCleared"));
 
-        // onSessionCleared 体内必须调 app.rfid.stopInventory()
+        // onSessionCleared 体内必须调 app.getRfid().stopInventory()
         // 我们抽取该方法体 (private)
         int idx = text.indexOf("private void onSessionCleared()");
         assertTrue("ScanViewModel must declare a private onSessionCleared() method. "
                 + "Source:\n" + text, idx >= 0);
         String onSessionBody = extractMethodBody(text, "private void onSessionCleared()");
         assertTrue("onSessionCleared body not found", onSessionBody.length() > 0);
-        assertTrue("onSessionCleared must call app.rfid.stopInventory() to halt the "
+        assertTrue("onSessionCleared must call app.getRfid().stopInventory() to halt the "
                 + "rfid-poll daemon. Body:\n" + onSessionBody,
-                onSessionBody.contains("app.rfid.stopInventory"));
+                onSessionBody.contains("app.getRfid().stopInventory"));
 
         // onCleared 必须反注册 observer
         String onClearedBody = extractMethodBody(text, "protected void onCleared()");

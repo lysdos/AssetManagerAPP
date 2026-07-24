@@ -5,8 +5,27 @@
 -keep class org.apache.logging.log4j.** { *; }
 # commons-compress zip (POI transitive) — ExtraFieldUtils 用 Class.newInstance() 注册 AsiExtraField 等, R8 看不到反射会剥无参构造
 -keep class org.apache.commons.compress.archivers.zip.** { *; }
-# rscja UHF SDK (DeviceAPI)
+# ============================================================================
+# rscja UHF/Barcode SDK (libs/DeviceAPI_ver20230301_release.aar)
+# ============================================================================
+# Release-only keep — debug build 不走 R8 (build.gradle debug { minifyEnabled false }),
+# 但 release 必须 keep 这些类, 漏一个 = 启动期 Class.forName 抛
+# ClassNotFoundException, 现场只看到"SDK 初始化失败"无具体堆栈.
+#
+# 验证流程 (release APK):
+#   1. ./gradlew assembleRelease 安装到测试机
+#   2. 启动 App, adb logcat | grep 'ClassCheck'
+#   3. 期望 8 行 "[ClassCheck] OK    com.rscja.*" — 任一 MISS 证明
+#      本文件缺对应 -keep, 需补 (例如 release 加新平台实现类时).
+#
+# 错误信息格式约定 (InventoryApp.checkRfidClasses):
+#   [ClassCheck] MISS  com.rscja.team.mtk.xxx : ClassNotFoundException ...
+#   → 加 -keep class com.rscja.team.mtk.xxx { *; } 重打 release
+# ============================================================================
+
+# rscja UHF SDK (DeviceAPI) — RfidController + SdkRfidAdapter 直接依赖
 -keep class com.rscja.deviceapi.** { *; }
+
 # rscja SDK 平台实现层 — 反射 + ServiceLoader 加载, R8 看不到直接引用,
 # 漏 keep 会让 mtk 设备运行时 ClassNotFoundException.
 # InventoryApp.checkRfidClasses() 启动时用 Class.forName 探针验证这些类都在.
@@ -14,6 +33,7 @@
 -keep class com.rscja.utility.** { *; }
 -keep class com.rscja.CWDeviceInfo { *; }
 -keep class com.rscja.system.** { *; }
+
 # rscja 硬件扫码 SDK (BarcodeDecoder / BarcodeFactory / BarcodeUtility).
 # ManualScanFragment 用 BarcodeFactory.getInstance().getBarcodeDecoder() + setDecodeCallback,
 # 反射加载, 必须 keep.

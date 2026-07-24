@@ -4,6 +4,7 @@ import android.app.Application;
 import android.net.Uri;
 import android.util.Log;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -98,10 +99,26 @@ public class ImportViewModel extends AndroidViewModel {
     private final MutableLiveData<String> importError = new MutableLiveData<>();
 
     public ImportViewModel(@NonNull Application app) {
+        this(app, null);
+    }
+
+    /**
+     * 测试 / 诊断用构造器 — {@code dbOverride != null} 时绕过 {@link InventoryApp#getDb()}
+     * 走传入的 db, 允许导入路径用 in-memory db 跑不污染真实数据.
+     * <p>普通代码路径仍然走单参 {@link #ImportViewModel(Application)} 构造器 —
+     * {@code dbOverride} 默认 null, 行为与之前完全一致.</p>
+     *
+     * <p>设计动机: {@link com.huaxia.inventory.InventoryApp} 私有化字段之后,
+     * {@code _DiagnoseViewModelTest} 之前通过 {@code app.db = inMemoryDb} 注入
+     * 的方式不再可用 (字段已 private). 留这个构造器是测试期的最小入口 —
+     * 生产代码 (ViewModelProvider) 仍然走单参, 不会用到.</p>
+     */
+    @androidx.annotation.VisibleForTesting
+    public ImportViewModel(@NonNull Application app, @Nullable AppDatabase dbOverride) {
         super(app);
         this.app = (InventoryApp) app;
-        this.diskIO = this.app.executors.diskIO;
-        this.db = this.app.db;
+        this.diskIO = this.app.getExecutors().diskIO;
+        this.db = dbOverride != null ? dbOverride : this.app.getDb();
     }
 
     public LiveData<ParsedFile> parsedFile() { return parsedFile; }

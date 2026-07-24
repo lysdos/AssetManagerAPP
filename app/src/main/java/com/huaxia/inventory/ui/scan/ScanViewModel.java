@@ -99,13 +99,13 @@ public class ScanViewModel extends AndroidViewModel {
     public ScanViewModel(@NonNull Application application) {
         super(application);
         this.app = (InventoryApp) application;
-        this.db = app.db;
-        this.diskIO = app.executors.diskIO;
+        this.db = app.getDb();
+        this.diskIO = app.getExecutors().diskIO;
         // observeForever: ViewModel 生命周期长于 Fragment/Activity, 让 ScanViewModel
         // 持续监听 session.taskId 变化. 删除/暂停/切换任务路径下, 外部把 session 清空
         // 或改到其他 taskId, 此 observer 立刻感知并同步 vm 内部状态 (scannedEpcSet /
         // currentTaskId / rfid), 避免边界不一致写出孤儿 ScanRecord.
-        app.session.currentTaskId().observeForever(sessionObserver);
+        app.getSession().currentTaskId().observeForever(sessionObserver);
     }
 
     public LiveData<Stats> stats() { return stats; }
@@ -152,8 +152,8 @@ public class ScanViewModel extends AndroidViewModel {
                 boundTaskId.set(-1L);
                 expectedCount = 0;
                 scannedEpcSet.clear();
-                app.session.clear();
-                app.rfid.stopInventory();
+                app.getSession().clear();
+                app.getRfid().stopInventory();
                 return;
             }
             expectedCount = t.expectedCount;
@@ -205,7 +205,7 @@ public class ScanViewModel extends AndroidViewModel {
             scannedEpcSet.clear();
             expectedCount = 0;
             currentTaskId.set(-1L);
-            app.rfid.stopInventory();
+            app.getRfid().stopInventory();
             stats.postValue(new Stats(0, 0, 0, 0, 0, 0, 0,
                     java.util.Collections.emptyList(), 0L));
         });
@@ -354,7 +354,7 @@ public class ScanViewModel extends AndroidViewModel {
      * findByEpc + insert 写入 {@code taskId=-1L} 孤儿 ScanRecord. 也不被任何
      * {@code WHERE taskId=} 视图汇总. 同步在事务后立即调 stopInventory,
      * 防止 daemon 继续 emit (严格说 join 500ms 内 in-flight 部分仍能写 —
-     * 看 {@code app.db.scanRecordDao().insert} 的 UNIQUE 兜底 + IGNORE 三态完成,
+     * 看 {@code app.getDb().scanRecordDao().insert} 的 UNIQUE 兜底 + IGNORE 三态完成,
      * 写到 taskId=-1L 的仍会污染 DB).</p>
      */
     public void clearCurrentTask() {
@@ -373,7 +373,7 @@ public class ScanViewModel extends AndroidViewModel {
             try {
                 // 先删 ScanRecord, 再删 Asset, 最后删 InventoryTask 行 (按外键依赖顺序)
                 // — 整体包 runInTransaction, 任一步失败回滚, 不留"孤儿 Asset / ScanRecord"
-                app.db.runInTransaction(() -> {
+                app.getDb().runInTransaction(() -> {
                     scansHolder[0] = db.scanRecordDao().deleteByTask(taskId);
                     assetsHolder[0] = db.assetDao().deleteByTask(taskId);
                     db.inventoryTaskDao().deleteById(taskId);
@@ -390,12 +390,12 @@ public class ScanViewModel extends AndroidViewModel {
             // 清掉全局 session 的 currentTaskId, 让其他页面 (扫描/结果/导入) 也感知到
             // 主线程调用 setValue (同步) 而非 postValue (异步), 否则后续
             // getCurrentTaskId() 读到旧值会再次被错认为"还有任务".
-            app.session.clear();
+            app.getSession().clear();
             // 停 RFID: rfid-poll daemon 已挂的 in-flight emit 在 join(500) 内
             // 仍可能跑出 onEpcScanned; clearedEpcSet.clear() + currentTaskId=-1L
             // 在 lambda 末尾已生效, in-flight 路径会走 diskIO.findByEpc(-1L, ...) +
             // insert 到 taskId=-1L. 这些是已知残留 — 但比"持续 emit 一直写"短 1-2s.
-            app.rfid.stopInventory();
+            app.getRfid().stopInventory();
             // 显式 postValue 一份空 stats, 让 UI 立即归零 (不依赖 onResume/bindToTask 重算)
             stats.postValue(new Stats(0, 0, 0, 0, 0, 0, 0,
                     java.util.Collections.emptyList(), 0L));
@@ -414,6 +414,6 @@ public class ScanViewModel extends AndroidViewModel {
         mainHandler.removeCallbacks(recomputeRunnable);
         // 反注册 session observer: 否则 observeForever 仍持有 VM, 下次重建同
         // InventorySession 会拿到旧 VM 引用, 跨 ViewModel 实例相互锚定.
-        app.session.currentTaskId().removeObserver(sessionObserver);
+        app.getSession().currentTaskId().removeObserver(sessionObserver);
     }
 }

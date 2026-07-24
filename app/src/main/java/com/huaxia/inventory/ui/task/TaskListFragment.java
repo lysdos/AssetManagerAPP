@@ -118,14 +118,14 @@ public class TaskListFragment extends Fragment {
     public void onResume() {
         super.onResume();
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        Long cur = app.session.getCurrentTaskId();
+        Long cur = app.getSession().getCurrentTaskId();
         adapter.setCurrentTaskId(cur == null ? -1L : cur);
     }
 
     private void renderTasks(List<InventoryTask> tasks) {
         adapter.submit(tasks);
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        Long cur = app.session.getCurrentTaskId();
+        Long cur = app.getSession().getCurrentTaskId();
         adapter.setCurrentTaskId(cur == null ? -1L : cur);
 
         int total = tasks == null ? 0 : tasks.size();

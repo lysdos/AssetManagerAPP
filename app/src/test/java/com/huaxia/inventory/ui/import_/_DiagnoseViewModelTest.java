@@ -27,6 +27,13 @@ import org.mockito.Mockito;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
+/**
+ * 诊断测试 — 把 InventoryApp.db 临时换成 in-memory Room, 让
+ * {@link ImportViewModel#parseFile(Uri, String)} 走干净 DB 不污染真实数据.
+ * <p>走 {@link ImportViewModel#ImportViewModel(Application, AppDatabase)}
+ * dbOverride 构造器 — 不依赖 InventoryApp 字段私有化前的 {@code app.db = ...}
+ * 直赋值. 普通生产路径仍然走单参构造器 (null override) + InventoryApp.getDb().</p>
+ */
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28, application = InventoryApp.class)
 public class _DiagnoseViewModelTest {
@@ -41,18 +48,18 @@ public class _DiagnoseViewModelTest {
     public void setUp() {
         Application application = ApplicationProvider.getApplicationContext();
         app = (InventoryApp) application;
-        // 用 in-memory DB 替换真实 DB, 避免污染
+        // 用 in-memory DB 替换真实 DB, 避免污染 — 通过 ImportViewModel 的
+        // dbOverride 构造器注入 (P3#3 私有化后的唯一注入入口).
         inMemoryDb = Room.inMemoryDatabaseBuilder(application, AppDatabase.class)
                 .allowMainThreadQueries()
                 .build();
-        app.db = inMemoryDb;
 
-        vm = new ImportViewModel(application);
+        vm = new ImportViewModel(application, inMemoryDb);
     }
 
     @After
     public void tearDown() {
-        inMemoryDb.close();
+        if (inMemoryDb != null) inMemoryDb.close();
     }
 
     @Test

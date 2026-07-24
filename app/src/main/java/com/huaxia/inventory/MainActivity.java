@@ -182,7 +182,7 @@ public class MainActivity extends AppCompatActivity {
         // ON_STOP 是 700ms+ 内没 ON_START, 单 Activity 的瞬时 stop 不会再触发.
         if (lastProcessStopTime > 0
                 && SystemClock.elapsedRealtime() - lastProcessStopTime > POWER_OFF_AFTER_MS) {
-            ((InventoryApp) getApplication()).rfid.powerOff();
+            ((InventoryApp) getApplication()).getRfid().powerOff();
         }
     }
 }

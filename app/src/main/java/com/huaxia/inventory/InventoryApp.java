@@ -19,29 +19,40 @@ public class InventoryApp extends Application {
     private static final int DEFAULT_POWER = 26; // 默认功率26dBm
 
     /**
-     * Application 级核心服务 — 全项目 10+ 个文件直接读这些字段, 切到
-     * private + getter 需大改 call site. 这里做折中: 保留 public 但加
-     * {@code @VisibleForTesting} 让 lint 知道这是有意暴露的入口, 并配合
-     * 顶部 Javadoc 警告 — 跨线程读字段的风险由内部服务本身处理
-     * (InventorySession 走 MutableLiveData / AppDatabase 走 Room /
-     * RfidController 走 AtomicBoolean + volatile reader).
+     * Application 级核心服务 — 全部 {@code private}, 通过 getter
+     * {@link #getExecutors()}/{@link #getSession()}/{@link #getRfid()}/
+     * {@link #getDb()} 暴露给外部. 调用方必须经 getter 而非直接读字段,
+     * 让内部实例 (尤其是 RFID/DB) 的不变量 (single instance /
+     * not reassigned cross-thread) 由 getter API 单点维护, 未来要加 lazy
+     * init / 字段替换为代理 (例如 {@code RfidController} 切到 mock 单例)
+     * 也只在一个方法里改.
      *
-     * <p><b>不变量</b>: 在 {@link #onCreate()} 一次性赋值后, 不应在后续
-     * 重新赋值 — 跨线程读到被替换的实例, 会破坏 RFID/DB 单例假设.
-     * 为避免此坑, 把这四条字段都改为 {@code private final} 会大改 call site
-     * (10+ caller), 暂时保留 public. 后续若要把这层封装改强, 推荐提供
-     * {@link #getExecutors()}/{@link #getSession()}/etc. getter + deprecate
-     * public 字段, 一次性让所有 caller 迁移.</p>
+     * <p>迁移路径: {@code ((InventoryApp) getApplication()).rfid.xxx} →
+     * {@code ((InventoryApp) getApplication()).getRfid().xxx}, 余类推.</p>
      */
-    @androidx.annotation.VisibleForTesting
-    public AppExecutors executors;
-    @androidx.annotation.VisibleForTesting
-    public InventorySession session;
-    @androidx.annotation.VisibleForTesting
-    public RfidController rfid;
-    @androidx.annotation.VisibleForTesting
-    public AppDatabase db;
+    private AppExecutors executors;
+    private InventorySession session;
+    private RfidController rfid;
+    private AppDatabase db;
     private SharedPreferences prefs;
+
+    /** 后台线程 (diskIO / excelIO / mainThread) 池. */
+    public AppExecutors getExecutors() { return executors; }
+
+    /** 当前任务的 LiveData 全局状态. */
+    public InventorySession getSession() { return session; }
+
+    /** UHF RFID 读写器 controller (含 power / startInventory / stopInventory). */
+    public RfidController getRfid() { return rfid; }
+
+    /** Room 数据库 (Asset / InventoryTask / ScanRecord / ExtraClaim 四表). */
+    public AppDatabase getDb() { return db; }
+
+    /**
+     * RFID 功率保存 prefs — 主要给 PowerSettingDialog 的功率滑块读写使用,
+     * 暴露成 getter 让 UI 不必再绕道 InventoryApp 内部字段.
+     */
+    public SharedPreferences getPrefs() { return prefs; }
 
     @Override
     public void onCreate() {
@@ -121,8 +132,13 @@ public class InventoryApp extends Application {
     private void checkRfidClasses() {
         // 这些是 rscja SDK 内可能被 R8 误剥的类 — release build R8 minify 后的诊断,
         // debug build 是 no-op (R8 disabled). C72_6765 是 MTK 设备, 重点看 mtk 子包.
-        // 任何一项 ClassNotFoundException 都证明 proguard-rules.pro 缺 keep —
-        // 补一条 -keep class com.rscja.X { *; } 重打 release.
+        //
+        // 验证流程 (release APK):
+        //   1. ./gradlew assembleRelease 安装到测试机
+        //   2. adb logcat -s InventoryApp | grep ClassCheck
+        //   3. 期望 8 行 "[ClassCheck] OK    com.rscja.*" — 任一 MISS 证明
+        //      proguard-rules.pro 缺对应 -keep, 补一行重打 release.
+        // 完整 keep 列表见 app/proguard-rules.pro 的 "rscja UHF/Barcode SDK" 块.
         String[] classes = {
             "com.rscja.deviceapi.RFIDWithUHFUART",
             "com.rscja.deviceapi.UhfBase",

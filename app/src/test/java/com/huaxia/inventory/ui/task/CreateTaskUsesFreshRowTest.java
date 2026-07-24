@@ -11,7 +11,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * 防回归: TaskListViewModel.createTask 在事务内插 InventoryTask 后,
  * 修正 expectedCount 之前必须 {@code findById(idHolder[0])} 拿 fresh row —
- * 不能用 {@code app.db.inventoryTaskDao().update(t)} 因为 {@code t.id}
+ * 不能用 {@code app.getDb().inventoryTaskDao().update(t)} 因为 {@code t.id}
  * 仍是 0 (Room @Insert 返回 rowid 不回写到 POJO 字段), 会走
  * {@code UPDATE WHERE id=0} 命中 0 行, expectedCount 修正丢失.
  * 并发导入/创建任务同时跑 (assignPool 与 countPool 跨事务读),

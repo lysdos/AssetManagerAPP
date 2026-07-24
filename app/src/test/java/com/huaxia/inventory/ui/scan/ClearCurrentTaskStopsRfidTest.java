@@ -10,7 +10,7 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * 防回归: ScanViewModel.clearCurrentTask 在磁盘事务后必须立刻
- * {@code app.rfid.stopInventory()}. 修复前只删三表 + 清 session,
+ * {@code app.getRfid().stopInventory()}. 修复前只删三表 + 清 session,
  * 但 rfid-poll 守护线程仍在 while-loop 持续 emit onEpcScanned →
  * 读 currentTaskId=-1L → findByEpc + insert 写 taskId=-1L 孤儿
  * ScanRecord, 永远不在 WHERE taskId=:tid 视图里, 污染统计.
@@ -32,10 +32,10 @@ public class ClearCurrentTaskStopsRfidTest {
         String body = extractMethodBody(text, "public void clearCurrentTask()");
         assertTrue("clearCurrentTask body not found", body.length() > 0);
 
-        // 必须出现 app.rfid.stopInventory() 调用, 且位于 diskIO lambda 内 (db.runInTransaction 之后)
-        int runTxIdx = body.indexOf("app.db.runInTransaction(");
-        int stopIdx = body.indexOf("app.rfid.stopInventory()");
-        assertTrue("clearCurrentTask must call app.rfid.stopInventory() inside diskIO "
+        // 必须出现 app.getRfid().stopInventory() 调用, 且位于 diskIO lambda 内 (db.runInTransaction 之后)
+        int runTxIdx = body.indexOf("app.getDb().runInTransaction(");
+        int stopIdx = body.indexOf("app.getRfid().stopInventory()");
+        assertTrue("clearCurrentTask must call app.getRfid().stopInventory() inside diskIO "
                 + "lambda (after runInTransaction). Body:\n" + body,
                 runTxIdx >= 0 && stopIdx > runTxIdx);
     }
