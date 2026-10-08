@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">华夏资产管家</string>
+    <string name="app_name">华夏资产管理</string>
 
     <!-- Bottom nav -->
     <string name="nav_task">📋 任务</string>
@@ -22,7 +22,7 @@
     <string name="scan_status_not_ready">设备未就绪</string>
     <string name="scan_start_failed">UHF 启动失败，请检查设备连接</string>
 
-    <string name="app_brand">📦 华夏资产管家</string>
+    <string name="app_brand">📦 华夏资产管理</string>
     <string name="import_title">📥 导入资产数据</string>
     <string name="import_upload_hint">拖拽或 点击浏览</string>
     <string name="import_upload_format">支持 .xlsx / .xls</string>
