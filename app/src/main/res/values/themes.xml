@@ -1,5 +1,16 @@
 <resources>
-    <style name="Theme.HuaxiaInventory" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <!--
+      固定使用浅色主题 (Light), 不用 DayNight.
+      本项目的配色全部是硬编码浅色 (见 colors.xml: cardCorner=#FFFFFF, bgSurface=#F5F5F5 …),
+      且没有 values-night/ 资源 — 界面从设计上就只有浅色一套.
+      用 DayNight 时, 深色模式下主题会把 "未显式指定颜色" 的文字解析成近白色,
+      而这些文字所在的背景又是硬编码的浅色 (白卡片 / #fafafa 输入框等), 白字印白底 → 文字消失.
+      典型表现: 创建盘点任务弹窗的「领用部门」下拉框、资产列表的「固资编号」在深色模式下不可见.
+      改成固定浅色后, 主题文字色恒为深色, 与全部硬编码浅色底一致.
+      若将来要真正支持深色模式, 需补 values-night/ 并把硬编码颜色改成 ?attr 主题属性,
+      而不是简单改回 DayNight.
+    -->
+    <style name="Theme.HuaxiaInventory" parent="Theme.MaterialComponents.Light.NoActionBar">
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
