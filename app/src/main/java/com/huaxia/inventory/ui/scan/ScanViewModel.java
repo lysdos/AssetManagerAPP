@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ScanViewModel extends AndroidViewModel {
@@ -73,7 +74,13 @@ public class ScanViewModel extends AndroidViewModel {
      */
     @VisibleForTesting
     private final AtomicLong currentTaskId = new AtomicLong(-1L);
-    private int expectedCount = 0;
+    /**
+     * 当前任务的预期资产数。跨 diskIO 4 线程池读写 (bindToTask / onSessionCleared /
+     * recomputeStats 可能落在不同线程), 故用 {@link AtomicInteger} 保证可见性 ——
+     * 与 {@link #currentTaskId} 同理; 普通 int 会让 recomputeStats 读到上一任务的旧值,
+     * 统计出错的盘亏/盘盈。
+     */
+    private final AtomicInteger expectedCount = new AtomicInteger(0);
     /**
      * 外部 bind 时锁定的 taskId. {@link AtomicLong} 是为了 SessionObserver
      * 在 diskIO 线程 race-bind 设置与主线程重置时不被撕裂. 默认 -1 表示未绑定.
@@ -151,13 +158,13 @@ public class ScanViewModel extends AndroidViewModel {
                 Log.w(TAG, "bindToTask: task no longer exists, rolling back VM state");
                 currentTaskId.set(-1L);
                 boundTaskId.set(-1L);
-                expectedCount = 0;
+                expectedCount.set(0);
                 scannedEpcSet.clear();
                 app.getSession().clear();
                 app.getRfid().stopInventory();
                 return;
             }
-            expectedCount = t.expectedCount;
+            expectedCount.set(t.expectedCount);
             recomputeStats();
         });
     }
@@ -204,7 +211,7 @@ public class ScanViewModel extends AndroidViewModel {
         mainHandler.removeCallbacks(recomputeRunnable);
         diskIO.execute(() -> {
             scannedEpcSet.clear();
-            expectedCount = 0;
+            expectedCount.set(0);
             currentTaskId.set(-1L);
             app.getRfid().stopInventory();
             stats.postValue(new Stats(0, 0, 0, 0, 0, 0, 0,
@@ -336,16 +343,18 @@ public class ScanViewModel extends AndroidViewModel {
             ScanAggregate agg = db.scanRecordDao().aggregateStats(taskId);
             int matched = agg.matchedCount;
             int extras = agg.extraCount;
-            StatusDerivation.Stats s = StatusDerivation.compute(expectedCount, matched, extras);
+            // 快照一次, 让本次统计用同一个 expectedCount 值 (AtomicInteger 保证可见性)
+            int expected = expectedCount.get();
+            StatusDerivation.Stats s = StatusDerivation.compute(expected, matched, extras);
 
             int scanned = matched;
-            int anomaly = Math.max(0, expectedCount - scanned);
+            int anomaly = Math.max(0, expected - scanned);
             // 本任务内"今天首次导入"的资产数 — 自然日窗口从本地 00:00 起算.
             int todayAdded = db.assetDao().countCreatedAfter(taskId, DateUtil.startOfToday());
             List<CategoryCount> categories = db.assetDao().countByCategory(taskId);
             if (categories.size() > 3) categories = categories.subList(0, 3);
 
-            stats.postValue(new Stats(expectedCount, scanned, anomaly, todayAdded,
+            stats.postValue(new Stats(expected, scanned, anomaly, todayAdded,
                     s.found, s.missing, s.extra, categories, agg.lastScannedAt));
         });
     }
@@ -398,7 +407,7 @@ public class ScanViewModel extends AndroidViewModel {
                 return;
             }
             scannedEpcSet.clear();
-            expectedCount = 0;
+            expectedCount.set(0);
             currentTaskId.set(-1L);
             // 清掉全局 session 的 currentTaskId, 让其他页面 (扫描/结果/导入) 也感知到
             // 主线程调用 setValue (同步) 而非 postValue (异步), 否则后续
