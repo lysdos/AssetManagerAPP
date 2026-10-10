@@ -8,6 +8,7 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.NumberToTextConverter;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -121,6 +122,7 @@ public final class ExcelImporter {
             HashSet<String> seenEpcs = new HashSet<>(1024);
             while (rows.hasNext()) {
                 Row row = rows.next();
+                Asset parsed = null;
                 try {
                     List<String> cells = readRow(row);
                     String rawCode = cells.size() > epcIdx ? cells.get(epcIdx) : "";
@@ -150,14 +152,20 @@ public final class ExcelImporter {
                     a.dept = pick(cells, headers, "领用部门");
                     // "盘点日期" 列解析后丢弃, 不写入 Asset 任何字段
                     a.rawRowJson = buildRawJson(headers, cells);
-                    pending.add(a);
+                    parsed = a;
+                } catch (Exception e) {
+                    Log.w(TAG, "row " + excelRow + " parse failed", e);
+                    handler.onError("Row " + excelRow + ": " + e.getMessage());
+                }
+                // onBatch 置于 try 之外: 提交批次时抛的异常 (DB 提交失败等) 必须向上传播、
+                // 中止导入, 不能被上面的 per-row catch 降级成 onError 后继续跑 — 否则
+                // 写入中途失败会被当"导入成功"上报, 数据只落一部分且无提示.
+                if (parsed != null) {
+                    pending.add(parsed);
                     if (pending.size() >= batchSize) {
                         handler.onBatch(pending);
                         pending = new ArrayList<>(batchSize);
                     }
-                } catch (Exception e) {
-                    Log.w(TAG, "row " + excelRow + " parse failed", e);
-                    handler.onError("Row " + excelRow + ": " + e.getMessage());
                 }
                 excelRow++;
             }
@@ -194,12 +202,26 @@ public final class ExcelImporter {
             if (c == null) { out.add(null); continue; }
             switch (c.getCellType()) {
                 case STRING:  out.add(c.getStringCellValue()); break;
-                case NUMERIC: out.add(String.valueOf(c.getNumericCellValue())); break;
+                // 数字单元格: 必须用 NumberToTextConverter 而非 String.valueOf —
+                // 后者对整数带 ".0" (1001 → "1001.0"), 对大数给科学计数法
+                // ("3.50030909902721E15"), 都过不了 EpcNormalizer 校验而被丢.
+                case NUMERIC: out.add(NumberToTextConverter.toText(c.getNumericCellValue())); break;
                 case BOOLEAN: out.add(String.valueOf(c.getBooleanCellValue())); break;
-                case FORMULA: out.add(c.getCellFormula()); break;
+                // 公式单元格: 取"缓存的计算结果值", 而非公式文本 (旧实现返回 "A1&B1" 这种).
+                case FORMULA: out.add(formulaResultText(c)); break;
                 default:      out.add(null);
             }
         }
         return out;
+    }
+
+    /** 公式单元格: 按缓存的求值结果类型取文本, 不回退到公式字符串. */
+    private static String formulaResultText(Cell c) {
+        switch (c.getCachedFormulaResultType()) {
+            case STRING:  return c.getStringCellValue();
+            case NUMERIC: return NumberToTextConverter.toText(c.getNumericCellValue());
+            case BOOLEAN: return String.valueOf(c.getBooleanCellValue());
+            default:      return null;
+        }
     }
 }

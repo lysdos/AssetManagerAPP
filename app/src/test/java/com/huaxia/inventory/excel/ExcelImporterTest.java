@@ -10,6 +10,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -94,6 +95,74 @@ public class ExcelImporterTest {
             assertEquals(24, assets.get(1).epc.length());
             assertEquals("000000099999999999999999", assets.get(2).epc);
             assertEquals(24, assets.get(2).epc.length());
+        }
+    }
+
+    /**
+     * 固资编号列若被存成"数字"格式(用户没设成文本), 旧实现 {@code String.valueOf(double)}
+     * 会得到 "3.50030909902721E15" → EpcNormalizer 拒掉 → 整行丢失.
+     * 修复: 用 NumberToTextConverter 转成纯十进制文本.
+     */
+    @Test
+    public void parsesNumericCellAssetCode_noScientificNotation() throws Exception {
+        String[] headers = {
+                "序号", "设备类型", "设备型号", "序列号",
+                "固资编号", "领用部门", "领用人", "盘点日期"
+        };
+        try (java.io.InputStream in = buildXlsxWithNumericEpc(headers, 3500309099027210L)) {
+            ExcelImporter.Result r = ExcelImporter.parse(in, 1L);
+            assertEquals(1, r.success);
+            assertEquals(0, r.errors.size());
+            assertEquals("000000003500309099027210", r.assets.get(0).epc);
+        }
+    }
+
+    /**
+     * onBatch 抛异常(模拟 DB 提交失败)必须向上传播、中止导入, <b>不能</b>被 per-row catch
+     * 降级成 onError 后继续 — 否则中途失败会被当"导入成功"上报.
+     */
+    @Test
+    public void onBatchFailure_propagates_andAbortsImport() throws Exception {
+        String[] headers = {
+                "序号", "设备类型", "设备型号", "序列号",
+                "固资编号", "领用部门", "领用人", "盘点日期"
+        };
+        String[][] rows = {
+                {"1", "X", "X", "X", "3500309099027210", "X", "X", "X"},
+                {"2", "X", "X", "X", "3500309019310435", "X", "X", "X"}
+        };
+        boolean[] errorCalled = {false};
+        try (java.io.InputStream in = buildXlsx(headers, rows)) {
+            assertThrows(RuntimeException.class, () -> ExcelImporter.stream(in, 1L, /* batchSize */ 1,
+                    new ExcelImporter.BatchHandler() {
+                        @Override public void onBatch(List<Asset> batch) {
+                            throw new RuntimeException("db commit failed");
+                        }
+                        @Override public void onError(String message) { errorCalled[0] = true; }
+                    }));
+        }
+        assertFalse("onBatch 失败不应被降级成 per-row onError", errorCalled[0]);
+    }
+
+    private static java.io.InputStream buildXlsxWithNumericEpc(String[] headers, long epcNumeric)
+            throws Exception {
+        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = wb.createSheet();
+            // 与 buildXlsx 同结构: row0 标题 / row1 meta / row2 表头 / row3 数据
+            Row title = sheet.createRow(0);
+            title.createCell(0).setCellValue("固定资产 - 设备台账");
+            Row meta = sheet.createRow(1);
+            meta.createCell(0).setCellValue("制表人");
+            Row headerRow = sheet.createRow(2);
+            for (int i = 0; i < headers.length; i++) {
+                headerRow.createCell(i).setCellValue(headers[i]);
+            }
+            Row row = sheet.createRow(3);
+            row.createCell(0).setCellValue("1");
+            // 固资编号列 (索引 4) 以数字格式写入
+            row.createCell(4).setCellValue((double) epcNumeric);
+            wb.write(out);
+            return new ByteArrayInputStream(out.toByteArray());
         }
     }
 
