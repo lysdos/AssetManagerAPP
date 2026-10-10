@@ -185,4 +185,13 @@ public class MainActivity extends AppCompatActivity {
             ((InventoryApp) getApplication()).getRfid().powerOff();
         }
     }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // onStop 里 addObserver 的 processObserver 必须在这里反注册:
+        // ProcessLifecycleOwner 是进程级的, 而 observer 捕获了 MainActivity.this —
+        // 不反注册会让每次旋转/重建都泄漏一个 MainActivity (被进程级 Lifecycle 永久持有).
+        ProcessLifecycleOwner.get().getLifecycle().removeObserver(processObserver);
+    }
 }
