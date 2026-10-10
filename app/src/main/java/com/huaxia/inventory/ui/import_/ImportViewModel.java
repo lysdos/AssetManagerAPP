@@ -134,7 +134,17 @@ public class ImportViewModel extends AndroidViewModel {
         Log.i(TAG, "parseFile start uri=" + uri + " name=" + displayName);
         diskIO.execute(() -> {
             try (InputStream in = app.getContentResolver().openInputStream(uri)) {
-                Log.i(TAG, "openInputStream returned " + (in == null ? "null" : "ok"));
+                if (in == null) {
+                    // URI 不可用 / 权限已失效时 openInputStream 返回 null —
+                    // 直接给明确提示, 不要让 null 流进 XSSFWorkbook 抛 NPE 串.
+                    Log.w(TAG, "openInputStream returned null — URI unavailable");
+                    parseError.postValue("无法读取文件（URI 不可用或权限已失效）");
+                    parsedFile.postValue(new ParsedFile(displayName, 0, 0, 0,
+                            Collections.singletonList("无法读取文件：URI 不可用或权限已失效"),
+                            Collections.emptyList(), uri));
+                    return;
+                }
+                Log.i(TAG, "openInputStream returned ok");
                 int[] counters = {0, 0, 0};  // [success, error, duplicate]
                 List<Asset> preview = new ArrayList<>(PREVIEW_MAX);
                 List<String> errors = new ArrayList<>(ERROR_SAMPLE_MAX);
@@ -205,6 +215,11 @@ public class ImportViewModel extends AndroidViewModel {
                 int[] imported = {0};
                 int[] updated = {0};
                 try (InputStream in = app.getContentResolver().openInputStream(sourceUri)) {
+                    if (in == null) {
+                        // 同 parseFile: URI 失效时明确报错而非 NPE.
+                        importError.postValue("无法读取文件（URI 不可用或权限已失效）");
+                        return;
+                    }
                     ExcelImporter.stream(in, 0L, STREAM_BATCH,
                             new ExcelImporter.BatchHandler() {
                                 @Override public void onBatch(List<Asset> batch) {

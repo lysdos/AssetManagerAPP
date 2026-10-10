@@ -347,8 +347,9 @@ public class ScanFragment extends Fragment {
         // 从手动盘点页返回时, 该页面写过 ScanRecord 但 stats observer 不会自动重发,
         // 主动 refresh 一次把已盘点/盘盈数刷成最新. bindToTask 也调 recomputeStats,
         // 但 taskId 不变时不会重跑.
-        if (vm != null) vm.refreshStats();
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
+        // 有任务才刷新统计 (无任务=读码模式, 没有统计可刷 — 免去一次空重算).
+        if (vm != null && app.getSession().getCurrentTaskId() != null) vm.refreshStats();
         app.getRfid().registerCallback(rfidCallback);
         app.getRfid().powerOn();
         if (app.getRfid().isPowered()) {
