@@ -118,6 +118,23 @@ public class ExcelImporterTest {
     }
 
     /**
+     * 17 位数 (1e16) 已超 double 精确整数上限 2^53≈9.0e15, 低位不可信 → 必须报错,
+     * 不能被 NumberToTextConverter 截出一个"看似合法"的 17 位串静默入库。
+     */
+    @Test
+    public void rejectsNumericCellBeyond2Pow53() throws Exception {
+        String[] headers = {
+                "序号", "设备类型", "设备型号", "序列号",
+                "固资编号", "领用部门", "领用人", "盘点日期"
+        };
+        try (java.io.InputStream in = buildXlsxWithNumericEpc(headers, 10000000000000000L)) {
+            ExcelImporter.Result r = ExcelImporter.parse(in, 1L);
+            assertEquals(0, r.success);
+            assertEquals(1, r.errors.size());
+        }
+    }
+
+    /**
      * onBatch 抛异常(模拟 DB 提交失败)必须向上传播、中止导入, <b>不能</b>被 per-row catch
      * 降级成 onError 后继续 — 否则中途失败会被当"导入成功"上报.
      */

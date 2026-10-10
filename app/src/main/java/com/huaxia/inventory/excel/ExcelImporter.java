@@ -45,6 +45,8 @@ public final class ExcelImporter {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String TAG = "ExcelImporter";
+    /** double 能精确表示整数的上限 (2^53)。超过它的整数低位已不可信 (Excel 数字也只有 ~15 位有效位)。 */
+    private static final double EXACT_INT_LIMIT = 9007199254740992.0;
 
     private ExcelImporter() {}
 
@@ -202,10 +204,8 @@ public final class ExcelImporter {
             if (c == null) { out.add(null); continue; }
             switch (c.getCellType()) {
                 case STRING:  out.add(c.getStringCellValue()); break;
-                // 数字单元格: 必须用 NumberToTextConverter 而非 String.valueOf —
-                // 后者对整数带 ".0" (1001 → "1001.0"), 对大数给科学计数法
-                // ("3.50030909902721E15"), 都过不了 EpcNormalizer 校验而被丢.
-                case NUMERIC: out.add(NumberToTextConverter.toText(c.getNumericCellValue())); break;
+                // 数字单元格: 用 numericCellText 而非裸 String.valueOf (见其说明).
+                case NUMERIC: out.add(numericCellText(c.getNumericCellValue())); break;
                 case BOOLEAN: out.add(String.valueOf(c.getBooleanCellValue())); break;
                 // 公式单元格: 取"缓存的计算结果值", 而非公式文本 (旧实现返回 "A1&B1" 这种).
                 case FORMULA: out.add(formulaResultText(c)); break;
@@ -215,11 +215,26 @@ public final class ExcelImporter {
         return out;
     }
 
+    /**
+     * 数字单元格 → 文本。
+     * <p>仅当值是精确整数且 {@code |v| <= 2^53} 时用 {@link NumberToTextConverter} 输出
+     * 纯十进制 (旧 {@code String.valueOf} 对整数带 ".0"、对大数给科学计数法, 都过不了
+     * EpcNormalizer)。超过 2^53 的整数 double 低位已丢, 回退 {@code String.valueOf}
+     * 的科学计数法形式 —— 让 EpcNormalizer 拒掉并报"请设为文本格式", 避免把 double
+     * 截断出来的"看似合法"的 16/17/24 位串静默当成正确编码入库。</p>
+     */
+    private static String numericCellText(double v) {
+        if (v == Math.rint(v) && Math.abs(v) <= EXACT_INT_LIMIT) {
+            return NumberToTextConverter.toText(v);
+        }
+        return String.valueOf(v);
+    }
+
     /** 公式单元格: 按缓存的求值结果类型取文本, 不回退到公式字符串. */
     private static String formulaResultText(Cell c) {
         switch (c.getCachedFormulaResultType()) {
             case STRING:  return c.getStringCellValue();
-            case NUMERIC: return NumberToTextConverter.toText(c.getNumericCellValue());
+            case NUMERIC: return numericCellText(c.getNumericCellValue());
             case BOOLEAN: return String.valueOf(c.getBooleanCellValue());
             default:      return null;
         }
