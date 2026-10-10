@@ -16,7 +16,7 @@ import com.huaxia.inventory.data.entity.ScanRecord;
 
 @Database(
         entities = {InventoryTask.class, Asset.class, ScanRecord.class, ExtraClaim.class},
-        version = 7,
+        version = 8,
         exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static final String TAG = "AppDatabase";
@@ -82,6 +82,26 @@ public abstract class AppDatabase extends RoomDatabase {
         public void migrate(SupportSQLiteDatabase db) {
             db.execSQL("ALTER TABLE Asset ADD COLUMN created_at INTEGER");
             Log.i(TAG, "[AppDatabase] MIGRATION_6_7 applied: added Asset.created_at");
+        }
+    };
+
+    /**
+     * v7 → v8: 补两条分页/排序复合索引（纯加索引，不动数据/字段）:
+     * <ul>
+     *   <li>{@code Asset (taskId, excelRowIndex)} — pageAll/pageFound/pageMissing 的
+     *       ORDER BY, 以及 ExcelExporter 分页导出的每一页;</li>
+     *   <li>{@code ScanRecord (taskId, scannedAt)} — pageExtra/pageRecent 的 ORDER BY。</li>
+     * </ul>
+     * 用 {@code IF NOT EXISTS} 保证幂等; 索引名沿用 Room 默认命名 ({@code @Index} 一致)。
+     */
+    public static final Migration MIGRATION_7_8 = new Migration(7, 8) {
+        @Override
+        public void migrate(SupportSQLiteDatabase db) {
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_Asset_taskId_excelRowIndex` "
+                    + "ON `Asset` (`taskId`, `excelRowIndex`)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_ScanRecord_taskId_scannedAt` "
+                    + "ON `ScanRecord` (`taskId`, `scannedAt`)");
+            Log.i(TAG, "[AppDatabase] MIGRATION_7_8 applied: added pagination indexes");
         }
     };
 }

@@ -8,6 +8,11 @@ import androidx.room.PrimaryKey;
 
 @Entity(indices = {
         @Index("taskId"),
+        // (taskId, excelRowIndex): 服务 pageAll/pageFound/pageMissing 的 ORDER BY
+        // excelRowIndex, 以及 ExcelExporter 分页导出的每一页。无此索引时 SQLite 每次
+        // 都要把任务的 N 行整体排序 (OFFSET 无法跳过排序), 导出成本 ≈ (N/500)×sort(N),
+        // 随 N 线性放大; 有此索引则每页退化为 O(500) 的索引 seek。
+        @Index(value = {"taskId", "excelRowIndex"}),
         // epc 单列唯一 — 重复导入时按 epc 覆盖 (AssetDao.upsertOne: INSERT OR IGNORE + UPDATE).
         // 注意: 覆盖路径明确排除 id / taskId / inventory_time / created_at,
         // 保留 Asset.id 不变 → ScanRecord.matchedAssetId FK 持续有效; 盘点/导入时间不被抹.

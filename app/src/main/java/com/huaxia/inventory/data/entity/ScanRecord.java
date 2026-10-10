@@ -15,6 +15,9 @@ import androidx.room.PrimaryKey;
         // 1w+ ScanRecord 全索引扫描. 复合顺序按 SQL WHERE 等值选择度决定:
         // taskId 决定子集大小, matchedAssetId 决定去重粒度.
         @Index(value = {"taskId", "matchedAssetId"}),
+        // (taskId, scannedAt): 服务 pageExtra / pageRecent 的 ORDER BY scannedAt [DESC],
+        // 无此索引时每次翻页都要任务下全部 ScanRecord 排序。
+        @Index(value = {"taskId", "scannedAt"}),
         @Index(value = {"taskId", "epc"}, unique = true)
 })
 public class ScanRecord {
