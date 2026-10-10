@@ -46,8 +46,10 @@ public final class ExcelExporter {
         if (s == null || s.length() == 0) return "<empty>";
         int len = s.length();
         int tail = Math.min(4, len);
-        if (len <= tail) return "**" + s;
-        return s.substring(0, len - tail) + "**" + s.substring(len - tail);
+        // 只保留末 4 位。旧实现是 substring(0, len-tail) + "**" + 末4 —
+        // 把前 len-4 位也原样打了出来 (明文可完整还原), 与"不打印明文"
+        // 的契约正好相反; 3 处调用方因此一直白脱敏。
+        return "**" + s.substring(len - tail);
     }
 
     /**
