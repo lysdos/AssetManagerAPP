@@ -214,10 +214,14 @@ public class ScanViewModel extends AndroidViewModel {
 
     /**
      * 处理一次 RFID 标签读数. 调用方: {@code ScanFragment.rfidCallback},
-     * 由 SDK poll thread 直接 dispatch. 同一 EPC 重复到达时有两条互斥路径,
-     * 行为不同:
+     * 由 SDK poll thread 直接 dispatch. 按绑定状态分三条互斥路径, 行为不同:
      *
      * <ol>
+     *   <li><b>未绑定任务（读码模式）</b> ({@code currentTaskId == -1L}):
+     *       扫描页无任务时进入读码模式. 只把归一化编码发到 {@code latestScan}
+     *       占位 record ({@link #makeUnmatchedRecord}) 供 UI 显示, <b>不</b>写 DB —
+     *       避免落 {@code taskId=-1L} 的孤儿 ScanRecord
+     *       ({@code deleteOrphans()} 只清 {@code matchedAssetId} 非空的行, 这类行永不回收).</li>
      *   <li><b>内存层去重命中</b> ({@link #scannedEpcSet}):
      *       该 EPC 在当前 ViewModel 生命周期内已见过. 仍发 {@code latestScan}
      *       占位 record ({@link #makeUnmatchedRecord}, 字段无 taskId /
@@ -233,7 +237,7 @@ public class ScanViewModel extends AndroidViewModel {
      *       统计会多计.</li>
      * </ol>
      *
-     * <p>两条路径的语义差异在 UI 表面看不出来, 但维护者改写时容易踩坑:
+     * <p>各路径的语义差异在 UI 表面看不出来, 但维护者改写时容易踩坑:
      * 修改前请确认改动是否会破坏 latestScan LiveData 的"每次扫描一条"不变量.</p>
      */
     public void onEpcScanned(String rawCode, String tid, String rssi) {
@@ -247,6 +251,14 @@ public class ScanViewModel extends AndroidViewModel {
             // 写 taskId=-1L 孤儿 ScanRecord.
             return;
         }
+        long taskId = currentTaskId.get();
+        if (taskId == -1L) {
+            // 路径 0: 未绑定任务(扫描页"读码模式") — 不落库, 仅把最近读取的编码
+            // 广播给 UI (latestScan). 避免写 taskId=-1L 的孤儿 ScanRecord —
+            // deleteOrphans() 只清 matchedAssetId 非空的行, 这类行不会被回收.
+            latestScan.postValue(makeUnmatchedRecord(rawCode, tid, rssi));
+            return;
+        }
         if (scannedEpcSet.contains(rawCode)) {
             // 路径 1: 内存 dedup 命中 — 发 latestScan 占位, 不写 DB.
             // 占位 record 不带 taskId / matchedAssetId, UI 须按纯 "已扫过" 展示.
@@ -255,7 +267,6 @@ public class ScanViewModel extends AndroidViewModel {
         }
         scannedEpcSet.add(rawCode);
 
-        long taskId = currentTaskId.get();
         diskIO.execute(() -> {
             if (disposed.get()) return;
             // findByEpc + insert 包在单一事务内 — 避免并发同 EPC 路径下

@@ -62,6 +62,9 @@
     <string name="scan_clear_task_done">已清除 %1$d 条资产 / %2$d 条扫描记录</string>
     <string name="scan_clear_task_failed">清除失败：%1$s</string>
     <string name="scan_device_status">设备状态：%1$s</string>
+    <!-- 无任务「读码模式」: 空闲提示 + 读到的编码(渲染到状态行) -->
+    <string name="scan_reader_idle">读码模式 · 等待标签…</string>
+    <string name="scan_reader_code">%1$s   RSSI %2$s</string>
     <string name="result_title">📊 盘点结果</string>
     <string name="result_export_btn">📤 导出结果</string>
     <string name="result_stat_all">全部设备</string>

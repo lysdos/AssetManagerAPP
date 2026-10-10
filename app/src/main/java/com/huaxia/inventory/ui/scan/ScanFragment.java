@@ -16,6 +16,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.snackbar.Snackbar;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
+import com.huaxia.inventory.data.entity.ScanRecord;
 import com.huaxia.inventory.rfid.SdkRfidAdapter;
 import com.huaxia.inventory.ui.result.ResultFragment;
 import com.huaxia.inventory.ui.result.ResultTab;
@@ -120,11 +121,18 @@ public class ScanFragment extends Fragment {
                 card -> navigateToResult(ResultTab.EXTRA));
 
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
+
+        // 扫描页统一订阅 latestScan: 有任务时 onEpcScanned 也会发它, 但 observer
+        // 检测到有任务会直接返回(状态行留给设备状态); 无任务时即"读码模式",
+        // 把最近读取的编码渲染到状态行.
+        vm.latestScan().observe(getViewLifecycleOwner(), this::renderLatestScan);
+
         Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
-            // 没有当前任务 (从未导入, 或刚被数据重置): UI 全部归零, 禁用扫描.
-            deviceStatusTv.setText(getString(R.string.scan_device_status,
-                    getString(R.string.scan_status_not_ready)));
+            // 没有当前任务 = 「读码模式」: 状态行显示读码提示, 扫到的编码由
+            // latestScan observer 渲染; 统计区归零. 扫描按钮在 onResume 按硬件
+            // 就绪态启用(读码同样需要能按).
+            renderReaderIdle();
             scanBtn.setEnabled(false);
             renderEmptyStats();
             // 仍要订阅 clearResult, 这样从其他入口触发重置也能收到提示
@@ -245,6 +253,29 @@ public class ScanFragment extends Fragment {
         recentTags.removeAllViews();
     }
 
+    /** 无任务「读码模式」: 硬件就绪时显示空闲提示, 未就绪时显示设备状态. */
+    private void renderReaderIdle() {
+        InventoryApp app = (InventoryApp) requireActivity().getApplication();
+        boolean ready = app.getRfid().isPowered();
+        deviceStatusTv.setText(ready ? getString(R.string.scan_reader_idle)
+                : getString(R.string.scan_device_status,
+                        getString(R.string.scan_status_not_ready)));
+        deviceStatusTv.setTextColor(ContextCompat.getColor(requireContext(), R.color.textHint));
+    }
+
+    /**
+     * 订阅 {@code latestScan}: 仅在无任务(读码模式)时把最近读取的编码渲染到状态行;
+     * 有任务时状态行保留"设备状态", 不显示编码.
+     */
+    private void renderLatestScan(ScanRecord rec) {
+        if (rec == null || deviceStatusTv == null) return;
+        InventoryApp app = (InventoryApp) requireActivity().getApplication();
+        if (app.getSession().getCurrentTaskId() != null) return;
+        deviceStatusTv.setText(getString(R.string.scan_reader_code, rec.epc,
+                rec.rssi == null ? "-" : rec.rssi));
+        deviceStatusTv.setTextColor(ContextCompat.getColor(requireContext(), R.color.colorPrimary));
+    }
+
     private void toggleScan() {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         boolean ok;
@@ -322,6 +353,10 @@ public class ScanFragment extends Fragment {
         app.getRfid().powerOn();
         if (app.getRfid().isPowered()) {
             scanBtn.setEnabled(true);
+            if (app.getSession().getCurrentTaskId() == null) {
+                // 读码模式: 复位空闲提示 (会刷掉上一轮读到的编码, 属预期)
+                renderReaderIdle();
+            }
         } else {
             scanBtn.setEnabled(false);
             deviceStatusTv.setText(getString(R.string.scan_device_status,
