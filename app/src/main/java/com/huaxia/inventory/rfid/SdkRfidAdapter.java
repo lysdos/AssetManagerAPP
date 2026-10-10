@@ -52,6 +52,8 @@ public class SdkRfidAdapter {
     private final AtomicBoolean scanning = new AtomicBoolean(false);
     private final Set<TagListener> listeners = new CopyOnWriteArraySet<>();
     private volatile Thread pollThread;
+    /** 串行化 start/stop — 防止并发调用各自拉起 poll 线程 / 互相清 pollThread 引用. */
+    private final Object lifecycleLock = new Object();
 
     /** Default constructor — obtains the SDK singleton on first use. */
     public SdkRfidAdapter() {
@@ -173,25 +175,27 @@ public class SdkRfidAdapter {
      * @return {@code 0} on success, non-zero on failure.
      */
     public int startInventory() {
-        if (scanning.get()) {
+        synchronized (lifecycleLock) {
+            if (scanning.get()) {
+                return 0;
+            }
+            boolean started;
+            try {
+                started = requireReader().startInventoryTag();
+            } catch (Throwable t) {
+                Log.w(TAG, "startInventoryTag() failed", t);
+                return -1;
+            }
+            if (!started) {
+                return -1;
+            }
+            scanning.set(true);
+            Thread t = new Thread(this::pollLoop, "rfid-poll");
+            t.setDaemon(true);
+            pollThread = t;
+            t.start();
             return 0;
         }
-        boolean started;
-        try {
-            started = requireReader().startInventoryTag();
-        } catch (Throwable t) {
-            Log.w(TAG, "startInventoryTag() failed", t);
-            return -1;
-        }
-        if (!started) {
-            return -1;
-        }
-        scanning.set(true);
-        Thread t = new Thread(this::pollLoop, "rfid-poll");
-        t.setDaemon(true);
-        pollThread = t;
-        t.start();
-        return 0;
     }
 
     /**
@@ -204,26 +208,28 @@ public class SdkRfidAdapter {
      * 读到非 null 的 {@code pollThread} 被另一个 startInventory() 复用.</p>
      */
     public int stopInventory() {
-        if (!scanning.compareAndSet(true, false)) {
+        synchronized (lifecycleLock) {
+            if (!scanning.compareAndSet(true, false)) {
+                return 0;
+            }
+            Thread t = pollThread;
+            try {
+                requireReader().stopInventory();
+            } catch (Throwable ex) {
+                Log.w(TAG, "stopInventory() failed", ex);
+            }
+            if (t != null) {
+                try {
+                    t.join(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+                // join 后才清 pollThread — 否则 join 期间下一个 startInventory()
+                // 可能拿到尚未 stop 的旧 Thread 引用, 与新拉的守护线程并存.
+                pollThread = null;
+            }
             return 0;
         }
-        Thread t = pollThread;
-        try {
-            requireReader().stopInventory();
-        } catch (Throwable ex) {
-            Log.w(TAG, "stopInventory() failed", ex);
-        }
-        if (t != null) {
-            try {
-                t.join(500);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-            }
-            // join 后才清 pollThread — 否则 join 期间下一个 startInventory()
-            // 可能拿到尚未 stop 的旧 Thread 引用, 与新拉的守护线程并存.
-            pollThread = null;
-        }
-        return 0;
     }
 
     /** Disconnect the RFID module (no-op on the new SDK — kept for API parity). */
@@ -271,7 +277,13 @@ public class SdkRfidAdapter {
         // 每次循环重新读 volatile reader — release() 把 reader 置 null 时,
         // 守护线程下一轮 (POLL_IDLE_SLEEP_MS <= 500ms 内) 立刻看到并退出,
         // 不会对已 free 的 SDK 单例调用 readTagFromBuffer().
-        while (scanning.get()) {
+        //
+        // 循环条件还要求"自己仍是当前 pollThread": stop 把 scanning 置 false 后,
+        // 若 join 超时(旧线程卡在 native readTagFromBuffer), 随后的 start 会把
+        // scanning 置回 true 并换上新的 pollThread — 旧线程凭此条件 (pollThread
+        // 已指向新线程 != self) 退出, 不会重新进入循环与新的 poll 线程并发调用
+        // SDK. 没有这一条, 旧线程会因 scanning 被重置为 true 而"复活".
+        while (scanning.get() && pollThread == Thread.currentThread()) {
             RFIDWithUHFUART r = reader;
             if (r == null) {
                 return;

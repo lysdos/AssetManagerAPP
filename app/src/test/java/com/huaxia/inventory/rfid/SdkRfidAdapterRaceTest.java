@@ -51,6 +51,19 @@ public class SdkRfidAdapterRaceTest {
     }
 
     @Test
+    public void pollLoop_gatesOnStillBeingThePollThread() throws Exception {
+        String text = readSource();
+        String body = extractMethodBody(text, "private void pollLoop()");
+        assertTrue("pollLoop body not found.\nSource:\n" + text, body.length() > 0);
+        // stop 把 scanning 置 false 后, 若 join 超时, 随后的 start 会把 scanning 置回
+        // true — 旧线程必须还能凭"自身已不是 pollThread"退出, 否则会复活并与新线程
+        // 并发调用 readTagFromBuffer. 循环条件必须含 pollThread == currentThread().
+        assertTrue("pollLoop must gate on pollThread == Thread.currentThread() so a "
+                + "stop/start race does not revive the old poll thread. Body:\n" + body,
+                body.contains("pollThread == Thread.currentThread()"));
+    }
+
+    @Test
     public void release_nullsReaderAfterFree() throws Exception {
         String text = readSource();
         String body = extractMethodBody(text, "public void release()");
