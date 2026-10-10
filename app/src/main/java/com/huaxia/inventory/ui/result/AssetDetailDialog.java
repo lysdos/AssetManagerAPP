@@ -141,6 +141,19 @@ public final class AssetDetailDialog {
         });
 
         dialog.show();
+
+        // AlertDialog 不归 FragmentManager 管: 宿主销毁(含旋转)时必须主动关闭, 否则旋转
+        // 会泄漏 Window(WindowLeaked), 且异步保存完成的回调可能在 detach 后调
+        // requireContext/getString 崩溃。关闭后回调里的 dialog.isShowing() 守卫自然变 no-op。
+        // 用 fragment.getLifecycle() 而非 getViewLifecycleOwner() — 后者在无 View 的宿主
+        // (如单元测试的裸 Fragment) 会抛 IllegalStateException。
+        fragment.getLifecycle().addObserver(
+                new androidx.lifecycle.DefaultLifecycleObserver() {
+                    @Override
+                    public void onDestroy(@NonNull androidx.lifecycle.LifecycleOwner owner) {
+                        if (dialog.isShowing()) dialog.dismiss();
+                    }
+                });
     }
 
     private static void restoreEditing(AlertDialog dialog, View saveBtn, View cancelBtn) {

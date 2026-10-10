@@ -88,5 +88,15 @@ public final class ExtraDetailDialog {
         });
 
         dialog.show();
+
+        // AlertDialog 不归 FragmentManager 管: 宿主 View 销毁(含旋转)时必须主动关闭,
+        // 否则旋转会泄漏 Window(WindowLeaked)。
+        fragment.getLifecycle().addObserver(
+                new androidx.lifecycle.DefaultLifecycleObserver() {
+                    @Override
+                    public void onDestroy(@NonNull androidx.lifecycle.LifecycleOwner owner) {
+                        if (dialog.isShowing()) dialog.dismiss();
+                    }
+                });
     }
 }
