@@ -19,7 +19,11 @@ public class BeepPlayer {
 
     private static final int MAX_STREAMS = 2;
 
-    private SoundPool soundPool;
+    /**
+     * {@code volatile}: {@link #play()} 在 RFID poll 线程调用, {@link #init(Context, int)}
+     * /{@link #release()} 在主线程 — 跨线程可见性, 且 play 里取本地快照避免 NPE.
+     */
+    private volatile SoundPool soundPool;
     private int soundId;
     private float volumeRatio = 0.5f;
 
@@ -30,31 +34,41 @@ public class BeepPlayer {
                 .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build();
-        soundPool = new SoundPool.Builder()
+        SoundPool sp = new SoundPool.Builder()
                 .setMaxStreams(MAX_STREAMS)
                 .setAudioAttributes(attrs)
                 .build();
-        soundId = soundPool.load(ctx, rawResId, 1);
+        int sid = sp.load(ctx, rawResId, 1);
+        float vol = 0.5f;
         AudioManager am = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
         if (am != null) {
             float max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
             float cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
-            volumeRatio = max > 0 ? cur / max : 0.5f;
+            vol = max > 0 ? cur / max : 0.5f;
         }
+        // 先写普通字段, 最后 volatile 写 soundPool — 借 volatile 的 release 语义
+        // 让 soundId / volumeRatio 对 play()(RFID 线程) 可见.
+        soundId = sid;
+        volumeRatio = vol;
+        soundPool = sp;
     }
 
     /** 播放一次. 未 init 时是 no-op. */
     public void play() {
-        if (soundPool != null) {
-            soundPool.play(soundId, volumeRatio, volumeRatio, 1, 0, 1f);
+        // 本地快照: release() 可能在本行之后把 soundPool 置 null, 本地引用消除
+        // check-then-use 之间的 NPE (play 在 RFID poll 线程高频调用).
+        SoundPool sp = soundPool;
+        if (sp != null) {
+            sp.play(soundId, volumeRatio, volumeRatio, 1, 0, 1f);
         }
     }
 
     /** 释放 SoundPool. 重复调用安全. */
     public void release() {
-        if (soundPool != null) {
-            soundPool.release();
-            soundPool = null;
+        SoundPool sp = soundPool;
+        if (sp != null) {
+            soundPool = null;   // 先置 null, 让并发 play() 快照到 null 而非正在释放的实例
+            sp.release();
         }
     }
 }

@@ -194,6 +194,7 @@ public class FragmentAsyncGuardTest {
                 "src/main/java/com/huaxia/inventory/ui/result/ResultFragment.java",
                 "src/main/java/com/huaxia/inventory/ui/import_/ImportDialogFragment.java",
                 "src/main/java/com/huaxia/inventory/ui/scan/ScanFragment.java",
+                "src/main/java/com/huaxia/inventory/ui/task/TaskListFragment.java",
         };
         // Resolve the project root. In Gradle's test JVM, user.dir is the
         // module dir (i.e. .../huaxiaapp/app), so the project root is one

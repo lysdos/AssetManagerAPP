@@ -64,26 +64,39 @@ public class TaskListFragment extends Fragment {
                 // 立刻 getValue() 读到的是旧值, cur != taskId 会恒真.
                 // 参数 taskId 已经是校验过的, 直接用.
                 vm.switchToTask(task.id, (taskId, ok) -> {
+                    if (!isAdded()) return;   // detach 后 requireActivity() 会在后台线程抛 ISE
                     if (!ok) return;
-                    requireActivity().runOnUiThread(() -> navigateToScan());
+                    requireActivity().runOnUiThread(() -> {
+                        if (!isAdded()) return;
+                        navigateToScan();
+                    });
                 });
             }
             @Override public void onPauseTask(InventoryTask task) {
-                vm.pauseTask(task.id, () -> requireActivity().runOnUiThread(() -> {
-                    Toast.makeText(requireContext(),
-                            getString(R.string.task_msg_paused, task.sourceFileName),
-                            Toast.LENGTH_SHORT).show();
-                }));
+                vm.pauseTask(task.id, () -> {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> {
+                        if (!isAdded()) return;
+                        Toast.makeText(requireContext(),
+                                getString(R.string.task_msg_paused, task.sourceFileName),
+                                Toast.LENGTH_SHORT).show();
+                    });
+                });
             }
             @Override public void onResumeTask(InventoryTask task) {
-                vm.resumeTask(task.id, () -> requireActivity().runOnUiThread(() -> {
-                    Toast.makeText(requireContext(),
-                            getString(R.string.task_msg_resumed, task.sourceFileName),
-                            Toast.LENGTH_SHORT).show();
-                }));
+                vm.resumeTask(task.id, () -> {
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(() -> {
+                        if (!isAdded()) return;
+                        Toast.makeText(requireContext(),
+                                getString(R.string.task_msg_resumed, task.sourceFileName),
+                                Toast.LENGTH_SHORT).show();
+                    });
+                });
             }
             @Override public void onViewTask(InventoryTask task) {
                 // 已完成任务：切到扫描页查看盘点结果 (currentTaskId 不变)
+                if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> navigateToScan());
             }
             @Override public void onMoreClicked(InventoryTask task, View anchor) {
@@ -194,10 +207,15 @@ public class TaskListFragment extends Fragment {
         new AlertDialog.Builder(requireContext())
                 .setMessage(R.string.task_msg_confirm_delete)
                 .setPositiveButton(R.string.task_action_delete, (d, w) ->
-                        vm.deleteTask(task.id, (taskId, released) ->
-                                requireActivity().runOnUiThread(() -> Toast.makeText(requireContext(),
+                        vm.deleteTask(task.id, (taskId, released) -> {
+                            if (!isAdded()) return;
+                            requireActivity().runOnUiThread(() -> {
+                                if (!isAdded()) return;
+                                Toast.makeText(requireContext(),
                                         getString(R.string.task_msg_release_done, released),
-                                        Toast.LENGTH_SHORT).show())))
+                                        Toast.LENGTH_SHORT).show();
+                            });
+                        }))
                 .setNegativeButton(R.string.action_cancel, null)
                 .show();
     }
