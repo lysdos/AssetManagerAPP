@@ -16,7 +16,7 @@ import com.huaxia.inventory.data.entity.ScanRecord;
 
 @Database(
         entities = {InventoryTask.class, Asset.class, ScanRecord.class, ExtraClaim.class},
-        version = 6,
+        version = 7,
         exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static final String TAG = "AppDatabase";
@@ -66,6 +66,22 @@ public abstract class AppDatabase extends RoomDatabase {
                 Log.e(TAG, "[AppDatabase] MIGRATION_5_6 failed", e);
                 throw e;
             }
+        }
+    };
+
+    /**
+     * v6 → v7: Asset 表新增 created_at 列（首次导入时间，毫秒），可空。
+     * 历史行升级后 created_at = NULL — 语义为"未知导入时间"，不参与扫描页
+     * 「+N 今日」统计（{@code countCreatedAfter} 用 {@code created_at >= :since}，
+     * NULL 不满足条件）。新导入资产由 {@code ExcelImporter} 写入流起始时间戳。
+     * <p>ALTER TABLE ADD COLUMN 不支持 IF NOT EXISTS，但 Room 按版本号只会跑一次，
+     * 不存在重跑问题（与 MIGRATION_5_6 用 IF NOT EXISTS 防重跑的动机不同）。</p>
+     */
+    public static final Migration MIGRATION_6_7 = new Migration(6, 7) {
+        @Override
+        public void migrate(SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE Asset ADD COLUMN created_at INTEGER");
+            Log.i(TAG, "[AppDatabase] MIGRATION_6_7 applied: added Asset.created_at");
         }
     };
 }

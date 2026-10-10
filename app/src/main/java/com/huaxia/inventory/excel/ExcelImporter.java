@@ -72,6 +72,10 @@ public final class ExcelImporter {
             throws Exception {
         if (batchSize <= 0) throw new IllegalArgumentException("batchSize must be > 0");
         Log.i(TAG, "stream start, batchSize=" + batchSize);
+        // 整批共用同一"首次导入时间" — 不与逐行 currentTimeMillis 产生毫秒级抖动,
+        // 也让 "今日新增" 的边界一致。真正落库时间由 AssetDao.upsertOne 决定:
+        // 重复 epc 走 upsertOne 的覆盖路径时不覆盖 created_at, 保留首次值。
+        final long importedAt = System.currentTimeMillis();
         try (Workbook wb = new XSSFWorkbook(in)) {
             Log.i(TAG, "XSSFWorkbook constructed, sheetCount=" + wb.getNumberOfSheets());
             Sheet sheet = wb.getSheetAt(0);
@@ -112,7 +116,7 @@ public final class ExcelImporter {
 
             List<Asset> pending = new ArrayList<>(batchSize);
             // 文件级 epc 去重: 同一 xlsx 文件内, 重复固资编号只保留首条, 后续行走 onError.
-            // 跨文件的"重复导入"由 AssetDao.upsertOne ON CONFLICT(epc) DO UPDATE 处理 —
+            // 跨文件的"重复导入"由 AssetDao.upsertOne (INSERT OR IGNORE + 条件 UPDATE) 处理 —
             // 那是设计上允许的"覆盖更新", 不算错误.
             HashSet<String> seenEpcs = new HashSet<>(1024);
             while (rows.hasNext()) {
@@ -138,6 +142,7 @@ public final class ExcelImporter {
                     a.taskId = taskId;
                     a.excelRowIndex = excelRow;
                     a.epc = code;
+                    a.createdAt = importedAt;
                     a.assetType = pick(cells, headers, "设备类型");
                     a.assetModel = pick(cells, headers, "设备型号");
                     a.serialNumber = pick(cells, headers, "序列号");

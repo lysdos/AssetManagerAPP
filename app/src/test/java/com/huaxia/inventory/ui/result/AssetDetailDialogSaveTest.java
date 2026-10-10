@@ -67,6 +67,7 @@ public class AssetDetailDialogSaveTest {
         assertEquals(7L, pending.taskId);
         assertEquals(3, pending.excelRowIndex);
         assertEquals(original.inventoryTime, pending.inventoryTime);
+        assertEquals(original.createdAt, pending.createdAt);
         assertEquals("1234567890123456", original.epc);
         assertEquals("旧类型", original.assetType);
         assertEquals(originalJson, original.rawRowJson);
@@ -135,6 +136,7 @@ public class AssetDetailDialogSaveTest {
         asset.dept = "部门";
         asset.rawRowJson = "{\"固资编号\":\"1234567890123456\",\"设备类型\":\"旧类型\"}";
         asset.inventoryTime = 123L;
+        asset.createdAt = 456L;
         return asset;
     }
 }

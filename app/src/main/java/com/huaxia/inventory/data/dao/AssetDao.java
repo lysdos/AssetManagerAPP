@@ -41,42 +41,64 @@ public interface AssetDao {
     java.util.List<String> findExistingEpcs(java.util.List<String> epcs);
 
     /**
-     * 单行 upsert by epc. 重复导入同一 epc 时, 覆盖业务字段 (assetType/assetModel/serialNumber/
-     * custodian/dept/rawRowJson/excelRowIndex), <b>明确保留</b> id / taskId / inventory_time —
+     * 重复导入时按 epc "存在则覆盖业务字段, 不存在则新增"。
+     *
+     * <p>覆盖字段: excelRowIndex / assetType / assetModel / serialNumber / custodian /
+     * dept / rawRowJson。<b>明确保留</b> id / taskId / inventory_time / created_at —
      *   - id 不动 → ScanRecord.matchedAssetId FK 持续有效, 已盘点关联不丢.
      *   - taskId 不动 → 库存池划拨到任务后再导入不会把资产踢回 pool.
      *   - inventory_time 不动 → 盘点时间不被覆盖更新抹掉 (导出 Excel "盘点时间"列保留).
-     * 必须用 raw @Query, 不能用 Room @Upsert annotation — @Upsert 走 INSERT OR REPLACE on PK,
-     * 会 DELETE 旧行后 INSERT, 导致 id 变 + inventory_time 清空.
+     *   - created_at 不动 → "首次导入时间"保留首见值, "今日新增" 按首次导入统计.
+     *
+     * <p><b>为何不用 UPSERT 语法</b> ({@code ON CONFLICT(epc) DO UPDATE}): 该语法需
+     * SQLite 3.24+ (Android 10 / API 29), 而 minSdk = 26 (Android 8.0 的 SQLite 是 3.18)
+     * — 旧机会在 prepare 阶段直接抛 {@code near "ON": syntax error}, 导入主路径全挂。
+     * 改用 {@code INSERT OR IGNORE} + 条件 {@code UPDATE} 两步, 全版本可用。
+     *
+     * <p>也不能用 Room {@code @Upsert} / {@code INSERT OR REPLACE}: 走 DELETE 旧行 + INSERT,
+     * 导致 id 变 + inventory_time / created_at 清空。
      */
-    @Query("INSERT INTO Asset (taskId, excelRowIndex, epc, assetType, assetModel, " +
-           "serialNumber, custodian, dept, raw_row_json, inventory_time) " +
-           "VALUES (:taskId, :excelRowIndex, :epc, :assetType, :assetModel, " +
-           ":serialNumber, :custodian, :dept, :rawRowJson, :inventoryTime) " +
-           "ON CONFLICT(epc) DO UPDATE SET " +
-           "excelRowIndex = excluded.excelRowIndex, " +
-           "assetType = excluded.assetType, " +
-           "assetModel = excluded.assetModel, " +
-           "serialNumber = excluded.serialNumber, " +
-           "custodian = excluded.custodian, " +
-           "dept = excluded.dept, " +
-           "raw_row_json = excluded.raw_row_json")
-    long upsertOne(long taskId, int excelRowIndex, String epc,
-                   String assetType, String assetModel,
-                   String serialNumber, String custodian, String dept,
-                   String rawRowJson, @Nullable Long inventoryTime);
+    @androidx.room.Transaction
+    default void upsertOne(Asset a) {
+        long rowId = insertIgnore(a);   // 新行 → rowId >= 1; 已存在 → -1 (被 IGNORE)
+        if (rowId == -1L) {
+            updateBusinessFieldsByEpc(a.epc, a.excelRowIndex, a.assetType,
+                    a.assetModel, a.serialNumber, a.custodian, a.dept, a.rawRowJson);
+        }
+    }
 
     /**
-     * 批量 upsert, 走单事务. 每批 500 条调用一次, 性能 ≈ 单批 INSERT 同量级.
-     * @Transaction 让 Room 框架包 BEGIN/COMMIT, 中途失败整体回滚.
+     * 插入新行; epc 冲突时静默忽略 (返回 -1)。给 {@link #upsertOne(Asset)} 当
+     * "插入或探测已存在" 用 — 返回值即冲突信号, 省一次 SELECT。
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    long insertIgnore(Asset asset);
+
+    /**
+     * 按 epc 覆盖业务字段 (不含 id / taskId / inventory_time / created_at)。
+     * @return 受影响行数 (0 = 无该 epc)
+     */
+    @Query("UPDATE Asset SET " +
+           "excelRowIndex = :excelRowIndex, " +
+           "assetType = :assetType, " +
+           "assetModel = :assetModel, " +
+           "serialNumber = :serialNumber, " +
+           "custodian = :custodian, " +
+           "dept = :dept, " +
+           "raw_row_json = :rawRowJson " +
+           "WHERE epc = :epc")
+    int updateBusinessFieldsByEpc(String epc, int excelRowIndex, String assetType,
+                                  String assetModel, String serialNumber,
+                                  String custodian, String dept, String rawRowJson);
+
+    /**
+     * 批量 upsert, 走单事务. 每批 500 条调用一次, 性能 ≈ 单批 INSERT 同量级。
+     * @Transaction 让 Room 框架包 BEGIN/COMMIT, 中途失败整体回滚。
      */
     @androidx.room.Transaction
     default void upsertBatch(java.util.List<Asset> assets) {
         for (Asset a : assets) {
-            upsertOne(a.taskId, a.excelRowIndex, a.epc,
-                    a.assetType, a.assetModel,
-                    a.serialNumber, a.custodian, a.dept,
-                    a.rawRowJson, a.inventoryTime);
+            upsertOne(a);
         }
     }
 
@@ -97,6 +119,15 @@ public interface AssetDao {
 
     @Query("SELECT COUNT(*) FROM Asset WHERE taskId = :taskId")
     int countByTask(long taskId);
+
+    /**
+     * 本任务内首次导入时间 >= :sinceMillis 的资产数（扫描页「在库设备」副标「+N 今日」）。
+     * 口径 = 今天首次进入库存池的本任务资产数。created_at 为 NULL 的历史行不计入
+     * （NULL >= 值 结果为 NULL，不满足 WHERE）。
+     * @param sinceMillis 自然日窗口起点，调用方传 {@code DateUtil.startOfToday()}
+     */
+    @Query("SELECT COUNT(*) FROM Asset WHERE taskId = :taskId AND created_at >= :sinceMillis")
+    int countCreatedAfter(long taskId, long sinceMillis);
 
     @Query("SELECT * FROM Asset WHERE taskId = :taskId ORDER BY excelRowIndex ASC")
     List<Asset> findAllByTask(long taskId);

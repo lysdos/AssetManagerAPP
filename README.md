@@ -128,7 +128,7 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 - 删除：AssetPreviewAdapter.java / item_asset_preview.xml / RecentScanAdapter.java / item_recent_scan.xml / item_asset_result.xml
 
 ### 已知限制 / 后续迭代
-- `Asset.createdAt` 字段未实现，"今日新增"统计暂显示 0（占位）
+- ~~`Asset.createdAt` 字段未实现，"今日新增"统计暂显示 0（占位）~~ → 2026-10-10 已实现：`Asset.createdAt`（首次导入时间）+ `AssetDao.countCreatedAfter(taskId, DateUtil.startOfToday())`，扫描页「在库设备」副标显示「+N 今日」（N = 本任务内今天首次导入的资产数）
 - `lastInventoryAt` 当前用 `InventoryTask.importedAt` 作代理（非真正"最后扫描时间"）
 - EXTRA 模式下 `vm.extras().observe` 是空 body（仅 assets observer 渲染；后续迭代可加 ScanRecord 专用 Adapter）
 - 深色模式未做专项优化（沿用系统 DayNight）

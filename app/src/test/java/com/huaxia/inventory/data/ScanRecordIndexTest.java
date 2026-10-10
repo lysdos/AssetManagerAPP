@@ -13,8 +13,8 @@ import static org.junit.Assert.assertTrue;
  * 复合索引, 让 {@code InventoryTaskDao.recomputeScannedCount} 的
  * {@code COUNT(DISTINCT matchedAssetId) WHERE taskId=? AND matchedAssetId IS NOT NULL}
  * 走 index-only scan — 否则单列索引只能 index-OR, 1w+ ScanRecord 任务变成全索引扫描.
- * 同时 AppDatabase.version 必须 bump 到 6 且 MIGRATION_5_6 必须注册 —
- * 否则旧库 (v5) 读到 v6 schema 后 Room 会因未知索引列名抛 IllegalStateException.
+ * 同时 AppDatabase.version 必须 bump 到当前版本且 MIGRATION_5_6 必须注册 —
+ * 否则旧库 (v5) 读到新 schema 后 Room 会因未知索引列名抛 IllegalStateException.
  */
 public class ScanRecordIndexTest {
 
@@ -39,7 +39,7 @@ public class ScanRecordIndexTest {
     }
 
     @Test
-    public void appDatabase_versionBumpedToSix_andMigrationRegistered() throws Exception {
+    public void appDatabase_versionBumped_andMigrationsRegistered() throws Exception {
         File moduleDir = new File(System.getProperty("user.dir"));
         File db = new File(moduleDir,
                 "src/main/java/com/huaxia/inventory/data/AppDatabase.java");
@@ -59,16 +59,22 @@ public class ScanRecordIndexTest {
         String dbText = new String(Files.readAllBytes(db.toPath()), StandardCharsets.UTF_8);
         String appText = new String(Files.readAllBytes(app.toPath()), StandardCharsets.UTF_8);
 
-        // version 必须升到 6, 否则 Room compile 无法对老库迁移.
-        assertTrue("AppDatabase.version must be 6 after adding composite index. Source:\n"
-                + dbText,
-                dbText.contains("version = 6"));
-        // 必须声明 MIGRATION_5_6.
+        // version 必须是当前最新 (v7 = ScanRecord 复合索引 v6 + Asset.created_at v7),
+        // 否则 Room compile 无法对老库迁移.
+        assertTrue("AppDatabase.version must be 7. Source:\n" + dbText,
+                dbText.contains("version = 7"));
+        // 必须声明 MIGRATION_5_6 (ScanRecord 复合索引).
         assertTrue("AppDatabase must declare MIGRATION_5_6. Source:\n" + dbText,
                 dbText.contains("MIGRATION_5_6"));
         // InventoryApp 必须注册 MIGRATION_5_6, 否则 Room 不会跑它会走 fallbackToDestructiveMigration.
         assertTrue("InventoryApp must register AppDatabase.MIGRATION_5_6 in builder. Source:\n"
                 + appText,
                 appText.contains("AppDatabase.MIGRATION_5_6"));
+        // 必须声明并注册 MIGRATION_6_7 (Asset.created_at).
+        assertTrue("AppDatabase must declare MIGRATION_6_7. Source:\n" + dbText,
+                dbText.contains("MIGRATION_6_7"));
+        assertTrue("InventoryApp must register AppDatabase.MIGRATION_6_7 in builder. Source:\n"
+                + appText,
+                appText.contains("AppDatabase.MIGRATION_6_7"));
     }
 }

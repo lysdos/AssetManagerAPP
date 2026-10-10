@@ -34,7 +34,7 @@ public class ImportViewModel extends AndroidViewModel {
         /**
          * 解析成功的行中, 命中 DB 已存在 epc 的条数.
          * 仅统计 (同文件内 HashSet 去重后) 的 epc 与 DB 现有 epc 的交集 —
-         * 导入时这些会被 ON CONFLICT(epc) DO UPDATE 覆盖.
+         * 导入时这些会被 upsertOne (INSERT OR IGNORE + 条件 UPDATE) 覆盖.
          */
         public final int duplicateCount;
         public final List<String> errorSample;
@@ -212,7 +212,7 @@ public class ImportViewModel extends AndroidViewModel {
                                     // 队列上另一任务 (例如 ResultFragment.refreshStats /
                                     // ScanViewModel.recomputeStats 间接触发 Asset 写入)
                                     // 在步骤 1 与步骤 2 之间插入新 Asset, 导致 updated
-                                    // 计数与实际 ON CONFLICT 路径覆盖数偏差.
+                                    // 计数与实际覆盖更新路径偏差.
                                     final int[] updatedInBatchHolder = {0};
                                     try {
                                         db.runInTransaction(() -> {

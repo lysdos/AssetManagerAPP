@@ -193,6 +193,74 @@ public class AssetDaoTest {
         assertEquals(1, dao.countByTask(2));
     }
 
+    @Test
+    public void countCreatedAfter_filtersByTaskAndWindow() {
+        long window = 1_700_000_000_000L;
+        dao.insert(assetWithCreatedAt(1, "EPC1", window + 1));
+        dao.insert(assetWithCreatedAt(1, "EPC2", window + 2));
+        dao.insert(assetWithCreatedAt(1, "EPC3", window - 1)); // 窗口外
+        dao.insert(newAsset(1, "EPC4", "D"));                  // created_at = null
+        dao.insert(assetWithCreatedAt(2, "EPC5", window + 3)); // 属于别的 task
+
+        assertEquals(2, dao.countCreatedAfter(1, window));
+        assertEquals(1, dao.countCreatedAfter(2, window));
+        // 窗口起点为闭区间: created_at >= window
+        assertEquals(3, dao.countCreatedAfter(1, window - 1));
+    }
+
+    /**
+     * upsertOne 用 INSERT OR IGNORE + 条件 UPDATE 替代 UPSERT 语法
+     * (ON CONFLICT ... DO UPDATE, 需 SQLite 3.24+)。这条测试能在 Robolectric 的
+     * legacy SQLite 上真实跑通, 即证明 API 26 级别的老 SQLite 也支持 —— 之前用
+     * UPSERT 语法时这里会抛 near "ON": syntax error。
+     */
+    @Test
+    public void upsertOne_newEpc_insertsRow() {
+        Asset a = newAsset(1, "EPC1", "A");
+        a.assetType = "类型";
+        a.createdAt = 100L;
+        dao.upsertBatch(Arrays.asList(a));
+
+        Asset stored = dao.findByEpc(1, "EPC1");
+        assertNotNull(stored);
+        assertEquals("类型", stored.assetType);
+        assertEquals(Long.valueOf(100L), stored.createdAt);
+    }
+
+    @Test
+    public void upsertOne_existingEpc_overwritesBusinessFields_preservingIdentityAndTimestamps() {
+        Asset first = newAsset(1, "EPC1", "A");
+        first.assetType = "旧类型";
+        first.createdAt = 100L;
+        first.inventoryTime = 5L;
+        dao.upsertBatch(Arrays.asList(first));
+        long id = dao.findByEpc(1, "EPC1").id;
+
+        // 同一 epc 再导入: taskId 故意不同(应保留旧值), 业务字段应被覆盖,
+        // createdAt / inventoryTime 应保留首见值。
+        Asset again = newAsset(9, "EPC1", "A");
+        again.assetType = "新类型";
+        again.dept = "新部门";
+        again.createdAt = 999L;
+        again.inventoryTime = 7L;
+        dao.upsertBatch(Arrays.asList(again));
+
+        Asset stored = dao.findByEpc(1, "EPC1");
+        assertNotNull(stored);
+        assertEquals(id, stored.id);                          // id 保留
+        assertEquals(1L, stored.taskId);                      // taskId 不被新导入踢回/改走
+        assertEquals("新类型", stored.assetType);             // 业务字段被覆盖
+        assertEquals("新部门", stored.dept);
+        assertEquals(Long.valueOf(100L), stored.createdAt);   // 首见时间保留
+        assertEquals(Long.valueOf(5L), stored.inventoryTime); // 盘点时间保留
+    }
+
+    private Asset assetWithCreatedAt(long taskId, String epc, long createdAt) {
+        Asset a = newAsset(taskId, epc, epc);
+        a.createdAt = createdAt;
+        return a;
+    }
+
     private Asset newAsset(long taskId, String epc, String name) {
         Asset a = new Asset();
         a.taskId = taskId;

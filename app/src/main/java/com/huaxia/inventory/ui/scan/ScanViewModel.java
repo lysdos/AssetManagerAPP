@@ -16,6 +16,7 @@ import com.huaxia.inventory.data.dao.ScanAggregate;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.InventoryTask;
 import com.huaxia.inventory.data.entity.ScanRecord;
+import com.huaxia.inventory.util.DateUtil;
 import androidx.annotation.VisibleForTesting;
 import androidx.lifecycle.Observer;
 import java.util.List;
@@ -328,7 +329,8 @@ public class ScanViewModel extends AndroidViewModel {
 
             int scanned = matched;
             int anomaly = Math.max(0, expectedCount - scanned);
-            int todayAdded = 0; // 首版占位 — Asset 实体无 createdAt 字段
+            // 本任务内"今天首次导入"的资产数 — 自然日窗口从本地 00:00 起算.
+            int todayAdded = db.assetDao().countCreatedAfter(taskId, DateUtil.startOfToday());
             List<CategoryCount> categories = db.assetDao().countByCategory(taskId);
             if (categories.size() > 3) categories = categories.subList(0, 3);
 

@@ -161,6 +161,8 @@ public final class AssetDetailDialog {
      *       不复制会导致导出丢字段.</li>
      *   <li>{@code inventoryTime} — ResultFragment 会先覆盖它(用最早扫描时间),
      *       但列表显示依赖该字段; 不复制会让用户看到的盘点时间被改写.</li>
+     *   <li>{@code createdAt} — @Update 按 id 覆盖整行, 不复制会把"首次导入时间"
+     *       清成 NULL, 「+N 今日」统计随之丢失.</li>
      *   <li>其余业务字段 ({@code assetType / assetModel / serialNumber / custodian / dept})
      *       — dialog 立刻改写, 但保留旧值作为回退.</li>
      * </ul>
@@ -180,6 +182,7 @@ public final class AssetDetailDialog {
         copy.dept = source.dept;
         copy.rawRowJson = source.rawRowJson;
         copy.inventoryTime = source.inventoryTime;
+        copy.createdAt = source.createdAt;
         return copy;
     }
 

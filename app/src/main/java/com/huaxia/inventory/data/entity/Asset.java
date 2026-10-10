@@ -8,9 +8,9 @@ import androidx.room.PrimaryKey;
 
 @Entity(indices = {
         @Index("taskId"),
-        // epc 单列唯一 — 重复导入时按 epc 覆盖 (AssetDao.upsertOne ON CONFLICT(epc) DO UPDATE).
-        // 注意: ON CONFLICT 子句明确排除 taskId / inventory_time,
-        // 保留 Asset.id 不变 → ScanRecord.matchedAssetId FK 持续有效; 盘点时间不被抹.
+        // epc 单列唯一 — 重复导入时按 epc 覆盖 (AssetDao.upsertOne: INSERT OR IGNORE + UPDATE).
+        // 注意: 覆盖路径明确排除 id / taskId / inventory_time / created_at,
+        // 保留 Asset.id 不变 → ScanRecord.matchedAssetId FK 持续有效; 盘点/导入时间不被抹.
         @Index(value = {"epc"}, unique = true)
 })
 public class Asset {
@@ -42,4 +42,15 @@ public class Asset {
     @Nullable
     @ColumnInfo(name = "inventory_time")
     public Long inventoryTime;
+
+    /**
+     * 首次导入时间（毫秒）。流式导入时整批共用一个时间戳。
+     * 重复导入同一 epc 时 upsertOne 的覆盖路径明确不更新此列 —
+     * 保留"首次见到该资产"的时间，供扫描页「在库设备」副标「+N 今日」统计
+     * （N = 本任务内今天首次导入的资产数）。v6 之前的历史行升级后为 null，
+     * 不参与"今日"统计。
+     */
+    @Nullable
+    @ColumnInfo(name = "created_at")
+    public Long createdAt;
 }
