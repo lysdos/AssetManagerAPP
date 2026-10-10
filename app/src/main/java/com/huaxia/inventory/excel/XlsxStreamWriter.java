@@ -265,7 +265,14 @@ public final class XlsxStreamWriter implements AutoCloseable {
                 case '>':  sb.append("&gt;");   break;
                 case '"':  sb.append("&quot;"); break;
                 case '\'': sb.append("&apos;"); break;
-                default:   sb.append(c);
+                default:
+                    // XML 1.0 非法控制字符 (0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F) 即使转义
+                    // 也不合法, 会让整个 sheet XML 无法解析 → 导出的 xlsx 打不开.
+                    // 源单元格里混进这类脏字符(常见于从其它系统导出的 Excel)时丢弃,
+                    // 不牵连整个导出文件; \t \n \r 合法, 保留.
+                    if (c >= 0x20 || c == '\t' || c == '\n' || c == '\r') {
+                        sb.append(c);
+                    }
             }
         }
         return sb.toString();
