@@ -127,19 +127,26 @@ public final class ExcelExporter {
         fullHeaders.addAll(RESULT_COLUMNS);
 
         try (XlsxStreamWriter writer = new XlsxStreamWriter(out, fullHeaders, parentTmpDir)) {
+            // 统计先算好 (在写表头之前) — 让"应盘/已盘/盘亏/盘盈"统计行能紧跟"导出时间"
+            // 行; 这批 id 集合与计数同时供后续资产行 / 盘盈段复用.
+            // 1) 仅加载 found id 投影 — 取代旧的 findFound(taskId) 全 Asset 行加载
+            // (含 rawRowJson ~500B-1KB/行, 30w 任务原本 ~150MB 峰值; 现在 ~2.4MB)
+            Set<Long> matchedIds = new HashSet<>(assetDao.findFoundIds(taskId));
+            int totalAssets = assetDao.countByTask(taskId);
+            int totalExtras = scanRecordDao.countExtras(taskId);
+            int found = matchedIds.size();
+            int missing = Math.max(0, totalAssets - found);
+
             // Row 0: 标题
             writer.writeRow("固定资产盘点结果 - " + taskName);
             // Row 1: 导出时间
             writer.writeRow("导出时间:", DateUtil.formatTimestamp(System.currentTimeMillis()));
-            // Row 2: 表头
+            // Row 2: 统计 (应盘/已盘/盘亏/盘盈, 各占一单元格; 数量为数字单元格)
+            writer.writeRow("应盘", totalAssets, "已盘", found, "盘亏", missing, "盘盈", totalExtras);
+            // Row 3: 表头
             writer.writeRow(fullHeaders.toArray(new String[0]));
 
-            // 1) 仅加载 found id 投影 — 取代旧的 findFound(taskId) 全 Asset 行加载
-            // (含 rawRowJson ~500B-1KB/行, 30w 任务原本 ~150MB 峰值; 现在 ~2.4MB)
-            Set<Long> matchedIds = new HashSet<>(assetDao.findFoundIds(taskId));
-
             // 2) 分页流式写资产
-            int totalAssets = assetDao.countByTask(taskId);
             for (int offset = 0; offset < totalAssets; offset += STREAM_PAGE_SIZE) {
                 List<Asset> page = assetDao.pageAll(taskId, STREAM_PAGE_SIZE, offset);
                 for (Asset a : page) {
@@ -151,7 +158,6 @@ public final class ExcelExporter {
             // ExtraClaim 按页收集 id 并查 IN (Android SQLite 单次 IN 上限 999),
             // 避免盘盈 > 999 时崩溃; 同时不再累积所有 ScanRecord 到堆,
             // 写完一页后清空 pageIds 与 claimMap, 峰值内存仅一页.
-            int totalExtras = scanRecordDao.countExtras(taskId);
             if (totalExtras > 0) {
                 writer.writeRow("");  // 空行
                 writer.writeRow("【盘盈记录】");

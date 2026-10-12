@@ -48,6 +48,41 @@ public class ExcelExporterStreamedTest {
     @After public void teardown() { db.close(); }
 
     @Test
+    public void exportStreamed_writesStatsRowAfterExportTime() throws Exception {
+        // 3 资产 / 1 已盘 / 2 盘盈 → 统计行应为: 应盘3 已盘1 盘亏2 盘盈2
+        long taskId = db.inventoryTaskDao().insert(makeTask("测试"));
+        db.assetDao().insert(makeAsset(taskId, "E1"));
+        db.assetDao().insert(makeAsset(taskId, "E2"));
+        db.assetDao().insert(makeAsset(taskId, "E3"));
+        long matchedId = db.assetDao().findByEpc(taskId, "E1").id;
+        db.scanRecordDao().insert(scan(taskId, "E1", 1_000L, matchedId, "TID1"));
+        db.scanRecordDao().insert(scan(taskId, "X1", 2_000L, null, "TIDX1"));
+        db.scanRecordDao().insert(scan(taskId, "X2", 3_000L, null, "TIDX2"));
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ExcelExporter.exportStreamed(out, "测试",
+                Arrays.asList("设备名称", "固资编号", "电子标签"),
+                db.assetDao(), db.scanRecordDao(), db.extraClaimDao(), taskId,
+                tmp.getRoot());
+
+        try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {
+            Sheet s = wb.getSheetAt(0);
+            Row stats = s.getRow(2);  // 紧跟 row1 "导出时间:"
+            assertNotNull("统计行应紧跟在导出时间行之下", stats);
+            assertEquals("应盘", stats.getCell(0).getStringCellValue());
+            assertEquals(3, (int) stats.getCell(1).getNumericCellValue());
+            assertEquals("已盘", stats.getCell(2).getStringCellValue());
+            assertEquals(1, (int) stats.getCell(3).getNumericCellValue());
+            assertEquals("盘亏", stats.getCell(4).getStringCellValue());
+            assertEquals(2, (int) stats.getCell(5).getNumericCellValue());
+            assertEquals("盘盈", stats.getCell(6).getStringCellValue());
+            assertEquals(2, (int) stats.getCell(7).getNumericCellValue());
+            // 表头被后移到统计行之下
+            assertEquals("设备名称", s.getRow(3).getCell(0).getStringCellValue());
+        }
+    }
+
+    @Test
     public void exportStreamed_writesExtrasSection() throws Exception {
         // 准备 1 个 task、1 个 asset、2 条盘盈扫描
         long taskId = db.inventoryTaskDao().insert(makeTask("测试"));
