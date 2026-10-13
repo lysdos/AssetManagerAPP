@@ -201,6 +201,32 @@ public class TaskListViewModel extends AndroidViewModel {
     }
 
     /**
+     * 完成任务: status -> {@code COMPLETED} (不可逆)。若该任务是当前任务, 同时清空
+     * currentTaskId, 让扫描页复位并停止 RFID。完成后的任务才能被"清除已完成"清理
+     * (在此之前没有入口把任务置为 COMPLETED)。
+     * Runnable cb 在 diskIO 线程触发, UI 调用方需自行 runOnUiThread 切回主线程。
+     */
+    public void completeTask(long taskId, Runnable cb) {
+        diskIO.execute(() -> {
+            try {
+                InventoryTask t = app.getDb().inventoryTaskDao().findById(taskId);
+                if (t != null && !"COMPLETED".equals(t.status)) {
+                    t.status = "COMPLETED";
+                    app.getDb().inventoryTaskDao().update(t);
+                    Long cur = app.getSession().getCurrentTaskId();
+                    if (cur != null && cur == taskId) {
+                        app.getSession().clear();
+                    }
+                }
+                if (cb != null) cb.run();
+            } catch (Exception e) {
+                Log.e(TAG, "completeTask failed", e);
+                if (cb != null) cb.run();
+            }
+        });
+    }
+
+    /**
      * 恢复任务: status -> IN_PROGRESS (并设为 currentTaskId, 让 scan 接着扫)。
      */
     public void resumeTask(long taskId, Runnable cb) {

@@ -189,7 +189,17 @@ public class TaskListFragment extends Fragment {
                     + "— AndroidX version may have moved mPopup field", e);
         }
 
+        // "完成任务"仅在非已完成时显示 (已完成不可再完成)。
+        android.view.MenuItem completeItem = popup.getMenu().findItem(R.id.menu_task_complete);
+        if (completeItem != null) {
+            completeItem.setVisible(!"COMPLETED".equals(task.status));
+        }
+
         popup.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == R.id.menu_task_complete) {
+                confirmAndComplete(task);
+                return true;
+            }
             if (item.getItemId() == R.id.menu_task_delete) {
                 confirmAndDelete(task);
                 return true;
@@ -214,6 +224,23 @@ public class TaskListFragment extends Fragment {
                                 Toast.makeText(requireContext(),
                                         getString(R.string.task_msg_release_done, released),
                                         Toast.LENGTH_SHORT).show();
+                            });
+                        }))
+                .setNegativeButton(R.string.action_cancel, null)
+                .show();
+    }
+
+    /** 完成任务: 二次确认(不可逆) → vm.completeTask → Toast。 */
+    private void confirmAndComplete(InventoryTask task) {
+        new AlertDialog.Builder(requireContext())
+                .setMessage(R.string.task_msg_confirm_complete)
+                .setPositiveButton(R.string.task_action_complete, (d, w) ->
+                        vm.completeTask(task.id, () -> {
+                            if (!isAdded()) return;
+                            requireActivity().runOnUiThread(() -> {
+                                if (!isAdded()) return;
+                                Toast.makeText(requireContext(),
+                                        R.string.task_msg_completed, Toast.LENGTH_SHORT).show();
                             });
                         }))
                 .setNegativeButton(R.string.action_cancel, null)

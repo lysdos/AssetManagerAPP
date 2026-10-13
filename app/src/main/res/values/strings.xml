@@ -109,6 +109,9 @@
     <!-- ⋮ → "删除任务" 的二次确认. 行为=资产回 pool + 清扫描 + 删任务壳, 资产不丢. -->
     <string name="task_msg_confirm_delete">确认删除该任务？\n\n该任务下的资产将返回库存池（供新任务分配），扫描记录与任务本身将被清除。\n\n此操作不可撤销。</string>
     <string name="task_msg_confirm_clear_done">确认清除所有已完成任务？</string>
+    <string name="task_action_complete">完成任务</string>
+    <string name="task_msg_confirm_complete">确认将该任务标记为已完成？\n\n标记后不可再继续盘点，且不可撤销。</string>
+    <string name="task_msg_completed">已标记为已完成</string>
     <string name="task_msg_paused">任务「%1$s」已暂停</string>
     <string name="task_msg_resumed">任务「%1$s」已恢复，可继续盘点</string>
     <string name="task_content_desc_delete">删除任务</string>
