@@ -53,7 +53,7 @@ public class ScanViewModelTransactionTest {
     }
 
     @Test
-    public void clearCurrentTask_threeDeleteStepsInsideSingleTransaction() throws Exception {
+    public void resetScanProgress_deletesScansAndClaims_keepsTaskAndAssets() throws Exception {
         File moduleDir = new File(System.getProperty("user.dir"));
         File source = new File(moduleDir,
                 "src/main/java/com/huaxia/inventory/ui/scan/ScanViewModel.java");
@@ -64,10 +64,10 @@ public class ScanViewModelTransactionTest {
         assertTrue("ScanViewModel.java not found", source.exists());
         String text = new String(Files.readAllBytes(source.toPath()), StandardCharsets.UTF_8);
 
-        String body = extractMethodBody(text, "public void clearCurrentTask()");
-        assertTrue("clearCurrentTask body not found", body.length() > 0);
+        String body = extractMethodBody(text, "public void resetScanProgress()");
+        assertTrue("resetScanProgress body not found", body.length() > 0);
 
-        assertEquals("clearCurrentTask must invoke app.getDb().runInTransaction( exactly once. "
+        assertEquals("resetScanProgress must invoke app.getDb().runInTransaction( exactly once. "
                 + "Body:\n" + body,
                 1, countOccurrences(body, "runInTransaction("));
 
@@ -75,10 +75,17 @@ public class ScanViewModelTransactionTest {
         assertTrue(lambdaBody.length() > 0);
         assertTrue("scanRecordDao().deleteByTask must be inside transaction. Lambda:\n"
                 + lambdaBody, lambdaBody.contains("scanRecordDao().deleteByTask"));
-        assertTrue("assetDao().deleteByTask must be inside transaction. Lambda:\n"
-                + lambdaBody, lambdaBody.contains("assetDao().deleteByTask"));
-        assertTrue("inventoryTaskDao().deleteById must be inside transaction. Lambda:\n"
-                + lambdaBody, lambdaBody.contains("inventoryTaskDao().deleteById"));
+        assertTrue("extraClaimDao().deleteByTask must be inside transaction. Lambda:\n"
+                + lambdaBody, lambdaBody.contains("extraClaimDao().deleteByTask"));
+
+        // 保留任务与资产 —— 只清扫描进度。
+        assertTrue("resetScanProgress must NOT delete assets. Body:\n" + body,
+                !body.contains("assetDao().deleteByTask"));
+        assertTrue("resetScanProgress must NOT delete the task. Body:\n" + body,
+                !body.contains("inventoryTaskDao().deleteById"));
+        // 关键: 必须清内存去重集, 否则重扫同样标签被挡、不写库。
+        assertTrue("resetScanProgress must clear scannedEpcSet. Body:\n" + body,
+                body.contains("scannedEpcSet.clear()"));
     }
 
     private static String extractMethodBody(String text, String signature) {

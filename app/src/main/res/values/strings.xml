@@ -54,13 +54,13 @@
     <string name="scan_info_recent">📋 最近盘点结果</string>
     <string name="scan_info_recent_desc">已盘 %1$d 台，盘亏 %2$d 台，盘盈 %3$d 台。</string>
     <string name="scan_start_inventory">➕ 开始盘点</string>
-    <string name="scan_clear_task">🗑️ 数据重置</string>
-    <string name="scan_clear_task_confirm_title">清除当前任务？</string>
-    <string name="scan_clear_task_confirm_msg">将删除当前任务下全部 %1$d 条资产和 %2$d 条扫描记录，操作不可撤销。</string>
-    <string name="scan_clear_task_confirm_ok">确认清除</string>
+    <string name="scan_clear_task">🔄 重置扫描进度</string>
+    <string name="scan_clear_task_confirm_title">重置扫描进度？</string>
+    <string name="scan_clear_task_confirm_msg">将清空当前任务的 %1$d 条扫描记录（含盘盈补全），任务与资产保留，可从零重新扫描。</string>
+    <string name="scan_clear_task_confirm_ok">确认重置</string>
     <string name="scan_clear_task_confirm_cancel">取消</string>
-    <string name="scan_clear_task_done">已清除 %1$d 条资产 / %2$d 条扫描记录</string>
-    <string name="scan_clear_task_failed">清除失败：%1$s</string>
+    <string name="scan_clear_task_done">已重置 %1$d 条扫描记录</string>
+    <string name="scan_clear_task_failed">重置失败：%1$s</string>
     <string name="scan_device_status">设备状态：%1$s</string>
     <!-- 无任务「读码模式」: 空闲提示 + 读到的编码(渲染到状态行) -->
     <string name="scan_reader_idle">读码模式 · 等待标签…</string>

@@ -88,7 +88,7 @@ public class ScanViewModel extends AndroidViewModel {
     private final AtomicLong boundTaskId = new AtomicLong(-1L);
     /**
      * VM 是否已被 {@link #onCleared()} 反初始化 — 用 AtomicBoolean 标记.
-     * 在高频扫描路径 {@link #onEpcScanned}, {@link #clearCurrentTask},
+     * 在高频扫描路径 {@link #onEpcScanned}, {@link #resetScanProgress},
      * {@link #recomputeStats} 等 {@code diskIO.execute} 入口检查, 防止 VM 销毁
      * 后仍有 in-flight runnable 在 diskIO 线程池持 this 强引用、做完工作才
      * 释放. 否则高频扫描 + 频繁切换 task (旋转屏幕 / 任务页切换) 会累积
@@ -120,13 +120,12 @@ public class ScanViewModel extends AndroidViewModel {
     public LiveData<ScanRecord> latestScan() { return latestScan; }
     public LiveData<ClearResult> clearResult() { return clearResult; }
 
-    /** 清除任务结果，assets=被删 Asset 行数，scans=被删 ScanRecord 行数，error=异常消息。 */
+    /** 重置扫描进度的结果: scans=被删 ScanRecord 行数, error=异常消息。 */
     public static class ClearResult {
-        public final int assets;
         public final int scans;
         public final String error;
-        public ClearResult(int assets, int scans) { this.assets = assets; this.scans = scans; this.error = null; }
-        public ClearResult(String error) { this.assets = 0; this.scans = 0; this.error = error; }
+        public ClearResult(int scans) { this.scans = scans; this.error = null; }
+        public ClearResult(String error) { this.scans = 0; this.error = error; }
         public boolean isError() { return error != null; }
     }
 
@@ -174,18 +173,17 @@ public class ScanViewModel extends AndroidViewModel {
      * <ul>
      *   <li>TaskListViewModel.deleteTask 释放当前任务 → session.clear()</li>
      *   <li>TaskListViewModel.switchToTask / pauseTask / resumeTask 切到别的 taskId</li>
-     *   <li>同 ViewModel 内 clearCurrentTask 主动清 session (跳过 — 此时 sessionObserver
-     *       仍触发, 但 boundTaskId 已被 onSessionCleared 推到 -1L, 早 return)</li>
      * </ul>
      * 若新值与 vm 当前绑定值不一致, 视为外部把绑定任务换走, 重置 vm 内部状态
      * (不删 DB 行 — deleteTask 那侧已经在自身事务里完成), 防止 rfid-poll 继续 emit
      * 把 ScanRecord 写到已删 taskId.
+     * <p>注: {@link #resetScanProgress()} 不改 session (只清扫描记录), 故不触发本回调。</p>
      */
     private void onSessionTaskIdChanged(Long sessionId) {
         if (sessionId == null) sessionId = -1L;
         long bound = boundTaskId.get();
         if (bound == sessionId) {
-            return; // 一致, 可能是 clearCurrentTask 自己清 -> 但 bound 已被清 -> see below
+            return; // session 值与 vm 当前绑定一致 — 无需处理
         }
         if (bound == -1L && sessionId == -1L) {
             return; // 已经 unbound
@@ -197,9 +195,9 @@ public class ScanViewModel extends AndroidViewModel {
     }
 
     /**
-     * 仅清 vm 内部状态 + 停 RFID, 不删 DB 三表 (deleteTask 那侧已落地).
-     * 与 {@link #clearCurrentTask()} 的差异: 它在事务中删三表行然后 reset,
-     * 这里假定外部已完成 delete/迁移, 仅做 RFID 停止 + 内存状态复位.
+     * 仅清 vm 内部状态 + 停 RFID, 不删 DB 行 (外部 deleteTask / 切任务 那侧已落地).
+     * 与 {@link #resetScanProgress()} 的差异: 后者保留任务与资产、只删扫描记录, 且不重置
+     * VM (taskId 不变); 这里假定外部已改/删该任务, 故整机复位。
      * 由 {@link #onSessionTaskIdChanged(Long)} 触发.
      */
     private void onSessionCleared() {
@@ -254,7 +252,7 @@ public class ScanViewModel extends AndroidViewModel {
         }
         if (disposed.get()) {
             // VM 已 onCleared — 还在走 rfid poll callback 的话, 直接丢弃;
-            // 否则会落到 taskId (这时已经被 bindToTask/clearCurrentTask 推到 -1L)
+            // 否则会落到 taskId (这时已经被 bindToTask/resetScanProgress 推到 -1L)
             // 写 taskId=-1L 孤儿 ScanRecord.
             return;
         }
@@ -367,61 +365,43 @@ public class ScanViewModel extends AndroidViewModel {
     }
 
     /**
-     * 清当前任务: 删 ScanRecord + Asset + InventoryTask 三表的当前任务行,
-     * 并清掉 session.currentTaskId. 重置后必须重新导入才能扫.
-     * 结果通过 {@link #clearResult()} 回调给 UI.
+     * 重置当前任务的扫描进度: 只删本任务的 ScanRecord + 盘盈补全 (ExtraClaim),
+     * <b>保留任务与资产</b>, 并清空内存去重集 → 可原地重新扫描 (不必重建任务 / 重导 Excel)。
+     * 结果通过 {@link #clearResult()} 回调给 UI。
      *
-     * <p>同步停 RFID: 删三表后若不停 {@code rfid.stopInventory}, rfid-poll 守护线程
-     * 持续 emit onEpcScanned, 读到本方法新写的 {@code currentTaskId=-1L} →
-     * findByEpc + insert 写入 {@code taskId=-1L} 孤儿 ScanRecord. 也不被任何
-     * {@code WHERE taskId=} 视图汇总. 同步在事务后立即调 stopInventory,
-     * 防止 daemon 继续 emit (严格说 join 500ms 内 in-flight 部分仍能写 —
-     * 看 {@code app.getDb().scanRecordDao().insert} 的 UNIQUE 兜底 + IGNORE 三态完成,
-     * 写到 taskId=-1L 的仍会污染 DB).</p>
+     * <p>关键: 必须清 {@link #scannedEpcSet} —— 否则重扫同样的标签会被"已见过"的内存
+     * dedup 挡掉、不写库、计数不涨。</p>
+     * <p>不停 RFID: 任务未变, 不会产生 {@code taskId=-1L} 孤儿记录; 重置后用户可接着扫。</p>
      */
-    public void clearCurrentTask() {
+    public void resetScanProgress() {
         if (disposed.get()) return;
-        if (currentTaskId.get() == -1L) {
+        long taskId = currentTaskId.get();
+        if (taskId == -1L) {
             clearResult.postValue(new ClearResult("当前无任务"));
             return;
         }
-        long taskId = currentTaskId.get();
         // 立即执行的重算不需要走 300ms 去抖
         mainHandler.removeCallbacks(recomputeRunnable);
         diskIO.execute(() -> {
             if (disposed.get()) return;
             final int[] scansHolder = {0};
-            final int[] assetsHolder = {0};
             try {
-                // 先删 ScanRecord, 再删 Asset, 最后删 InventoryTask 行 (按外键依赖顺序)
-                // — 整体包 runInTransaction, 任一步失败回滚, 不留"孤儿 Asset / ScanRecord"
+                // 单事务: 删 ScanRecord + 盘盈补全 — 任一步失败回滚, 不留"扫描删了但补全还在"。
                 app.getDb().runInTransaction(() -> {
                     scansHolder[0] = db.scanRecordDao().deleteByTask(taskId);
-                    assetsHolder[0] = db.assetDao().deleteByTask(taskId);
-                    db.inventoryTaskDao().deleteById(taskId);
+                    db.extraClaimDao().deleteByTask(taskId);
                 });
             } catch (Exception e) {
-                Log.e(TAG, "clearCurrentTask db transaction failed", e);
+                Log.e(TAG, "resetScanProgress db transaction failed", e);
                 clearResult.postValue(new ClearResult(e.getMessage() == null
                         ? e.getClass().getSimpleName() : e.getMessage()));
                 return;
             }
+            // 清内存去重集 — 否则重扫同样标签被挡、不写库 (见方法 javadoc)。
             scannedEpcSet.clear();
-            expectedCount.set(0);
-            currentTaskId.set(-1L);
-            // 清掉全局 session 的 currentTaskId, 让其他页面 (扫描/结果/导入) 也感知到
-            // 主线程调用 setValue (同步) 而非 postValue (异步), 否则后续
-            // getCurrentTaskId() 读到旧值会再次被错认为"还有任务".
-            app.getSession().clear();
-            // 停 RFID: rfid-poll daemon 已挂的 in-flight emit 在 join(500) 内
-            // 仍可能跑出 onEpcScanned; clearedEpcSet.clear() + currentTaskId=-1L
-            // 在 lambda 末尾已生效, in-flight 路径会走 diskIO.findByEpc(-1L, ...) +
-            // insert 到 taskId=-1L. 这些是已知残留 — 但比"持续 emit 一直写"短 1-2s.
-            app.getRfid().stopInventory();
-            // 显式 postValue 一份空 stats, 让 UI 立即归零 (不依赖 onResume/bindToTask 重算)
-            stats.postValue(new Stats(0, 0, 0, 0, 0, 0, 0,
-                    java.util.Collections.emptyList(), 0L));
-            clearResult.postValue(new ClearResult(assetsHolder[0], scansHolder[0]));
+            // 刷新统计 (scannedUniqueCount + 已盘/盘盈聚合) 为归零后的值。
+            recomputeStats();
+            clearResult.postValue(new ClearResult(scansHolder[0]));
         });
     }
 

@@ -107,7 +107,7 @@ public class ScanFragment extends Fragment {
 
         scanBtn.setOnClickListener(btn -> toggleScan());
         manualScanBtn.setOnClickListener(btn -> navigateToManualScan());
-        clearTaskBtn.setOnClickListener(btn -> confirmClearTask());
+        clearTaskBtn.setOnClickListener(btn -> confirmResetProgress());
         applyScanBtnGreen();
 
         // 点击统计卡片跳转结果页并筛选
@@ -144,7 +144,7 @@ public class ScanFragment extends Fragment {
                             Snackbar.LENGTH_LONG).show();
                 } else {
                     Snackbar.make(requireView(),
-                            getString(R.string.scan_clear_task_done, result.assets, result.scans),
+                            getString(R.string.scan_clear_task_done, result.scans),
                             Snackbar.LENGTH_LONG).show();
                 }
             });
@@ -186,7 +186,7 @@ public class ScanFragment extends Fragment {
                         Snackbar.LENGTH_LONG).show();
             } else {
                 Snackbar.make(requireView(),
-                        getString(R.string.scan_clear_task_done, result.assets, result.scans),
+                        getString(R.string.scan_clear_task_done, result.scans),
                         Snackbar.LENGTH_LONG).show();
             }
         });
@@ -194,7 +194,7 @@ public class ScanFragment extends Fragment {
         beepPlayer.init(requireContext(), R.raw.barcodebeep);
     }
 
-    private void confirmClearTask() {
+    private void confirmResetProgress() {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
@@ -204,16 +204,15 @@ public class ScanFragment extends Fragment {
         }
         long tid = taskId;
         app.getExecutors().diskIO.execute(() -> {
-            int assets = app.getDb().assetDao().countByTask(tid);
             int scans = app.getDb().scanRecordDao().countByTask(tid);
             if (!isAdded()) return;
             requireActivity().runOnUiThread(() -> {
                 if (!isAdded()) return;
                 new AlertDialog.Builder(requireContext())
                         .setTitle(R.string.scan_clear_task_confirm_title)
-                        .setMessage(getString(R.string.scan_clear_task_confirm_msg, assets, scans))
+                        .setMessage(getString(R.string.scan_clear_task_confirm_msg, scans))
                         .setPositiveButton(R.string.scan_clear_task_confirm_ok,
-                                (d, w) -> vm.clearCurrentTask())
+                                (d, w) -> vm.resetScanProgress())
                         .setNegativeButton(R.string.scan_clear_task_confirm_cancel, null)
                         .show();
             });
