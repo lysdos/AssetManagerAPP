@@ -141,14 +141,14 @@ public class TaskListViewModel extends AndroidViewModel {
     public void clearCompleted() {
         diskIO.execute(() -> {
             try {
-                // 已完成任务关联的资产 + 扫描记录一并清除, 不再回流库存池
-                // (任务已完成 → 资产/扫描记录的"任务上下文"已无意义)
+                // 已完成任务: 资产退回库存池 (保留, 供下轮复用) + 清扫描/补全 + 删任务壳。
+                // 与 deleteTask 口径一致 —— 库存池是资产主表, 清完成不应销毁主数据。
                 app.getDb().runInTransaction(() -> {
                     List<InventoryTask> done = app.getDb().inventoryTaskDao().findAllCompleted();
                     for (InventoryTask t : done) {
                         app.getDb().extraClaimDao().deleteByTask(t.id);
                         app.getDb().scanRecordDao().deleteByTask(t.id);
-                        app.getDb().assetDao().deleteByTask(t.id);
+                        app.getDb().assetDao().releaseTaskToPool(t.id);
                     }
                     app.getDb().inventoryTaskDao().deleteAllCompleted();
                 });

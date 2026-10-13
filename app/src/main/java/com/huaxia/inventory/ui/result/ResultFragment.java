@@ -35,6 +35,11 @@ public class ResultFragment extends Fragment {
     private static final String TAG = "ResultFragment";
 
     public static final String ARG_TAB = "tab";
+    /**
+     * 可选: 显式指定要查看的 taskId (任务卡"查看详情" → 查看某已完成任务)。
+     * 传了就用它 (仅展示, 不改 session / 不给它写权限); 不传回落到 session 的当前任务。
+     */
+    public static final String ARG_VIEW_TASK_ID = "viewTaskId";
 
     private ResultViewModel vm;
     private RecyclerView rv;
@@ -94,7 +99,11 @@ public class ResultFragment extends Fragment {
         exportBtn.setOnClickListener(btn -> onExportClicked());
 
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        Long taskId = app.getSession().getCurrentTaskId();
+        // 显式传入 viewTaskId 时用它 (任务卡"查看详情"查看已完成任务); 否则用当前任务。
+        long viewTaskId = getArguments() != null
+                ? getArguments().getLong(ARG_VIEW_TASK_ID, -1L) : -1L;
+        Long taskId = viewTaskId >= 0L
+                ? Long.valueOf(viewTaskId) : app.getSession().getCurrentTaskId();
         if (taskId == null) {
             emptyTv.setVisibility(View.VISIBLE);
             rv.setVisibility(View.GONE);

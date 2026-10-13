@@ -19,6 +19,8 @@ import android.widget.Toast;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
 import com.huaxia.inventory.data.entity.InventoryTask;
+import com.huaxia.inventory.ui.result.ResultFragment;
+import com.huaxia.inventory.ui.result.ResultTab;
 import com.huaxia.inventory.ui.scan.ScanFragment;
 import java.util.List;
 
@@ -95,9 +97,9 @@ public class TaskListFragment extends Fragment {
                 });
             }
             @Override public void onViewTask(InventoryTask task) {
-                // 已完成任务：切到扫描页查看盘点结果 (currentTaskId 不变)
+                // 已完成任务：切到结果页查看该任务的盘点结果 (显式传 taskId, 不改 session)
                 if (!isAdded()) return;
-                requireActivity().runOnUiThread(() -> navigateToScan());
+                requireActivity().runOnUiThread(() -> navigateToResult(task.id));
             }
             @Override public void onMoreClicked(InventoryTask task, View anchor) {
                 showTaskMorePopup(task, anchor);
@@ -163,6 +165,26 @@ public class TaskListFragment extends Fragment {
         com.google.android.material.bottomnavigation.BottomNavigationView nav =
                 requireActivity().findViewById(R.id.bottomNav);
         nav.setSelectedItemId(R.id.nav_scan);
+    }
+
+    /**
+     * 打开结果页查看指定任务 (任务卡"查看详情") — 通过 {@link ResultFragment#ARG_VIEW_TASK_ID}
+     * 传 taskId, 不改 session、不给它写权限; 底部导航同步高亮"结果" tab。
+     */
+    private void navigateToResult(long viewTaskId) {
+        ResultFragment fragment = new ResultFragment();
+        Bundle args = new Bundle();
+        args.putLong(ResultFragment.ARG_VIEW_TASK_ID, viewTaskId);
+        args.putString(ResultFragment.ARG_TAB, ResultTab.ALL.name());
+        fragment.setArguments(args);
+        requireActivity().getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.fragmentContainer, fragment, "result")
+                .addToBackStack(null)
+                .commit();
+        com.google.android.material.bottomnavigation.BottomNavigationView nav =
+                requireActivity().findViewById(R.id.bottomNav);
+        nav.getMenu().findItem(R.id.nav_result).setChecked(true);
     }
 
     /**
