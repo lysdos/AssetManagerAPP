@@ -43,7 +43,10 @@ public class ResultViewModel extends AndroidViewModel {
     private final MutableLiveData<java.util.Set<Long>> matchedIds = new MutableLiveData<>(new java.util.HashSet<>());
     private final MutableLiveData<ResultTab> activeTab = new MutableLiveData<>(ResultTab.FOUND);
     private final MutableLiveData<Integer> currentPage = new MutableLiveData<>(0);
-    private long currentTaskId = -1L;
+    // volatile: 主线程 bindToTask 写, diskIO 线程 refresh()/deleteExtra() 读 —
+    // 与 ScanViewModel 用 AtomicLong 同理, 保证跨线程可见性 (executor 提交虽有
+    // happens-before, 显式 volatile 更稳且对齐全项目风格).
+    private volatile long currentTaskId = -1L;
 
     public ResultViewModel(@NonNull Application application) {
         super(application);
