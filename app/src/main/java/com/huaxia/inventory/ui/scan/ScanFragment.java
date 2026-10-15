@@ -22,6 +22,7 @@ import com.huaxia.inventory.rfid.SdkRfidAdapter;
 import com.huaxia.inventory.ui.result.ResultFragment;
 import com.huaxia.inventory.ui.result.ResultTab;
 import com.huaxia.inventory.ui.manual.ManualScanFragment;
+import com.huaxia.inventory.ui.util.LifecycleDialogs;
 import com.huaxia.inventory.ui.util.TagPills;
 import com.huaxia.inventory.util.BeepPlayer;
 import com.huaxia.inventory.util.DateUtil;
@@ -213,13 +214,14 @@ public class ScanFragment extends Fragment {
             if (!isAdded()) return;
             requireActivity().runOnUiThread(() -> {
                 if (!isAdded()) return;
-                new AlertDialog.Builder(requireContext())
+                AlertDialog dialog = new AlertDialog.Builder(requireContext())
                         .setTitle(R.string.scan_clear_task_confirm_title)
                         .setMessage(getString(R.string.scan_clear_task_confirm_msg, scans))
                         .setPositiveButton(R.string.scan_clear_task_confirm_ok,
                                 (d, w) -> vm.resetScanProgress())
                         .setNegativeButton(R.string.scan_clear_task_confirm_cancel, null)
-                        .show();
+                        .create();
+                LifecycleDialogs.showDismissOnDestroy(ScanFragment.this, dialog);
             });
         });
     }

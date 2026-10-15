@@ -11,6 +11,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.DefaultLifecycleObserver;
 import androidx.lifecycle.LifecycleOwner;
@@ -137,6 +138,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean showFragment(Fragment fragment, String tag) {
+        // 底部导航是"平级跳转", 切 tab 先清空返回栈 — 否则从入了栈的页面
+        // (navigateToResult 用 addToBackStack) 切到别的 tab 后, 按返回会回到旧 tab 的
+        // Fragment, 而导航高亮停在当前 tab → 状态错位.
+        getSupportFragmentManager().popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
         FragmentTransaction tx = getSupportFragmentManager().beginTransaction();
         tx.replace(R.id.fragmentContainer, fragment, tag);
         tx.commit();

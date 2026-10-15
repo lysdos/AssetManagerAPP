@@ -408,10 +408,14 @@ public class ScanViewModel extends AndroidViewModel {
             if (disposed.get()) return;
             final int[] scansHolder = {0};
             try {
-                // 单事务: 删 ScanRecord + 盘盈补全 — 任一步失败回滚, 不留"扫描删了但补全还在"。
+                // 单事务: 删盘盈补全 + ScanRecord — 任一步失败回滚, 不留"扫描删了但补全还在"。
+                // 顺序不可颠倒: ExtraClaim.deleteByTask 的谓词是
+                // `scanRecordId IN (SELECT id FROM ScanRecord WHERE taskId=:taskId)`,
+                // 若先删 ScanRecord, 子查询变空 → 补全一条都删不掉, 且残留下次重扫若
+                // 复用同 id 会把旧补全挂到新标签. 与 deleteTask/clearCompleted 同序。
                 app.getDb().runInTransaction(() -> {
-                    scansHolder[0] = db.scanRecordDao().deleteByTask(taskId);
                     db.extraClaimDao().deleteByTask(taskId);
+                    scansHolder[0] = db.scanRecordDao().deleteByTask(taskId);
                 });
             } catch (Exception e) {
                 Log.e(TAG, "resetScanProgress db transaction failed", e);

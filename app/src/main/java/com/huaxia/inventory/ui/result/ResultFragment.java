@@ -25,6 +25,7 @@ import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.ExtraClaim;
 import com.huaxia.inventory.data.entity.InventoryTask;
 import com.huaxia.inventory.excel.ExcelExporter;
+import com.huaxia.inventory.ui.util.LifecycleDialogs;
 import com.huaxia.inventory.util.DateUtil;
 import com.huaxia.inventory.util.EpcNormalizer;
 import java.util.ArrayList;
@@ -414,7 +415,7 @@ public class ResultFragment extends Fragment {
     /** 二次确认后单条删除盘盈记录 (ScanRecord + ExtraClaim)。 */
     private void confirmDeleteExtra(ExtraWithClaim data) {
         String displayEpc = data.scan.epc == null ? "" : EpcNormalizer.toDisplayForm(data.scan.epc);
-        new AlertDialog.Builder(requireContext())
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.extra_delete_confirm_title)
                 .setMessage(getString(R.string.extra_delete_confirm_msg, displayEpc))
                 .setPositiveButton(R.string.extra_delete_confirm_ok, (d, w) ->
@@ -431,7 +432,8 @@ public class ResultFragment extends Fragment {
                             });
                         }))
                 .setNegativeButton(R.string.action_cancel, null)
-                .show();
+                .create();
+        LifecycleDialogs.showDismissOnDestroy(this, dialog);
     }
 
     /**

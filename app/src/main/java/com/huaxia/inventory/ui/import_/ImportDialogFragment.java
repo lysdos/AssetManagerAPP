@@ -27,6 +27,7 @@ import androidx.lifecycle.ViewModelProvider;
 import com.google.android.material.button.MaterialButton;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
+import com.huaxia.inventory.ui.util.LifecycleDialogs;
 
 /**
  * 导入资产弹窗（齿轮 PopupMenu → "导入资产" 触发）。
@@ -221,12 +222,13 @@ public class ImportDialogFragment extends DialogFragment {
      * 执行走 diskIO 线程 (db.clearAllTables 是 Room 同步 API, 在 diskIO 跑不阻塞 UI).
      */
     private void confirmInitDb() {
-        new AlertDialog.Builder(requireContext())
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.import_init_db_title)
                 .setMessage(R.string.import_init_db_msg)
                 .setPositiveButton(R.string.import_init_db_confirm, (d, w) -> doInitDb())
                 .setNegativeButton(R.string.action_cancel, null)
-                .show();
+                .create();
+        LifecycleDialogs.showDismissOnDestroy(this, dialog);
     }
 
     private void doInitDb() {

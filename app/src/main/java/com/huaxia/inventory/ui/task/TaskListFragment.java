@@ -22,6 +22,7 @@ import com.huaxia.inventory.data.entity.InventoryTask;
 import com.huaxia.inventory.ui.result.ResultFragment;
 import com.huaxia.inventory.ui.result.ResultTab;
 import com.huaxia.inventory.ui.scan.ScanFragment;
+import com.huaxia.inventory.ui.util.LifecycleDialogs;
 import java.util.List;
 
 public class TaskListFragment extends Fragment {
@@ -118,13 +119,15 @@ public class TaskListFragment extends Fragment {
                 new CreateTaskDialogFragment().show(getParentFragmentManager(), "create_task"));
 
         MaterialButton clearDoneBtn = v.findViewById(R.id.taskClearDoneBtn);
-        clearDoneBtn.setOnClickListener(btn ->
-                new AlertDialog.Builder(requireContext())
-                        .setMessage(R.string.task_msg_confirm_clear_done)
-                        .setPositiveButton(R.string.task_action_delete,
-                                (d, w) -> vm.clearCompleted())
-                        .setNegativeButton(R.string.action_cancel, null)
-                        .show());
+        clearDoneBtn.setOnClickListener(btn -> {
+            AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                    .setMessage(R.string.task_msg_confirm_clear_done)
+                    .setPositiveButton(R.string.task_action_delete,
+                            (d, w) -> vm.clearCompleted())
+                    .setNegativeButton(R.string.action_cancel, null)
+                    .create();
+            LifecycleDialogs.showDismissOnDestroy(this, dialog);
+        });
 
         vm.tasks().observe(getViewLifecycleOwner(), this::renderTasks);
     }
@@ -236,7 +239,7 @@ public class TaskListFragment extends Fragment {
      * 复用给卡片直接按钮和 ⋮ 弹窗两条路径.
      */
     private void confirmAndDelete(InventoryTask task) {
-        new AlertDialog.Builder(requireContext())
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setMessage(R.string.task_msg_confirm_delete)
                 .setPositiveButton(R.string.task_action_delete, (d, w) ->
                         vm.deleteTask(task.id, (taskId, released) -> {
@@ -249,12 +252,13 @@ public class TaskListFragment extends Fragment {
                             });
                         }))
                 .setNegativeButton(R.string.action_cancel, null)
-                .show();
+                .create();
+        LifecycleDialogs.showDismissOnDestroy(this, dialog);
     }
 
     /** 完成任务: 二次确认(不可逆) → vm.completeTask → Toast。 */
     private void confirmAndComplete(InventoryTask task) {
-        new AlertDialog.Builder(requireContext())
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setMessage(R.string.task_msg_confirm_complete)
                 .setPositiveButton(R.string.task_action_complete, (d, w) ->
                         vm.completeTask(task.id, () -> {
@@ -266,6 +270,7 @@ public class TaskListFragment extends Fragment {
                             });
                         }))
                 .setNegativeButton(R.string.action_cancel, null)
-                .show();
+                .create();
+        LifecycleDialogs.showDismissOnDestroy(this, dialog);
     }
 }
