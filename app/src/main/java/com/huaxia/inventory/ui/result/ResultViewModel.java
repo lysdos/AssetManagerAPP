@@ -28,6 +28,7 @@ public class ResultViewModel extends AndroidViewModel {
         }
     }
 
+    private final InventoryApp app;
     private final AppDatabase db;
     private final Executor diskIO;
     private final MutableLiveData<List<Asset>> assets = new MutableLiveData<>();
@@ -47,6 +48,7 @@ public class ResultViewModel extends AndroidViewModel {
     public ResultViewModel(@NonNull Application application) {
         super(application);
         InventoryApp app = (InventoryApp) application;
+        this.app = app;
         this.db = app.getDb();
         this.diskIO = app.getExecutors().diskIO;
     }
@@ -97,13 +99,28 @@ public class ResultViewModel extends AndroidViewModel {
         ResultTab tab = activeTab.getValue() == null ? ResultTab.FOUND : activeTab.getValue();
         Integer pageObj = currentPage.getValue();
         int page = pageObj == null ? 0 : pageObj;
-        int offset = page * PAGE_SIZE;
         diskIO.execute(() -> {
             int total = db.assetDao().countByTask(taskId);
             int found = db.assetDao().countFound(taskId);
             int missing = db.assetDao().countMissing(taskId);
             int extra = db.scanRecordDao().countExtras(taskId);
             stats.postValue(new Stats(total, found, missing, extra));
+
+            // 夹页码: 删除末页最后一条后 currentPage 可能越过最后一页 → 列表会显示
+            // "暂无数据"但前面还有行. 按当前 tab 的行数回退到最后一页, 并同步回
+            // currentPage, 让分页控件 (上一页/下一页) 与列表一致.
+            int tabCount;
+            switch (tab) {
+                case MISSING: tabCount = missing; break;
+                case EXTRA:   tabCount = extra;   break;
+                case ALL:     tabCount = total;   break;
+                case FOUND:
+                default:      tabCount = found;   break;
+            }
+            int lastPage = tabCount == 0 ? 0 : (tabCount - 1) / PAGE_SIZE;
+            int effectivePage = Math.min(page, lastPage);
+            if (effectivePage != page) currentPage.postValue(effectivePage);
+            int offset = effectivePage * PAGE_SIZE;
 
             List<Asset> assetResult;
             switch (tab) {
@@ -158,6 +175,26 @@ public class ResultViewModel extends AndroidViewModel {
             claim.claimedAt = System.currentTimeMillis();
             db.extraClaimDao().insert(claim);
             if (onSaved != null) onSaved.run();
+        });
+    }
+
+    /**
+     * 删除单条盘盈记录 (ScanRecord + 其 ExtraClaim).
+     * <p>只影响 EXTRA tab — {@code ScanRecordDao.deleteExtraById} 带
+     * {@code matchedAssetId IS NULL} 守卫, 不碰任何 Asset. 单事务: 先删
+     * ExtraClaim 再删 ScanRecord, 任一步失败回滚, 不留"扫描记录删了但补全还在"。</p>
+     * <p>删除后经 {@link InventoryApp#getSession()} 广播 EPC, 让 {@code ScanViewModel}
+     * 从内存去重集驱逐 — 否则同标签重扫被"已见过"挡住、不落库。</p>
+     */
+    public void deleteExtra(long scanRecordId, String epc, Runnable onDeleted) {
+        long taskId = currentTaskId;
+        diskIO.execute(() -> {
+            db.runInTransaction(() -> {
+                db.extraClaimDao().deleteByScanRecordId(scanRecordId);
+                db.scanRecordDao().deleteExtraById(scanRecordId);
+            });
+            app.getSession().notifyScanRemoved(taskId, epc);
+            if (onDeleted != null) onDeleted.run();
         });
     }
 }

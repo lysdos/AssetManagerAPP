@@ -31,7 +31,23 @@ import androidx.lifecycle.MutableLiveData;
  */
 public class InventorySession {
 
+    /**
+     * 单条扫描记录被删除后的广播载荷: 哪个任务下的哪个 EPC 被删了.
+     * 结果页"盘盈"行删除 → {@code ScanViewModel} 需把该 EPC 从内存去重集
+     * {@code scannedEpcSet} 移除, 否则同标签重扫会被"已见过"挡住、不落库.
+     */
+    public static final class ScanRemoval {
+        public final long taskId;
+        public final String epc;
+        public ScanRemoval(long taskId, String epc) {
+            this.taskId = taskId;
+            this.epc = epc;
+        }
+    }
+
     private final MutableLiveData<Long> currentTaskId = new MutableLiveData<>();
+    /** 单条扫描记录删除广播 (见 {@link ScanRemoval}). */
+    private final MutableLiveData<ScanRemoval> lastScanRemoval = new MutableLiveData<>();
 
     @Nullable
     public Long getCurrentTaskId() {
@@ -40,6 +56,24 @@ public class InventorySession {
 
     public LiveData<Long> currentTaskId() {
         return currentTaskId;
+    }
+
+    /** 单条扫描记录删除事件流, 供 {@code ScanViewModel} 驱逐内存去重集. */
+    public LiveData<ScanRemoval> scanRemovals() {
+        return lastScanRemoval;
+    }
+
+    /**
+     * 广播"任务 taskId 下的 epc 记录已被删除". 主线程走 {@code setValue},
+     * 后台线程 (diskIO) 走 {@code postValue} — 与 {@link #setCurrentTaskId} 同约定.
+     */
+    public void notifyScanRemoved(long taskId, String epc) {
+        ScanRemoval event = new ScanRemoval(taskId, epc);
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            lastScanRemoval.setValue(event);
+        } else {
+            lastScanRemoval.postValue(event);
+        }
     }
 
     public void setCurrentTaskId(long id) {

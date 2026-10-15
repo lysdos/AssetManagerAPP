@@ -42,6 +42,9 @@
     <string name="err_import_failed_fmt">导入失败：%1$s</string>
     <string name="import_failed">导入失败：%1$s</string>
     <string name="scan_title">🔍 扫描管理</string>
+    <!-- 扫描页顶部"当前任务"行: 任务名 + 领用部门 (不带数量) -->
+    <string name="scan_current_task_fmt">当前任务：%1$s（%2$s）</string>
+    <string name="scan_current_task_none">当前任务：无进行中任务（读码模式）</string>
     <string name="scan_stat_in_stock">在库设备</string>
     <string name="scan_stat_scanned">已盘点</string>
     <string name="scan_stat_anomaly">盘亏</string>
@@ -66,6 +69,8 @@
     <string name="scan_reader_idle">读码模式 · 等待标签…</string>
     <string name="scan_reader_code">%1$s   RSSI %2$s</string>
     <string name="result_title">📊 盘点结果</string>
+    <!-- 结果页标题后缀: 标出当前 tab (全部设备/已盘/盘亏/盘盈) + 该 tab 数量 -->
+    <string name="result_title_tab_fmt">%1$s · %2$s（%3$d）</string>
     <string name="result_export_btn">📤 导出结果</string>
     <string name="result_stat_all">全部设备</string>
     <string name="result_stat_found">已盘</string>
@@ -172,6 +177,12 @@
     <string name="extra_tag_claimed">已补全</string>
     <string name="extra_claim_info_fmt">%1$s · 领用人 %2$s</string>
     <string name="msg_extra_saved">补全信息已保存</string>
+    <!-- 单条删除盘盈记录 (误扫的标签) -->
+    <string name="extra_delete_btn">删除</string>
+    <string name="extra_delete_confirm_title">删除该盘盈记录？</string>
+    <string name="extra_delete_confirm_msg">将删除盘盈记录 %1$s 及其补全信息，删除后该标签可重新扫描。此操作不可撤销。</string>
+    <string name="extra_delete_confirm_ok">删除</string>
+    <string name="extra_delete_done">已删除该盘盈记录</string>
 
     <!-- Manual scan page -->
     <string name="scan_manual_btn">📱 手动盘点</string>

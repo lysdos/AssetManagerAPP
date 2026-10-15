@@ -29,11 +29,17 @@ public final class ExtraDetailDialog {
         void onSave(ExtraClaim claim);
     }
 
+    /** 用户点"删除"时回调 (确认对话框由调用方负责弹). */
+    public interface DeleteCallback {
+        void onDelete();
+    }
+
     private ExtraDetailDialog() {}
 
     public static void show(@NonNull Fragment fragment,
                             @NonNull ExtraWithClaim data,
-                            @NonNull SaveCallback onSave) {
+                            @NonNull SaveCallback onSave,
+                            @NonNull DeleteCallback onDelete) {
         View view = LayoutInflater.from(fragment.requireContext())
                 .inflate(R.layout.dialog_extra_detail, null, false);
 
@@ -68,6 +74,12 @@ public final class ExtraDetailDialog {
                 .create();
 
         view.findViewById(R.id.extraDlgCancelBtn).setOnClickListener(v -> dialog.dismiss());
+
+        view.findViewById(R.id.extraDlgDeleteBtn).setOnClickListener(v -> {
+            // 先关本弹窗, 确认对话框由调用方在同一宿主上弹出 (避免两层 dialog 叠加)
+            dialog.dismiss();
+            onDelete.onDelete();
+        });
         view.findViewById(R.id.extraDlgSaveBtn).setOnClickListener(v -> {
             String newEpcDisplay = epcEt.getText().toString().trim();
             String normalized = EpcNormalizer.normalize(newEpcDisplay);

@@ -11,6 +11,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.lifecycle.ViewModelProvider;
@@ -25,6 +26,7 @@ import com.huaxia.inventory.data.entity.ExtraClaim;
 import com.huaxia.inventory.data.entity.InventoryTask;
 import com.huaxia.inventory.excel.ExcelExporter;
 import com.huaxia.inventory.util.DateUtil;
+import com.huaxia.inventory.util.EpcNormalizer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -46,6 +48,7 @@ public class ResultFragment extends Fragment {
     private View emptyTv;
     private TextView paginationInfoTv;
     private MaterialButton prevBtn, nextBtn;
+    private TextView resultTitleTv;
 
     /**
      * 当前任务 found 资产 id 集合 — 来自 {@link ResultViewModel#matchedIds()}.
@@ -86,6 +89,7 @@ public class ResultFragment extends Fragment {
         vm = new ViewModelProvider(this).get(ResultViewModel.class);
         rv = v.findViewById(R.id.resultRv);
         emptyTv = v.findViewById(R.id.emptyTv);
+        resultTitleTv = v.findViewById(R.id.resultTitleTv);
         paginationInfoTv = v.findViewById(R.id.paginationInfoTv);
         prevBtn = v.findViewById(R.id.prevBtn);
         nextBtn = v.findViewById(R.id.nextBtn);
@@ -125,9 +129,16 @@ public class ResultFragment extends Fragment {
 
         vm.bindToTask(taskId);
 
+        // 标题后缀标出当前 tab (全部设备/已盘/盘亏/盘盈) + 该 tab 数量.
+        // 数量来自 stats(), 故 stats observer 里一并刷新 (删盘盈后 count 自动更新).
+        vm.activeTab().observe(getViewLifecycleOwner(), t -> updateResultTitle());
+
         vm.currentPage().observe(getViewLifecycleOwner(), page -> updatePagination());
 
-        vm.stats().observe(getViewLifecycleOwner(), stats -> updatePagination());
+        vm.stats().observe(getViewLifecycleOwner(), stats -> {
+            updatePagination();
+            updateResultTitle();
+        });
 
         vm.assets().observe(getViewLifecycleOwner(), assets -> {
             if (assets == null) return;
@@ -215,6 +226,40 @@ public class ResultFragment extends Fragment {
             case EXTRA:   return s.extra;
             default:      return s.total;
         }
+    }
+
+    /**
+     * 结果页标题 = 基础标题 + 当前 tab 名 + 该 tab 数量 (如「📊 盘点结果 · 盘盈（3）」).
+     * 由 activeTab + stats 两个 observer 驱动: 数量随删除/刷新自动更新.
+     */
+    private void updateResultTitle() {
+        if (resultTitleTv == null) return;
+        ResultTab t = vm.activeTab().getValue();
+        if (t == null) t = ResultTab.FOUND;
+        ResultViewModel.Stats s = vm.stats().getValue();
+        int labelRes;
+        int count;
+        switch (t) {
+            case ALL:
+                labelRes = R.string.result_stat_all;
+                count = s == null ? 0 : s.total;
+                break;
+            case MISSING:
+                labelRes = R.string.result_stat_missing;
+                count = s == null ? 0 : s.missing;
+                break;
+            case EXTRA:
+                labelRes = R.string.result_stat_extra;
+                count = s == null ? 0 : s.extra;
+                break;
+            case FOUND:
+            default:
+                labelRes = R.string.result_stat_found;
+                count = s == null ? 0 : s.found;
+                break;
+        }
+        resultTitleTv.setText(getString(R.string.result_title_tab_fmt,
+                getString(R.string.result_title), getString(labelRes), count));
     }
 
     public void onExportClicked() {
@@ -361,7 +406,32 @@ public class ResultFragment extends Fragment {
     }
 
     private void showExtraDetailDialog(ExtraWithClaim data) {
-        ExtraDetailDialog.show(this, data, claim -> onExtraDetailSaved(data.scan.id, claim));
+        ExtraDetailDialog.show(this, data,
+                claim -> onExtraDetailSaved(data.scan.id, claim),
+                () -> confirmDeleteExtra(data));
+    }
+
+    /** 二次确认后单条删除盘盈记录 (ScanRecord + ExtraClaim)。 */
+    private void confirmDeleteExtra(ExtraWithClaim data) {
+        String displayEpc = data.scan.epc == null ? "" : EpcNormalizer.toDisplayForm(data.scan.epc);
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.extra_delete_confirm_title)
+                .setMessage(getString(R.string.extra_delete_confirm_msg, displayEpc))
+                .setPositiveButton(R.string.extra_delete_confirm_ok, (d, w) ->
+                        vm.deleteExtra(data.scan.id, data.scan.epc, () -> {
+                            if (!isAdded()) return;
+                            requireActivity().runOnUiThread(() -> {
+                                if (!isAdded()) return;
+                                View v = getView();
+                                if (v != null) {
+                                    Snackbar.make(v, R.string.extra_delete_done,
+                                            Snackbar.LENGTH_SHORT).show();
+                                }
+                                vm.refresh();
+                            });
+                        }))
+                .setNegativeButton(R.string.action_cancel, null)
+                .show();
     }
 
     /**

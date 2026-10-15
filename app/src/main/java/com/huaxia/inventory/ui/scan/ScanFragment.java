@@ -16,6 +16,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.snackbar.Snackbar;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
+import com.huaxia.inventory.data.entity.InventoryTask;
 import com.huaxia.inventory.data.entity.ScanRecord;
 import com.huaxia.inventory.rfid.SdkRfidAdapter;
 import com.huaxia.inventory.ui.result.ResultFragment;
@@ -33,6 +34,7 @@ public class ScanFragment extends Fragment {
     private MaterialButton manualScanBtn;
     private MaterialButton clearTaskBtn;
     private TextView deviceStatusTv;
+    private TextView currentTaskTv;
     private TextView inStockNumber, scannedNumber, anomalyNumber, extraNumber;
     private TextView inStockSub, scannedSub, anomalySub, extraSub;
     private TextView checkedCardTitle, checkedCardDesc, checkedCardSub;
@@ -70,6 +72,7 @@ public class ScanFragment extends Fragment {
         manualScanBtn = v.findViewById(R.id.manualScanBtn);
         clearTaskBtn = v.findViewById(R.id.clearTaskBtn);
         deviceStatusTv = v.findViewById(R.id.deviceStatusTv);
+        currentTaskTv = v.findViewById(R.id.currentTaskTv);
 
         // Bind stat card labels + sub texts (default values; will be updated when stats observe)
         bindStatCard(v, R.id.inStockStat, R.string.scan_stat_in_stock,
@@ -135,6 +138,7 @@ public class ScanFragment extends Fragment {
             renderReaderIdle();
             scanBtn.setEnabled(false);
             renderEmptyStats();
+            currentTaskTv.setText(R.string.scan_current_task_none);
             // 仍要订阅 clearResult, 这样从其他入口触发重置也能收到提示
             vm.clearResult().observe(getViewLifecycleOwner(), result -> {
                 if (result == null) return;
@@ -152,6 +156,7 @@ public class ScanFragment extends Fragment {
             return;
         }
         vm.bindToTask(taskId);
+        renderCurrentTask(taskId);
 
         vm.stats().observe(getViewLifecycleOwner(), stats -> {
             inStockNumber.setText(String.valueOf(stats.inStock));
@@ -235,6 +240,31 @@ public class ScanFragment extends Fragment {
         TagPills.bindCount(container, R.string.tag_found, stats.found, R.drawable.bg_tag_green, R.color.tagGreenFg);
         TagPills.bindCount(container, R.string.tag_missing, stats.missing, R.drawable.bg_tag_red, R.color.tagRedFg);
         TagPills.bindCount(container, R.string.tag_extra, stats.extra, R.drawable.bg_tag_orange, R.color.tagOrangeFg);
+    }
+
+    /**
+     * 渲染顶部「当前任务」行: 任务名 + 领用部门 (不带数量).
+     * 任务名 = {@code sourceFileName} (实体无独立 name 字段); 空部门 → "不限部门";
+     * 任务已被并发删除 (findById 返 null) → 读码模式提示. diskIO 读库、主线程回填,
+     * 双层 isAdded 守卫 (见 FragmentAsyncGuardTest).
+     */
+    private void renderCurrentTask(long taskId) {
+        InventoryApp app = (InventoryApp) requireActivity().getApplication();
+        app.getExecutors().diskIO.execute(() -> {
+            InventoryTask t = app.getDb().inventoryTaskDao().findById(taskId);
+            if (!isAdded()) return;
+            requireActivity().runOnUiThread(() -> {
+                if (!isAdded() || currentTaskTv == null) return;
+                if (t == null) {
+                    currentTaskTv.setText(R.string.scan_current_task_none);
+                    return;
+                }
+                String name = t.sourceFileName == null ? "" : t.sourceFileName;
+                String dept = (t.dept == null || t.dept.isEmpty())
+                        ? getString(R.string.task_no_dept) : t.dept;
+                currentTaskTv.setText(getString(R.string.scan_current_task_fmt, name, dept));
+            });
+        });
     }
 
     /** 无当前任务时把 stats 区域显式刷成 0/—, 避免上一任务的残留值. */

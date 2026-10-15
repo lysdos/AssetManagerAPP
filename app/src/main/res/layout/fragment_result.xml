@@ -8,6 +8,7 @@
     android:background="@color/bgSurface">
 
     <TextView
+        android:id="@+id/resultTitleTv"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="@dimen/cardPadding"

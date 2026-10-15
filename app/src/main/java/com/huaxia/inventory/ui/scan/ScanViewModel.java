@@ -16,6 +16,7 @@ import com.huaxia.inventory.data.dao.ScanAggregate;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.InventoryTask;
 import com.huaxia.inventory.data.entity.ScanRecord;
+import com.huaxia.inventory.session.InventorySession;
 import com.huaxia.inventory.util.DateUtil;
 import androidx.annotation.VisibleForTesting;
 import androidx.lifecycle.Observer;
@@ -103,6 +104,13 @@ public class ScanViewModel extends AndroidViewModel {
      * 引用, 越过 ViewModel 生命周期仍存活.
      */
     private final Observer<Long> sessionObserver = this::onSessionTaskIdChanged;
+    /**
+     * 单条扫描记录删除广播的 observer: 结果页删除盘盈行后, 把该 EPC 从
+     * {@link #scannedEpcSet} 移除, 否则同标签重扫被"已见过"挡住、不落库.
+     * 同样用显式实例以便 {@link #onCleared()} 反注册.
+     */
+    private final Observer<InventorySession.ScanRemoval> scanRemovalObserver =
+            this::onScanRemoved;
 
     public ScanViewModel(@NonNull Application application) {
         super(application);
@@ -114,6 +122,8 @@ public class ScanViewModel extends AndroidViewModel {
         // 或改到其他 taskId, 此 observer 立刻感知并同步 vm 内部状态 (scannedEpcSet /
         // currentTaskId / rfid), 避免边界不一致写出孤儿 ScanRecord.
         app.getSession().currentTaskId().observeForever(sessionObserver);
+        // 订阅单条删除广播 — 结果页删盘盈行时驱逐内存去重集对应 EPC.
+        app.getSession().scanRemovals().observeForever(scanRemovalObserver);
     }
 
     public LiveData<Stats> stats() { return stats; }
@@ -215,6 +225,18 @@ public class ScanViewModel extends AndroidViewModel {
             stats.postValue(new Stats(0, 0, 0, 0, 0, 0, 0,
                     java.util.Collections.emptyList(), 0L));
         });
+    }
+
+    /**
+     * 结果页单条删除盘盈记录后, 把该 EPC 从内存去重集移除.
+     * <p>不驱逐的后果: {@link #onEpcScanned} 的内存 dedup 命中该 EPC, 直接 return 不写库 —
+     * 用户删掉误扫记录后重扫同一标签会"无反应"、计数不涨. 仅处理当前绑定任务,
+     * 其它任务 / 无绑定 (taskId=-1) 直接忽略.</p>
+     */
+    private void onScanRemoved(InventorySession.ScanRemoval r) {
+        if (r == null || r.epc == null) return;
+        if (r.taskId != currentTaskId.get()) return;
+        scannedEpcSet.remove(r.epc);
     }
 
     /**
@@ -417,5 +439,6 @@ public class ScanViewModel extends AndroidViewModel {
         // 反注册 session observer: 否则 observeForever 仍持有 VM, 下次重建同
         // InventorySession 会拿到旧 VM 引用, 跨 ViewModel 实例相互锚定.
         app.getSession().currentTaskId().removeObserver(sessionObserver);
+        app.getSession().scanRemovals().removeObserver(scanRemovalObserver);
     }
 }

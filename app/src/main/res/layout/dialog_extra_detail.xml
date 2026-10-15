@@ -111,6 +111,11 @@
             android:maxLines="1"
             android:autofillHints="personName" />
 
+        <!-- 删除 / 取消 / 保存 同一行: 必须保持单行 — 单独加一行会把弹窗内容顶超可视
+             高度, 底部按钮被挤出屏幕。三个按钮都显式 minWidth="0dp": MaterialButton
+             默认 minWidth=88dp, 三个合计 264dp 超弹窗内容宽度, 配合 gravity="end" 会向左
+             溢出、裁掉最左侧按钮的字。取消 minWidth + 短文案后合计约 176dp (与原来两按钮
+             同宽), 可稳定放下。 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -119,10 +124,27 @@
             android:layout_marginTop="14dp">
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/extraDlgDeleteBtn"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:text="@string/extra_delete_btn"
+                android:textColor="@color/statusMissing" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/extraDlgCancelBtn"
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:minWidth="0dp"
                 android:text="@string/action_cancel" />
 
             <com.google.android.material.button.MaterialButton
@@ -131,6 +153,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
+                android:minWidth="0dp"
                 android:text="@string/action_save" />
         </LinearLayout>
     </LinearLayout>

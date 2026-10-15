@@ -43,6 +43,14 @@ public interface ScanRecordDao {
     int deleteByTask(long taskId);
 
     /**
+     * 单条删除盘盈记录 ({@code matchedAssetId IS NULL}). 带 {@code matchedAssetId IS NULL}
+     * 守卫 — 只允许删盘盈, 误传已匹配行时静默不删, 避免把已盘到的资产记录删掉.
+     * @return affected rows (0 = 不是盘盈行 / 不存在)
+     */
+    @Query("DELETE FROM ScanRecord WHERE id = :id AND matchedAssetId IS NULL")
+    int deleteExtraById(long id);
+
+    /**
      * 单次聚合查询，返回任务下：
      * <ul>
      *   <li>matchedCount：成功匹配到 Asset 的不同资产数（COUNT DISTINCT matchedAssetId）</li>

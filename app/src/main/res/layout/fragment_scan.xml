@@ -15,10 +15,21 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="4dp"
             android:text="@string/scan_title"
             android:textSize="@dimen/textSizeTitle"
             android:textStyle="bold" />
+
+        <!-- 当前任务: 任务名 + 领用部门 (无任务时显示读码模式提示) -->
+        <TextView
+            android:id="@+id/currentTaskTv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textSize="@dimen/textSizeLabel"
+            android:textColor="@color/textHint" />
 
         <HorizontalScrollView
             android:layout_width="match_parent"
@@ -103,7 +114,6 @@
             android:text="@string/scan_clear_task"
             android:textColor="@color/colorReset"
             app:strokeColor="@color/colorReset"
-            app:icon="@android:drawable/ic_menu_delete"
             app:iconTint="@color/colorReset" />
     </LinearLayout>
 </ScrollView>
