@@ -8,6 +8,10 @@ import androidx.room.PrimaryKey;
 
 @Entity(indices = {
         @Index("taskId"),
+        // (taskId, dept): 服务 countPoolByDept / distinctDeptPool / distinctDept 的
+        // `WHERE taskId = 0 AND dept = ?` 过滤 — 建任务时按部门统计池内资产走索引,
+        // 不再全表扫描。索引名沿用 Room 默认命名 index_Asset_taskId_dept (迁移对齐)。
+        @Index(value = {"taskId", "dept"}),
         // (taskId, excelRowIndex): 服务 pageAll/pageFound/pageMissing 的 ORDER BY
         // excelRowIndex, 以及 ExcelExporter 分页导出的每一页。无此索引时 SQLite 每次
         // 都要把任务的 N 行整体排序 (OFFSET 无法跳过排序), 导出成本 ≈ (N/500)×sort(N),

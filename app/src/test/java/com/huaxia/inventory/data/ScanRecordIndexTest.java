@@ -81,10 +81,10 @@ public class ScanRecordIndexTest {
         String dbText = new String(Files.readAllBytes(db.toPath()), StandardCharsets.UTF_8);
         String appText = new String(Files.readAllBytes(app.toPath()), StandardCharsets.UTF_8);
 
-        // version 必须是当前最新 (v8 = ... v7 Asset.created_at + v8 分页索引),
+        // version 必须是当前最新 (v9 = ... v8 分页索引 + v9 Asset(taskId,dept) 索引),
         // 否则 Room compile 无法对老库迁移.
-        assertTrue("AppDatabase.version must be 8. Source:\n" + dbText,
-                dbText.contains("version = 8"));
+        assertTrue("AppDatabase.version must be 9. Source:\n" + dbText,
+                dbText.contains("version = 9"));
         // 必须声明 MIGRATION_5_6 (ScanRecord 复合索引).
         assertTrue("AppDatabase must declare MIGRATION_5_6. Source:\n" + dbText,
                 dbText.contains("MIGRATION_5_6"));
@@ -104,5 +104,11 @@ public class ScanRecordIndexTest {
         assertTrue("InventoryApp must register AppDatabase.MIGRATION_7_8 in builder. Source:\n"
                 + appText,
                 appText.contains("AppDatabase.MIGRATION_7_8"));
+        // 必须声明并注册 MIGRATION_8_9 (Asset (taskId,dept) 索引).
+        assertTrue("AppDatabase must declare MIGRATION_8_9. Source:\n" + dbText,
+                dbText.contains("MIGRATION_8_9"));
+        assertTrue("InventoryApp must register AppDatabase.MIGRATION_8_9 in builder. Source:\n"
+                + appText,
+                appText.contains("AppDatabase.MIGRATION_8_9"));
     }
 }

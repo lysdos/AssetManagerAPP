@@ -16,7 +16,7 @@ import com.huaxia.inventory.data.entity.ScanRecord;
 
 @Database(
         entities = {InventoryTask.class, Asset.class, ScanRecord.class, ExtraClaim.class},
-        version = 8,
+        version = 9,
         exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static final String TAG = "AppDatabase";
@@ -102,6 +102,21 @@ public abstract class AppDatabase extends RoomDatabase {
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_ScanRecord_taskId_scannedAt` "
                     + "ON `ScanRecord` (`taskId`, `scannedAt`)");
             Log.i(TAG, "[AppDatabase] MIGRATION_7_8 applied: added pagination indexes");
+        }
+    };
+
+    /**
+     * v8 → v9: Asset 加复合索引 {@code (taskId, dept)} —— 服务 {@code countPoolByDept} /
+     * {@code distinctDeptPool} / {@code distinctDept} 的 {@code WHERE taskId = 0 AND dept = ?}
+     * 过滤 (建任务时按部门统计池内资产)。纯加索引, 不动数据/字段; 索引名沿用 Room 默认命名
+     * {@code index_Asset_taskId_dept}, 由 {@code @Index(value = {"taskId","dept"})} 生成。
+     */
+    public static final Migration MIGRATION_8_9 = new Migration(8, 9) {
+        @Override
+        public void migrate(SupportSQLiteDatabase db) {
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_Asset_taskId_dept` "
+                    + "ON `Asset` (`taskId`, `dept`)");
+            Log.i(TAG, "[AppDatabase] MIGRATION_8_9 applied: added index_Asset_taskId_dept");
         }
     };
 }
