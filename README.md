@@ -4,21 +4,25 @@ Android RFID 资产盘点应用，运行在 UROVO 工业 PDA 上。
 
 ## 功能
 
-- 从 Excel 导入资产清单（8 个必需列：序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期）
-- RFID 扫描标签，实时匹配 EPC
-- 统计 已盘 / 盘亏 / 盘盈
-- 导出盘点结果 Excel
-- 历史任务本地回看
+- 从 Excel 导入资产清单（8 个必需列：序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期；重复固资编号按行覆盖更新）
+- 盘点任务管理：创建（可按领用部门限定）/ 暂停 / 恢复 / 完成任务 / 删除（资产退回库存池）/ 清除已完成
+- RFID 扫描标签，实时匹配固资编号（UHF 读写器）
+- 手动盘点：输入固资编号查询，或摄像头扫条码（无扫码枪设备上的兜底）
+- 统计 已盘 / 盘亏 / 盘盈；盘盈（未匹配标签）可补全资产信息
+- 结果页按 全部 / 已盘 / 盘亏 / 盘盈 筛选 + 分页；盘盈支持单条删除
+- 导出盘点结果 Excel（保留原表头 + 追加 盘点状态 / 盘点时间 + 应盘/已盘/盘亏/盘盈 统计行）
+- 重置扫描进度：清扫描记录（保留任务与资产），可原地重扫
 
 ## 技术栈
 
-- Java 11 / AndroidX (minSdk 24, targetSdk 34)
-- Single Activity + 3 Fragments (BottomNavigationView)
-- Room 2.6 (本地数据库)
-- Apache POI 5.2.5 (Excel 解析)
-- Jackson 2.17 (JSON)
+- Java 11 / AndroidX (minSdk 26, targetSdk 34, compileSdk 34)
+- Single Activity + BottomNavigationView（📋 任务 / 🔍 扫描 / 📊 结果 三 tab）+ 若干 Fragment / Dialog
+- Room 2.6（本地数据库，当前 schema v9）
+- Apache POI 5.2.5（Excel 解析 / 流式写出）
+- Jackson 2.17（JSON）
+- CameraX 1.3 + ML Kit Barcode（手动盘点页的摄像头扫码兜底）
 - UROVO RFID SDK (rscja `DeviceAPI_ver20230301_release.aar`，见 `app/libs/`)
-- JUnit 4 + Robolectric (单元测试)
+- JUnit 4 + Robolectric + Mockito + Room-testing（单元测试）
 
 ## 项目结构
 
@@ -27,16 +31,21 @@ Android RFID 资产盘点应用，运行在 UROVO 工业 PDA 上。
 简要:
 ```
 app/src/main/java/com/huaxia/inventory/
-├── data/              # Room 实体 + DAO + 数据库
+├── data/              # Room 实体 + DAO + 数据库 + 迁移
 ├── rfid/              # RFID SDK 封装
+├── barcode/           # 条码：摄像头(CameraX+ML Kit) / 硬件解码
 ├── excel/             # Excel 导入/导出
 ├── session/           # 任务状态共享
-├── ui/                # 3 个 Fragment
-│   ├── import_/       #   - 导入
-│   ├── scan/          #   - 扫描
-│   └── result/        #   - 结果
+├── ui/
+│   ├── task/          #   任务列表
+│   ├── scan/          #   扫描
+│   ├── manual/        #   手动盘点（输入 / 摄像头扫码）
+│   ├── result/        #   结果（含资产/盘盈详情弹窗）
+│   ├── import_/       #   导入（右上角齿轮菜单弹窗）
+│   └── setting/       #   功率设置弹窗
 └── util/              # 工具类
 ```
+底部导航三 tab：📋 任务 / 🔍 扫描 / 📊 结果（导入已移入右上角齿轮菜单）。
 
 ## 构建
 
@@ -63,15 +72,9 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 ./gradlew :app:testDebugUnitTest
 ```
 
-测试覆盖:
-- EpcNormalizer (7 测试)
-- StatusDerivation (6 测试)
-- ExcelImporter (2 测试)
-- ExcelExporter (2 测试)
-- HeaderSpec (4 测试)
-- AssetDao (3 测试)
-- ScanRecordDao (3 测试)
-- RfidController (5 测试)
+当前全量单测 **199 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
+- **源码文本守卫**：反射式提取方法体 + 断言，钉住事务边界、生命周期守卫、迁移版本、索引声明等不变量；
+- **Robolectric 行为测试**：验证 detach 后回调、旋转时弹窗关闭等运行时行为。
 
 ## 部署到 UROVO PDA
 
@@ -86,13 +89,12 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 - 设计文档: [docs/superpowers/specs/2026-06-10-rfid-asset-inventory-design.md](docs/superpowers/specs/2026-06-10-rfid-asset-inventory-design.md)
 - 冒烟测试: [docs/smoke-test-2026-06-10.md](docs/smoke-test-2026-06-10.md)
 
-## 待办 / 已知限制
+## 已知限制
 
-- 未生成 Gradle wrapper (用户需运行 `gradle wrapper`)
-- 未配置 git 提交者 (用户决定后再启用 commit)
-- UI 资源中的 launcher icon 使用 Android 默认 (可在 T14 中替换)
-- 物理 PDA 扫描枪按键需在真机确认 (F1 / KEYCODE_BUTTON_R1 / 其他)
-- 1.0 不实现历史任务列表页 (OQ5)
+- release 签名凭据（`local.properties` / `app/keystore/`）随仓库跟踪，属交付包的一部分 — 依赖外部分发渠道管控
+- DB 迁移链存在历史缺口 2→3→4→5：仅当已有这些旧版本号的数据时才会退化走 destructive fallback（这些版本实际未上线；v5 及以后均有正常迁移路径）
+- 深色模式沿用系统 DayNight，未做专项优化
+- 物理 PDA 扫描枪触发键（F1 / KEYCODE_BUTTON_R1 等）需在真机确认
 
 ## 2026-06-11 UI 重构
 
@@ -129,8 +131,8 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 
 ### 已知限制 / 后续迭代
 - ~~`Asset.createdAt` 字段未实现，"今日新增"统计暂显示 0（占位）~~ → 2026-10-10 已实现：`Asset.createdAt`（首次导入时间）+ `AssetDao.countCreatedAfter(taskId, DateUtil.startOfToday())`，扫描页「在库设备」副标显示「+N 今日」（N = 本任务内今天首次导入的资产数）
-- `lastInventoryAt` 当前用 `InventoryTask.importedAt` 作代理（非真正"最后扫描时间"）
-- EXTRA 模式下 `vm.extras().observe` 是空 body（仅 assets observer 渲染；后续迭代可加 ScanRecord 专用 Adapter）
+- ~~`lastInventoryAt` 当前用 `InventoryTask.importedAt` 作代理~~ → 已改为真实的最后扫描时间（`ScanRecordDao.aggregateStats` 的 `lastScannedAt`，扫描页「最后盘点」显示它）
+- ~~EXTRA 模式下 `vm.extras().observe` 是空 body~~ → 已实现 `ExtraResultAdapter`，盘盈 tab 独立渲染 + 支持补全 / 单条删除
 - 深色模式未做专项优化（沿用系统 DayNight）
 
 ### 文档
@@ -139,7 +141,7 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 
 ## 验证
 
-实施过程中所有代码均通过 spec compliance + code quality review 通过。所有单元测试代码已就位但未在本地执行 (无 gradle wrapper)。建议在真机部署前先在 IDE / 真机环境中跑一次 `./gradlew test`。
+单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，199 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删等主流程做一次回归。
 
 ## 开发者注意事项
 
