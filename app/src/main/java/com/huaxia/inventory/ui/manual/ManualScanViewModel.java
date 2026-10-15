@@ -10,6 +10,7 @@ import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.ScanRecord;
 import com.huaxia.inventory.util.EpcNormalizer;
+import com.huaxia.inventory.util.Event;
 import java.util.Collections;
 import java.util.List;
 
@@ -94,8 +95,8 @@ public class ManualScanViewModel extends AndroidViewModel {
 
     private final InventoryApp app;
     private final MutableLiveData<LookupResult> lookup = new MutableLiveData<>();
-    private final MutableLiveData<CheckEvent> checkEvent = new MutableLiveData<>();
-    private final MutableLiveData<ScanEvent> scanEvent = new MutableLiveData<>();
+    private final MutableLiveData<Event<CheckEvent>> checkEvent = new MutableLiveData<>();
+    private final MutableLiveData<Event<ScanEvent>> scanEvent = new MutableLiveData<>();
     private final MutableLiveData<List<ScanRecord>> history = new MutableLiveData<>(Collections.emptyList());
 
     public ManualScanViewModel(@NonNull Application application) {
@@ -104,8 +105,18 @@ public class ManualScanViewModel extends AndroidViewModel {
     }
 
     public LiveData<LookupResult> lookup() { return lookup; }
-    public LiveData<CheckEvent> checkEvent() { return checkEvent; }
-    public LiveData<ScanEvent> scanEvent() { return scanEvent; }
+    public LiveData<Event<CheckEvent>> checkEvent() { return checkEvent; }
+    public LiveData<Event<ScanEvent>> scanEvent() { return scanEvent; }
+
+    /** 一次性事件: 包成 {@link Event} 投递, 防旋转后 observer 重放 (重复 Snackbar/蜂鸣/清空输入). */
+    private void postCheckEvent(CheckEvent event) {
+        checkEvent.postValue(new Event<>(event));
+    }
+
+    private void postScanEvent(ScanEvent event) {
+        scanEvent.postValue(new Event<>(event));
+    }
+
     public LiveData<List<ScanRecord>> history() { return history; }
 
     /**
@@ -141,7 +152,7 @@ public class ManualScanViewModel extends AndroidViewModel {
     public void confirmCheck(@NonNull Asset asset, @Nullable String normalizedEpc) {
         Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
-            checkEvent.postValue(new CheckEvent(CheckOutcome.NO_TASK, null, null));
+            postCheckEvent(new CheckEvent(CheckOutcome.NO_TASK, null, null));
             return;
         }
         long tid = taskId;
@@ -150,7 +161,7 @@ public class ManualScanViewModel extends AndroidViewModel {
         app.getExecutors().diskIO.execute(() -> {
             ScanRecord existing = app.getDb().scanRecordDao().findByEpc(tid, epc);
             if (existing != null) {
-                checkEvent.postValue(new CheckEvent(CheckOutcome.DUPLICATE, epc, existing.scannedAt));
+                postCheckEvent(new CheckEvent(CheckOutcome.DUPLICATE, epc, existing.scannedAt));
                 return;
             }
             ScanRecord rec = new ScanRecord();
@@ -175,12 +186,12 @@ public class ManualScanViewModel extends AndroidViewModel {
             // 视为已存在的 SCAN — 把 outcome 改成 DUPLICATE, 不要重复计数.
             if (newId == -1L) {
                 ScanRecord prev = app.getDb().scanRecordDao().findByEpc(tid, epc);
-                checkEvent.postValue(new CheckEvent(CheckOutcome.DUPLICATE,
+                postCheckEvent(new CheckEvent(CheckOutcome.DUPLICATE,
                         epc, prev == null ? null : prev.scannedAt));
                 return;
             }
             app.getDb().inventoryTaskDao().recomputeScannedCount(tid);
-            checkEvent.postValue(new CheckEvent(CheckOutcome.CHECKED, epc, null));
+            postCheckEvent(new CheckEvent(CheckOutcome.CHECKED, epc, null));
             // Refresh local lookup/history so the UI reflects the new state without
             // waiting for the user to navigate away and back.
             lookup.postValue(new LookupResult(asset, epc, false, false));
@@ -213,19 +224,19 @@ public class ManualScanViewModel extends AndroidViewModel {
     public void onBarcodeScanned(@Nullable String rawCode) {
         Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
-            scanEvent.postValue(new ScanEvent(ScanOutcome.SCANNED_NO_TASK, null, rawCode, null));
+            postScanEvent(new ScanEvent(ScanOutcome.SCANNED_NO_TASK, null, rawCode, null));
             return;
         }
         String normalized = EpcNormalizer.normalize(rawCode);
         if (normalized == null) {
-            scanEvent.postValue(new ScanEvent(ScanOutcome.SCANNED_INVALID, null, rawCode, null));
+            postScanEvent(new ScanEvent(ScanOutcome.SCANNED_INVALID, null, rawCode, null));
             return;
         }
         long tid = taskId;
         app.getExecutors().diskIO.execute(() -> {
             ScanRecord existing = app.getDb().scanRecordDao().findByEpc(tid, normalized);
             if (existing != null) {
-                scanEvent.postValue(new ScanEvent(ScanOutcome.SCANNED_DUPLICATE,
+                postScanEvent(new ScanEvent(ScanOutcome.SCANNED_DUPLICATE,
                         normalized, rawCode, existing.scannedAt));
                 return;
             }
@@ -248,13 +259,13 @@ public class ManualScanViewModel extends AndroidViewModel {
             // 视为已存在的 SCAN — 用 SCANNED_DUPLICATE 告知 UI, 不要重复计数.
             if (newId == -1L) {
                 ScanRecord prev = app.getDb().scanRecordDao().findByEpc(tid, normalized);
-                scanEvent.postValue(new ScanEvent(ScanOutcome.SCANNED_DUPLICATE,
+                postScanEvent(new ScanEvent(ScanOutcome.SCANNED_DUPLICATE,
                         normalized, rawCode,
                         prev == null ? null : prev.scannedAt));
                 return;
             }
             app.getDb().inventoryTaskDao().recomputeScannedCount(tid);
-            scanEvent.postValue(new ScanEvent(
+            postScanEvent(new ScanEvent(
                     rec.matchedAssetId == null
                             ? ScanOutcome.SCANNED_EXTRA
                             : ScanOutcome.SCANNED_FOUND,

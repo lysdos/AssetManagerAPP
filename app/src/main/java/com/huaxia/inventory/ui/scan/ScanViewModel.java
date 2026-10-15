@@ -18,6 +18,7 @@ import com.huaxia.inventory.data.entity.InventoryTask;
 import com.huaxia.inventory.data.entity.ScanRecord;
 import com.huaxia.inventory.session.InventorySession;
 import com.huaxia.inventory.util.DateUtil;
+import com.huaxia.inventory.util.Event;
 import androidx.annotation.VisibleForTesting;
 import androidx.lifecycle.Observer;
 import java.util.List;
@@ -63,7 +64,7 @@ public class ScanViewModel extends AndroidViewModel {
     private final Set<String> scannedEpcSet = ConcurrentHashMap.newKeySet();
     private final MutableLiveData<Stats> stats = new MutableLiveData<>();
     private final MutableLiveData<ScanRecord> latestScan = new MutableLiveData<>();
-    private final MutableLiveData<ClearResult> clearResult = new MutableLiveData<>();
+    private final MutableLiveData<Event<ClearResult>> clearResult = new MutableLiveData<>();
     /** 主线程 Handler，用于把高频扫描触发的统计重算合并到 STATS_DEBOUNCE_MS 窗口。 */
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable recomputeRunnable = this::recomputeStats;
@@ -128,7 +129,12 @@ public class ScanViewModel extends AndroidViewModel {
 
     public LiveData<Stats> stats() { return stats; }
     public LiveData<ScanRecord> latestScan() { return latestScan; }
-    public LiveData<ClearResult> clearResult() { return clearResult; }
+    public LiveData<Event<ClearResult>> clearResult() { return clearResult; }
+
+    /** 一次性事件: 包成 {@link Event} 投递, 防旋转后 observer 重放 (重复 Snackbar). */
+    private void postClearResult(ClearResult result) {
+        clearResult.postValue(new Event<>(result));
+    }
 
     /** 重置扫描进度的结果: scans=被删 ScanRecord 行数, error=异常消息。 */
     public static class ClearResult {
@@ -399,7 +405,7 @@ public class ScanViewModel extends AndroidViewModel {
         if (disposed.get()) return;
         long taskId = currentTaskId.get();
         if (taskId == -1L) {
-            clearResult.postValue(new ClearResult("当前无任务"));
+            postClearResult(new ClearResult("当前无任务"));
             return;
         }
         // 立即执行的重算不需要走 300ms 去抖
@@ -419,7 +425,7 @@ public class ScanViewModel extends AndroidViewModel {
                 });
             } catch (Exception e) {
                 Log.e(TAG, "resetScanProgress db transaction failed", e);
-                clearResult.postValue(new ClearResult(e.getMessage() == null
+                postClearResult(new ClearResult(e.getMessage() == null
                         ? e.getClass().getSimpleName() : e.getMessage()));
                 return;
             }
@@ -427,7 +433,7 @@ public class ScanViewModel extends AndroidViewModel {
             scannedEpcSet.clear();
             // 刷新统计 (scannedUniqueCount + 已盘/盘盈聚合) 为归零后的值。
             recomputeStats();
-            clearResult.postValue(new ClearResult(scansHolder[0]));
+            postClearResult(new ClearResult(scansHolder[0]));
         });
     }
 

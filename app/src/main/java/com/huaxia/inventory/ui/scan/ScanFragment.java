@@ -141,7 +141,9 @@ public class ScanFragment extends Fragment {
             renderEmptyStats();
             currentTaskTv.setText(R.string.scan_current_task_none);
             // 仍要订阅 clearResult, 这样从其他入口触发重置也能收到提示
-            vm.clearResult().observe(getViewLifecycleOwner(), result -> {
+            vm.clearResult().observe(getViewLifecycleOwner(), ev -> {
+                if (ev == null) return;
+                ScanViewModel.ClearResult result = ev.getContentIfNotHandled();
                 if (result == null) return;
                 if (result.isError()) {
                     Snackbar.make(requireView(),
@@ -184,7 +186,9 @@ public class ScanFragment extends Fragment {
                 ? getString(R.string.scan_status_ready)
                 : getString(R.string.scan_status_not_ready)));
 
-        vm.clearResult().observe(getViewLifecycleOwner(), result -> {
+        vm.clearResult().observe(getViewLifecycleOwner(), ev -> {
+            if (ev == null) return;
+            ScanViewModel.ClearResult result = ev.getContentIfNotHandled();
             if (result == null) return;
             if (result.isError()) {
                 Snackbar.make(requireView(),

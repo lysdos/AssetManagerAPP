@@ -158,8 +158,16 @@ public class ManualScanFragment extends Fragment {
         });
 
         vm.lookup().observe(getViewLifecycleOwner(), this::renderLookup);
-        vm.checkEvent().observe(getViewLifecycleOwner(), this::renderCheckEvent);
-        vm.scanEvent().observe(getViewLifecycleOwner(), this::renderScanEvent);
+        vm.checkEvent().observe(getViewLifecycleOwner(), ev -> {
+            if (ev == null) return;
+            ManualScanViewModel.CheckEvent e = ev.getContentIfNotHandled();
+            if (e != null) renderCheckEvent(e);
+        });
+        vm.scanEvent().observe(getViewLifecycleOwner(), ev -> {
+            if (ev == null) return;
+            ManualScanViewModel.ScanEvent e = ev.getContentIfNotHandled();
+            if (e != null) renderScanEvent(e);
+        });
         vm.history().observe(getViewLifecycleOwner(), this::renderHistory);
 
         beepPlayer.init(requireContext(), R.raw.barcodebeep);
