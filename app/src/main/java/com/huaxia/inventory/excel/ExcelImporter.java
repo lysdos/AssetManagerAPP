@@ -32,9 +32,11 @@ public final class ExcelImporter {
     }
 
     /**
-     * 流式回调：每攒够 {@code batchSize} 条 Asset 就回调一次。
-     * 解析大文件时不在堆里保留全表 — 由 {@link ImportViewModel} 等调用方决定
-     * 是入库（{@code insertAll(batch)}）还是预览（取前 N 条）。
+     * 批次回调：每攒够 {@code batchSize} 条 Asset 就回调一次 — 由 {@link ImportViewModel}
+     * 等调用方决定是入库（{@code insertAll(batch)}）还是预览（取前 N 条）。
+     *
+     * <p>注意: 批次只约束<b>输出</b>的 Asset 列表, 不代表解析内存受限 —— 整张
+     * xlsx 仍由 POI 全量载入堆 (见 {@link #stream} 的内存说明)。</p>
      *
      * <p>实现侧保证：抛 {@code onError} 后继续解析其他行，不中断流。
      */
@@ -62,9 +64,12 @@ public final class ExcelImporter {
     }
 
     /**
-     * 流式解析 xlsx，按 {@code batchSize} 回调 Asset 批次。
+     * 按 {@code batchSize} 分批解析 xlsx 并回调 Asset。
      *
-     * <p>大文件（>5w 行）下不会把整张表留在堆里，峰值内存 ≈ {@code batchSize * Asset 大小}。
+     * <p><b>内存</b>: 本方法用 {@code new XSSFWorkbook(in)} 把整张表以 DOM 全量载入堆
+     * (POI XSSF 开销约为单元格数的数十倍), {@code batchSize} 只分批<b>回调</b>, 不降低
+     * 解析内存。实测适配约 3w 行量级; 若将来需 10w+ 行, 应改用 SAX 事件模型
+     * ({@code XSSFReader}) 逐行解析。</p>
      *
      * @param in        xlsx 输入流（{@code Workbook} 会自行关闭）
      * @param taskId    写入每个 Asset 的 taskId 字段
