@@ -235,5 +235,8 @@
     <string name="manual_scan_done_dup">已扫过：%1$s（%2$s）</string>
     <string name="manual_scan_done_invalid">扫码格式错误：%1$s</string>
     <string name="manual_scan_camera_permission_denied">需要相机权限才能扫码，请在系统设置中开启</string>
+    <!-- 相机权限被"永久拒绝"时: 系统不再弹框, 只能引导去设置手动开 -->
+    <string name="manual_scan_camera_permission_denied_settings">相机权限已被拒绝，请到系统设置中手动开启</string>
+    <string name="action_go_settings">去设置</string>
     <string name="manual_scan_camera_init_failed">相机启动失败，请检查设备是否有摄像头</string>
 </resources>

@@ -1,9 +1,13 @@
 package com.huaxia.inventory.ui.manual;
 
 import android.Manifest;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -90,9 +94,21 @@ public class ManualScanFragment extends Fragment {
                     if (granted) {
                         startCamera();
                     } else {
-                        Snackbar.make(requireView(),
-                                R.string.manual_scan_camera_permission_denied,
-                                Snackbar.LENGTH_LONG).show();
+                        // 永久拒绝 (勾了"不再询问" / 策略禁止) 时 shouldShow...Rationale
+                        // 返回 false —— 系统不会再弹授权框, 只能引导去设置手动开; 否则用户
+                        // 永远卡在"需权限"提示、功能不可达.
+                        if (!shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+                            Snackbar.make(requireView(),
+                                    R.string.manual_scan_camera_permission_denied_settings,
+                                    Snackbar.LENGTH_LONG)
+                                    .setAction(R.string.action_go_settings,
+                                            sv -> openAppSettings())
+                                    .show();
+                        } else {
+                            Snackbar.make(requireView(),
+                                    R.string.manual_scan_camera_permission_denied,
+                                    Snackbar.LENGTH_LONG).show();
+                        }
                         // 用户拒了权限, 把 UI 状态回退到「等待扫码」, 不卡在 active.
                         forceIdleState();
                     }
@@ -240,6 +256,18 @@ public class ManualScanFragment extends Fragment {
         } else {
             Log.i(TAG, "[ManualScanFragment] CAMERA not granted, requesting");
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA);
+        }
+    }
+
+    /** 相机权限被永久拒绝后, 跳系统「应用详情」页, 让用户手动开启权限. */
+    private void openAppSettings() {
+        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", requireContext().getPackageName(), null));
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException e) {
+            // 极少数 ROM 无该系统页面 — 静默降级, 不崩.
+            Log.w(TAG, "[ManualScanFragment] no app-details settings activity", e);
         }
     }
 

@@ -55,4 +55,28 @@ public class ManualScanFragmentPermissionLauncherGuardTest {
                 + "before requireView(). Body:\n" + body,
                 body.contains("if (!isAdded())"));
     }
+
+    /**
+     * 防回归: 相机权限被永久拒绝 (勾了"不再询问") 后, 系统不再弹授权框 —— 必须能引导
+     * 用户去系统设置手动开启, 否则该功能在无硬件扫码枪的设备上彻底不可达。
+     */
+    @Test
+    public void permanentDenial_offersAppSettings() throws Exception {
+        File moduleDir = new File(System.getProperty("user.dir"));
+        File source = new File(moduleDir,
+                "src/main/java/com/huaxia/inventory/ui/manual/ManualScanFragment.java");
+        if (!source.exists()) {
+            source = new File(moduleDir,
+                    "app/src/main/java/com/huaxia/inventory/ui/manual/ManualScanFragment.java");
+        }
+        assertTrue("source not found", source.exists());
+        String text = new String(Files.readAllBytes(source.toPath()), StandardCharsets.UTF_8);
+
+        assertTrue("denied path must consult shouldShowRequestPermissionRationale "
+                + "to tell permanent denial apart. Source:\n" + text,
+                text.contains("shouldShowRequestPermissionRationale"));
+        assertTrue("permanent denial must open app settings "
+                + "(ACTION_APPLICATION_DETAILS_SETTINGS). Source:\n" + text,
+                text.contains("ACTION_APPLICATION_DETAILS_SETTINGS"));
+    }
 }
