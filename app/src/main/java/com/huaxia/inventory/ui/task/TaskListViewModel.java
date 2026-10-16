@@ -36,6 +36,8 @@ public class TaskListViewModel extends AndroidViewModel {
                 t.importedAt = System.currentTimeMillis();
                 t.status = "IN_PROGRESS";
                 t.dept = effectiveDept;
+                // 备注可选: 空白归一化成 null, 卡片据此决定是否显示该行。
+                t.remark = (remark == null || remark.isEmpty()) ? null : remark;
                 t.expectedCount = countPoolAssetsForDept(effectiveDept);
                 // 单事务: 插入任务 + 划拨库存池资产 + 修正 expectedCount —
                 // 任一步失败整体回滚, 防止进程被杀留下"任务壳 + 0 划拨"孤儿.

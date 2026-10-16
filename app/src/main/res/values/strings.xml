@@ -45,6 +45,8 @@
     <!-- 扫描页顶部"当前任务"行: 任务名 + 领用部门 (不带数量) -->
     <string name="scan_current_task_fmt">当前任务：%1$s（%2$s）</string>
     <string name="scan_current_task_none">当前任务：无进行中任务（读码模式）</string>
+    <string name="scan_view_suffix">（查看中）</string>
+    <string name="scan_view_mode_status">查看模式（只读，不可扫描）</string>
     <string name="scan_stat_in_stock">在库设备</string>
     <string name="scan_stat_scanned">已盘点</string>
     <string name="scan_stat_anomaly">盘亏</string>
@@ -137,6 +139,7 @@
     <string name="task_preview_dept_empty">该部门暂无已导入资产</string>
     <string name="task_remark_label">备注（可选）</string>
     <string name="task_remark_placeholder">补充说明...</string>
+    <string name="task_remark_fmt">备注：%s</string>
     <string name="task_create_confirm">创建</string>
     <string name="task_msg_name_required">请输入任务名称</string>
     <string name="task_msg_no_assets">该部门暂无资产可盘点</string>

@@ -83,6 +83,14 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.VH> {
         h.metaTotal.setText(h.itemView.getContext().getString(
                 R.string.task_meta_total_fmt, Math.max(t.expectedCount, 0)));
 
+        if (t.remark == null || t.remark.isEmpty()) {
+            h.remark.setVisibility(View.GONE);
+        } else {
+            h.remark.setVisibility(View.VISIBLE);
+            h.remark.setText(h.itemView.getContext().getString(
+                    R.string.task_remark_fmt, t.remark));
+        }
+
         h.more.setOnClickListener(v -> {
             if (listener != null) listener.onMoreClicked(t, v);
         });
@@ -185,7 +193,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.VH> {
     public int getItemCount() { return data.size(); }
 
     static class VH extends RecyclerView.ViewHolder {
-        final TextView name, status, dept, date, metaTotal;
+        final TextView name, status, dept, date, metaTotal, remark;
         final TextView progressLeft, progressRight;
         final ProgressBar progressBar;
         final MaterialButton primary, secondary;
@@ -198,6 +206,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.VH> {
             dept = v.findViewById(R.id.taskDeptTv);
             date = v.findViewById(R.id.taskDateTv);
             metaTotal = v.findViewById(R.id.taskMetaTotalTv);
+            remark = v.findViewById(R.id.taskRemarkTv);
             progressLeft = v.findViewById(R.id.taskProgressLeftTv);
             progressRight = v.findViewById(R.id.taskProgressRightTv);
             progressBar = v.findViewById(R.id.taskProgressBar);

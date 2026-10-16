@@ -100,6 +100,19 @@
                 tools:text="共 350 台" />
         </LinearLayout>
 
+        <!-- 备注 (创建任务时填; 空则隐藏) -->
+        <TextView
+            android:id="@+id/taskRemarkTv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="@dimen/textSizeLabel"
+            android:textColor="@color/textHint"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:visibility="gone"
+            tools:text="备注：补充说明" />
+
         <!-- 进度条 -->
         <ProgressBar
             android:id="@+id/taskProgressBar"

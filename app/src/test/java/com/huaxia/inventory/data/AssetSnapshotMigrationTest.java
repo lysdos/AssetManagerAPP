@@ -38,10 +38,10 @@ public class AssetSnapshotMigrationTest {
     }
 
     @Test
-    public void appDatabaseVersion10WithMigration9_10() throws Exception {
+    public void appDatabaseVersionBumped_andMigration9_10Declared() throws Exception {
         String text = read("src/main/java/com/huaxia/inventory/data/AppDatabase.java");
-        assertTrue("AppDatabase version must be 10. Source:\n" + text,
-                text.contains("version = 10"));
+        assertTrue("AppDatabase version must be 11. Source:\n" + text,
+                text.contains("version = 11"));
         assertTrue("AppDatabase must declare MIGRATION_9_10. Source:\n" + text,
                 text.contains("MIGRATION_9_10"));
         for (String col : SNAPSHOT_COLUMNS) {

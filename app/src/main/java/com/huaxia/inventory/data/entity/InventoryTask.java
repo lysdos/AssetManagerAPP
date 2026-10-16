@@ -31,4 +31,11 @@ public class InventoryTask {
 
     @ColumnInfo(name = "scannedUniqueCount")
     public int scannedUniqueCount;
+
+    /**
+     * 任务备注（可选）。创建任务时用户填写; NULL / 空 表示无备注。
+     */
+    @Nullable
+    @ColumnInfo(name = "remark")
+    public String remark;
 }

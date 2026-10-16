@@ -26,9 +26,9 @@ public class AssetDeptIndexMigrationTest {
     @Test
     public void appDatabaseVersionBumped_andMigration8_9Declared() throws Exception {
         String text = read("src/main/java/com/huaxia/inventory/data/AppDatabase.java");
-        // version 必须是当前最新 (现为 10; 版本号另由 ScanRecordIndexTest / AssetSnapshotMigrationTest 卫护).
-        assertTrue("AppDatabase version must be 10. Source:\n" + text,
-                text.contains("version = 10"));
+        // version 必须是当前最新 (现为 11; 版本号另由 ScanRecordIndexTest / AssetSnapshotMigrationTest 卫护).
+        assertTrue("AppDatabase version must be 11. Source:\n" + text,
+                text.contains("version = 11"));
         assertTrue("AppDatabase must declare MIGRATION_8_9. Source:\n" + text,
                 text.contains("MIGRATION_8_9"));
         assertTrue("MIGRATION_8_9 must CREATE INDEX `index_Asset_taskId_dept` ON `Asset` "

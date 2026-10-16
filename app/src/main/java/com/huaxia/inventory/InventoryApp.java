@@ -77,7 +77,8 @@ public class InventoryApp extends Application {
         db = Room.databaseBuilder(getApplicationContext(), AppDatabase.class, "huaxia-inventory.db")
                 .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_5_6,
                         AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8,
-                        AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10)
+                        AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
+                        AppDatabase.MIGRATION_10_11)
                 .fallbackToDestructiveMigration()
                 .build();
 

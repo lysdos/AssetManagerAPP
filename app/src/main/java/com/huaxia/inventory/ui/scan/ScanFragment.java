@@ -30,6 +30,12 @@ import com.huaxia.inventory.util.EpcNormalizer;
 
 public class ScanFragment extends Fragment {
 
+    /**
+     * 可选: 显式指定要查看的 taskId (任务卡"查看详情" → 查看已完成任务)。
+     * 传了即进入<b>只读查看模式</b>: 不绑 session、不启 RFID、禁用写操作。
+     */
+    public static final String ARG_VIEW_TASK_ID = "viewTaskId";
+
     private ScanViewModel vm;
     private MaterialButton scanBtn;
     private MaterialButton manualScanBtn;
@@ -41,6 +47,8 @@ public class ScanFragment extends Fragment {
     private TextView checkedCardTitle, checkedCardDesc, checkedCardSub;
     private TextView recentCardTitle, recentCardDesc;
     private LinearLayout recentTags;
+    /** 只读查看模式 (已完成任务"查看详情"): 纯展示该任务统计, 不可扫描 / 编辑。 */
+    private boolean readOnly;
 
     private final BeepPlayer beepPlayer = new BeepPlayer();
 
@@ -114,15 +122,20 @@ public class ScanFragment extends Fragment {
         clearTaskBtn.setOnClickListener(btn -> confirmResetProgress());
         applyScanBtnGreen();
 
-        // 点击统计卡片跳转结果页并筛选
+        // "查看详情" 传入 ARG_VIEW_TASK_ID → 只读查看模式 (看某已完成任务的统计, 不绑 session).
+        long viewTaskId = getArguments() != null
+                ? getArguments().getLong(ARG_VIEW_TASK_ID, -1L) : -1L;
+        readOnly = viewTaskId >= 0L;
+
+        // 点击统计卡片跳转结果页并筛选 (查看模式下带上 taskId → 结果页也只读).
         v.findViewById(R.id.inStockStat).setOnClickListener(
-                card -> navigateToResult(ResultTab.ALL));
+                card -> navigateToResult(ResultTab.ALL, viewTaskId));
         v.findViewById(R.id.scannedStat).setOnClickListener(
-                card -> navigateToResult(ResultTab.FOUND));
+                card -> navigateToResult(ResultTab.FOUND, viewTaskId));
         v.findViewById(R.id.anomalyStat).setOnClickListener(
-                card -> navigateToResult(ResultTab.MISSING));
+                card -> navigateToResult(ResultTab.MISSING, viewTaskId));
         v.findViewById(R.id.extraStat).setOnClickListener(
-                card -> navigateToResult(ResultTab.EXTRA));
+                card -> navigateToResult(ResultTab.EXTRA, viewTaskId));
 
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
 
@@ -131,7 +144,8 @@ public class ScanFragment extends Fragment {
         // 把最近读取的编码渲染到状态行.
         vm.latestScan().observe(getViewLifecycleOwner(), this::renderLatestScan);
 
-        Long taskId = app.getSession().getCurrentTaskId();
+        Long taskId = readOnly
+                ? Long.valueOf(viewTaskId) : app.getSession().getCurrentTaskId();
         if (taskId == null) {
             // 没有当前任务 = 「读码模式」: 状态行显示读码提示, 扫到的编码由
             // latestScan observer 渲染; 统计区归零. 扫描按钮在 onResume 按硬件
@@ -159,7 +173,7 @@ public class ScanFragment extends Fragment {
             return;
         }
         vm.bindToTask(taskId);
-        renderCurrentTask(taskId);
+        renderCurrentTask(taskId, readOnly);
 
         vm.stats().observe(getViewLifecycleOwner(), stats -> {
             inStockNumber.setText(String.valueOf(stats.inStock));
@@ -185,6 +199,14 @@ public class ScanFragment extends Fragment {
                 || app.getRfid().getState() == com.huaxia.inventory.rfid.RfidController.State.SCANNING
                 ? getString(R.string.scan_status_ready)
                 : getString(R.string.scan_status_not_ready)));
+
+        if (readOnly) {
+            // 只读查看模式: 禁用写操作 (扫描 / 手动盘点 / 重置), 设备状态行提示只读 (覆盖上面的设备状态).
+            scanBtn.setEnabled(false);
+            manualScanBtn.setEnabled(false);
+            clearTaskBtn.setEnabled(false);
+            deviceStatusTv.setText(R.string.scan_view_mode_status);
+        }
 
         vm.clearResult().observe(getViewLifecycleOwner(), ev -> {
             if (ev == null) return;
@@ -254,7 +276,7 @@ public class ScanFragment extends Fragment {
      * 任务已被并发删除 (findById 返 null) → 读码模式提示. diskIO 读库、主线程回填,
      * 双层 isAdded 守卫 (见 FragmentAsyncGuardTest).
      */
-    private void renderCurrentTask(long taskId) {
+    private void renderCurrentTask(long taskId, boolean readOnly) {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         app.getExecutors().diskIO.execute(() -> {
             InventoryTask t = app.getDb().inventoryTaskDao().findById(taskId);
@@ -268,7 +290,9 @@ public class ScanFragment extends Fragment {
                 String name = t.sourceFileName == null ? "" : t.sourceFileName;
                 String dept = (t.dept == null || t.dept.isEmpty())
                         ? getString(R.string.task_no_dept) : t.dept;
-                currentTaskTv.setText(getString(R.string.scan_current_task_fmt, name, dept));
+                String base = getString(R.string.scan_current_task_fmt, name, dept);
+                currentTaskTv.setText(readOnly
+                        ? base + getString(R.string.scan_view_suffix) : base);
             });
         });
     }
@@ -338,10 +362,12 @@ public class ScanFragment extends Fragment {
         }
     }
 
-    private void navigateToResult(ResultTab tab) {
+    private void navigateToResult(ResultTab tab, long viewTaskId) {
         ResultFragment fragment = new ResultFragment();
         Bundle args = new Bundle();
         args.putString(ResultFragment.ARG_TAB, tab.name());
+        // 只读查看模式下 (viewTaskId >= 0), 把 taskId 一并传给结果页 → 只读展示该任务.
+        if (viewTaskId >= 0L) args.putLong(ResultFragment.ARG_VIEW_TASK_ID, viewTaskId);
         fragment.setArguments(args);
         requireActivity().getSupportFragmentManager()
                 .beginTransaction()
@@ -379,10 +405,14 @@ public class ScanFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        InventoryApp app = (InventoryApp) requireActivity().getApplication();
+        // 只读查看模式: 不启 RFID、不注册回调、不刷统计 (也不启用扫描按钮) — 纯展示.
+        if (readOnly) {
+            return;
+        }
         // 从手动盘点页返回时, 该页面写过 ScanRecord 但 stats observer 不会自动重发,
         // 主动 refresh 一次把已盘点/盘盈数刷成最新. bindToTask 也调 recomputeStats,
         // 但 taskId 不变时不会重跑.
-        InventoryApp app = (InventoryApp) requireActivity().getApplication();
         // 有任务才刷新统计 (无任务=读码模式, 没有统计可刷 — 免去一次空重算).
         if (vm != null && app.getSession().getCurrentTaskId() != null) vm.refreshStats();
         app.getRfid().registerCallback(rfidCallback);
@@ -404,10 +434,13 @@ public class ScanFragment extends Fragment {
     public void onPause() {
         super.onPause();
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
-        app.getRfid().stopInventory();
+        // 只读查看模式没注册回调 / 没启扫描, 无需停.
+        if (!readOnly) {
+            app.getRfid().stopInventory();
+            app.getRfid().unregisterCallback(rfidCallback);
+        }
         scanBtn.setText(R.string.scan_start_inventory);
         applyScanBtnGreen();
-        app.getRfid().unregisterCallback(rfidCallback);
         // beepPlayer 的 release 调用移到 onDestroyView — 旋转屏幕后回到此 Fragment
         // 会触发 onPause → onDestroyView → 重新 onCreateView. 旧 release 路径下:
         // 第二次进 onViewCreated 时 soundPool != null 走 no-op, 但 SoundPool 已被

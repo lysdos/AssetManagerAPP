@@ -16,7 +16,7 @@ import com.huaxia.inventory.data.entity.ScanRecord;
 
 @Database(
         entities = {InventoryTask.class, Asset.class, ScanRecord.class, ExtraClaim.class},
-        version = 10,
+        version = 11,
         exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static final String TAG = "AppDatabase";
@@ -142,6 +142,20 @@ public abstract class AppDatabase extends RoomDatabase {
             db.execSQL("ALTER TABLE Asset ADD COLUMN orig_dept TEXT");
             db.execSQL("ALTER TABLE Asset ADD COLUMN orig_raw_row_json TEXT");
             Log.i(TAG, "[AppDatabase] MIGRATION_9_10 applied: added 7 Asset snapshot columns");
+        }
+    };
+
+    /**
+     * v10 → v11: InventoryTask 新增 remark 列（任务备注，可空）。
+     * 历史行升级后 remark = NULL（无备注）; 创建任务时由 CreateTaskDialogFragment
+     * 收集、TaskListViewModel.createTask 写入, 任务卡片显示。
+     * <p>ALTER TABLE ADD COLUMN 不支持 IF NOT EXISTS — Room 按版本号只跑一次。</p>
+     */
+    public static final Migration MIGRATION_10_11 = new Migration(10, 11) {
+        @Override
+        public void migrate(SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE InventoryTask ADD COLUMN remark TEXT");
+            Log.i(TAG, "[AppDatabase] MIGRATION_10_11 applied: added InventoryTask.remark");
         }
     };
 }
