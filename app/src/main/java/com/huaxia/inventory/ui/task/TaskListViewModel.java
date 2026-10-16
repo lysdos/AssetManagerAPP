@@ -110,6 +110,9 @@ public class TaskListViewModel extends AndroidViewModel {
      * 删除任务 = 释放资产回库存池 + 清扫描记录 + 删任务壳 + 清 session.
      * 业务口径: ⋮ → "删除任务" 是"放弃这个任务"的唯一入口, 资产不丢 (留在库存池
      * 供下一个任务分配), 扫描/补全记录因为 taskId 上下文失效一并清掉.
+     * <p>回滚口径: 若任务是<b>未提交</b>(进行中/暂停), 先把编辑过的业务字段还原成
+     * 划拨时的快照 (revertEditedFields); 已提交(COMPLETED)则保留编辑值 (等同"清除已完成").
+     * 两种情况都清盘点时间 (资产离开任务回池, 时间即失效) 并丢弃快照。
      * <p>单事务: 任一步失败整体回滚, 无孤儿 ScanRecord.
      * <p>若是当前正在盘点的任务 (session.currentTaskId == taskId), 清 session
      * 让扫描页归零, 否则会指向已删任务壳导致 UI 空指针.
@@ -119,6 +122,17 @@ public class TaskListViewModel extends AndroidViewModel {
             try {
                 final int[] releasedHolder = {0};
                 app.getDb().runInTransaction(() -> {
+                    InventoryTask t = app.getDb().inventoryTaskDao().findById(taskId);
+                    boolean completed = t != null && "COMPLETED".equals(t.status);
+                    if (!completed) {
+                        // 未提交(进行中/暂停) = 放弃 → 回滚编辑过的字段.
+                        // 已完成(提交过) → 保留编辑值, 不回滚.
+                        app.getDb().assetDao().revertEditedFields(taskId);
+                    }
+                    // 资产离开任务回池, 盘点时间即失效 → 一律清 (含删已完成), 否则泄漏到下一任务.
+                    app.getDb().assetDao().clearInventoryTimeForTask(taskId);
+                    // 丢弃快照, 必须在 release 之前 (release 把 taskId 归零后本按 taskId 过滤会匹配 0 行).
+                    app.getDb().assetDao().clearSnapshotForTask(taskId);
                     releasedHolder[0] = app.getDb().assetDao().releaseTaskToPool(taskId);
                     app.getDb().extraClaimDao().deleteByTask(taskId);
                     app.getDb().scanRecordDao().deleteByTask(taskId);
@@ -141,13 +155,15 @@ public class TaskListViewModel extends AndroidViewModel {
     public void clearCompleted() {
         diskIO.execute(() -> {
             try {
-                // 已完成任务: 资产退回库存池 (保留, 供下轮复用) + 清扫描/补全 + 删任务壳。
-                // 与 deleteTask 口径一致 —— 库存池是资产主表, 清完成不应销毁主数据。
+                // 已完成任务: 资产退回库存池 (保留提交后的值) + 清盘点时间 + 清扫描/补全 + 删任务壳。
+                // 与 deleteTask 口径一致 —— 库存池是资产主表, 清完成不应销毁主数据;
+                // 盘点时间是"本次盘点"的数据, 离开任务即失效, 必须清 (否则泄漏到下一任务)。
                 app.getDb().runInTransaction(() -> {
                     List<InventoryTask> done = app.getDb().inventoryTaskDao().findAllCompleted();
                     for (InventoryTask t : done) {
                         app.getDb().extraClaimDao().deleteByTask(t.id);
                         app.getDb().scanRecordDao().deleteByTask(t.id);
+                        app.getDb().assetDao().clearInventoryTimeForTask(t.id);
                         app.getDb().assetDao().releaseTaskToPool(t.id);
                     }
                     app.getDb().inventoryTaskDao().deleteAllCompleted();
@@ -209,14 +225,18 @@ public class TaskListViewModel extends AndroidViewModel {
     public void completeTask(long taskId, Runnable cb) {
         diskIO.execute(() -> {
             try {
-                InventoryTask t = app.getDb().inventoryTaskDao().findById(taskId);
-                if (t != null && !"COMPLETED".equals(t.status)) {
-                    t.status = "COMPLETED";
-                    app.getDb().inventoryTaskDao().update(t);
-                    Long cur = app.getSession().getCurrentTaskId();
-                    if (cur != null && cur == taskId) {
-                        app.getSession().clear();
+                // 完成任务 = 提交: status 翻转 + 丢弃快照 (编辑值从此成为主数据), 单事务原子。
+                app.getDb().runInTransaction(() -> {
+                    InventoryTask t = app.getDb().inventoryTaskDao().findById(taskId);
+                    if (t != null && !"COMPLETED".equals(t.status)) {
+                        t.status = "COMPLETED";
+                        app.getDb().inventoryTaskDao().update(t);
+                        app.getDb().assetDao().clearSnapshotForTask(taskId);
                     }
+                });
+                Long cur = app.getSession().getCurrentTaskId();
+                if (cur != null && cur == taskId) {
+                    app.getSession().clear();
                 }
                 if (cb != null) cb.run();
             } catch (Exception e) {

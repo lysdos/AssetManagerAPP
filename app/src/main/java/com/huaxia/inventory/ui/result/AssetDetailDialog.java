@@ -45,6 +45,17 @@ public final class AssetDetailDialog {
                             @NonNull Asset asset,
                             boolean isMatched,
                             @NonNull SaveCallback onSave) {
+        show(fragment, asset, isMatched, false, onSave);
+    }
+
+    /**
+     * @param readOnly 只读模式 (已完成任务"查看详情"): 字段不可编辑、无保存按钮, 只看 + 关闭。
+     */
+    public static void show(@NonNull Fragment fragment,
+                            @NonNull Asset asset,
+                            boolean isMatched,
+                            boolean readOnly,
+                            @NonNull SaveCallback onSave) {
         View view = LayoutInflater.from(fragment.requireContext())
                 .inflate(R.layout.dialog_asset_detail, null, false);
 
@@ -140,6 +151,17 @@ public final class AssetDetailDialog {
             });
         });
 
+        if (readOnly) {
+            // 只读 (查看已完成任务): 字段不可编辑、隐藏保存按钮 —— 无写权限。
+            epcEt.setEnabled(false);
+            typeEt.setEnabled(false);
+            modelEt.setEnabled(false);
+            serialEt.setEnabled(false);
+            deptEt.setEnabled(false);
+            borrowerEt.setEnabled(false);
+            saveBtn.setVisibility(View.GONE);
+        }
+
         dialog.show();
 
         // AlertDialog 不归 FragmentManager 管: 宿主销毁(含旋转)时必须主动关闭, 否则旋转
@@ -196,6 +218,15 @@ public final class AssetDetailDialog {
         copy.rawRowJson = source.rawRowJson;
         copy.inventoryTime = source.inventoryTime;
         copy.createdAt = source.createdAt;
+        // 快照列 (v10): 必须一并复制 —— ResultFragment 用 update(pending) 整行 REPLACE,
+        // 漏复制会把快照清空、破坏"删除/重置回滚"。
+        copy.origEpc = source.origEpc;
+        copy.origAssetType = source.origAssetType;
+        copy.origAssetModel = source.origAssetModel;
+        copy.origSerialNumber = source.origSerialNumber;
+        copy.origCustodian = source.origCustodian;
+        copy.origDept = source.origDept;
+        copy.origRawRowJson = source.origRawRowJson;
         return copy;
     }
 

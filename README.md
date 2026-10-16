@@ -5,19 +5,20 @@ Android RFID 资产盘点应用，运行在 UROVO 工业 PDA 上。
 ## 功能
 
 - 从 Excel 导入资产清单（8 个必需列：序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期；重复固资编号按行覆盖更新）
-- 盘点任务管理：创建（可按领用部门限定）/ 暂停 / 恢复 / 完成任务 / 删除（资产退回库存池）/ 清除已完成
+- 盘点任务管理：创建（可按领用部门限定）/ 暂停 / 恢复 / 完成任务 / 删除（资产退回库存池）/ 清除已完成；已完成任务的结果页只读（可看 / 导出，不可编辑）
+- 编辑的草稿 / 提交语义：进行中或暂停任务的字段编辑为**草稿**（不改主数据）；**完成任务 = 提交**（编辑值成为主数据）；**删除 / 重置任务 = 回滚**到导入原值，并清盘点时间
 - RFID 扫描标签，实时匹配固资编号（UHF 读写器）
 - 手动盘点：输入固资编号查询，或摄像头扫条码（无扫码枪设备上的兜底）
 - 统计 已盘 / 盘亏 / 盘盈；盘盈（未匹配标签）可补全资产信息
 - 结果页按 全部 / 已盘 / 盘亏 / 盘盈 筛选 + 分页；盘盈支持单条删除
 - 导出盘点结果 Excel（保留原表头 + 追加 盘点状态 / 盘点时间 + 应盘/已盘/盘亏/盘盈 统计行）
-- 重置扫描进度：清扫描记录（保留任务与资产），可原地重扫
+- 重置扫描进度：清扫描记录 + 回滚本次编辑的字段与盘点时间（保留任务与资产），可原地重扫
 
 ## 技术栈
 
 - Java 11 / AndroidX (minSdk 26, targetSdk 34, compileSdk 34)
 - Single Activity + BottomNavigationView（📋 任务 / 🔍 扫描 / 📊 结果 三 tab）+ 若干 Fragment / Dialog
-- Room 2.6（本地数据库，当前 schema v9）
+- Room 2.6（本地数据库，当前 schema v10）
 - Apache POI 5.2.5（Excel 解析 / 流式写出）
 - Jackson 2.17（JSON）
 - CameraX 1.3 + ML Kit Barcode（手动盘点页的摄像头扫码兜底）
@@ -72,7 +73,7 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 ./gradlew :app:testDebugUnitTest
 ```
 
-当前全量单测 **199 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
+当前全量单测 **219 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
 - **源码文本守卫**：反射式提取方法体 + 断言，钉住事务边界、生命周期守卫、迁移版本、索引声明等不变量；
 - **Robolectric 行为测试**：验证 detach 后回调、旋转时弹窗关闭等运行时行为。
 

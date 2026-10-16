@@ -10,13 +10,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 防回归 (职责正交): "重置扫描进度" 只清扫描记录 + 盘盈补全, <b>不动</b> 任务 status / session;
- * "暂停"/"恢复" 只切 status + session, <b>不动</b> 扫描记录 —— 两者互不干扰。
+ * 防回归 (职责正交): "重置扫描进度" 清扫描记录 + 盘盈补全, 并回滚编辑过的资产字段 + 清盘点时间,
+ * 但 <b>不动</b> 任务 status / session; "暂停"/"恢复" 只切 status + session, <b>不动</b>
+ * 扫描记录 / 资产 —— 两者互不干扰。
  */
 public class ResetScanProgressOrthogonalityTest {
 
     @Test
-    public void resetScanProgress_touchesOnlyScans_notStatusNorSession() throws Exception {
+    public void resetScanProgress_doesNotTouchStatusNorSession() throws Exception {
         String text = readFile("src/main/java/com/huaxia/inventory/ui/scan/ScanViewModel.java");
         String body = extractMethodBody(text, "public void resetScanProgress()");
         assertTrue("resetScanProgress body not found. Source:\n" + text, body.length() > 0);

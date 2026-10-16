@@ -278,22 +278,71 @@ public interface AssetDao {
     List<String> distinctDeptPool();
 
     /**
-     * 把库存池中匹配部门的资产划拨到指定任务。
+     * 把库存池中匹配部门的资产划拨到指定任务, 并在同一语句里**打快照** —
+     * 把当前业务字段 (epc / assetType / assetModel / serialNumber / custodian /
+     * dept / raw_row_json) 存进 orig_* 列, 供"删除/重置任务"回滚。
      * 调用时机: TaskListViewModel.createTask 插入任务后立即执行。
      * dept = NULL 表示不限部门(把整个库存池划过去).
      * 返回受影响行数供 UI 显示.
      */
-    @Query("UPDATE Asset SET taskId = :newTaskId WHERE taskId = 0 " +
+    @Query("UPDATE Asset SET taskId = :newTaskId, " +
+           "orig_epc = epc, orig_asset_type = assetType, orig_asset_model = assetModel, " +
+           "orig_serial_number = serialNumber, orig_custodian = custodian, " +
+           "orig_dept = dept, orig_raw_row_json = raw_row_json " +
+           "WHERE taskId = 0 " +
            "AND (:dept IS NULL OR dept = :dept)")
     int assignPoolToTask(long newTaskId, @Nullable String dept);
 
     /**
      * 把任务下资产释放回库存池(taskId = 0)。
-     * 调用时机: ⋮ 菜单 "删除任务" (TaskListViewModel.deleteTask).
+     * 调用时机: ⋮ 菜单 "删除任务" (TaskListViewModel.deleteTask) / 清除已完成.
      * 同步删除该任务的扫描记录 + 补全记录 (引用 taskId 不再有效).
      */
     @Query("UPDATE Asset SET taskId = 0 WHERE taskId = :taskId")
     int releaseTaskToPool(long taskId);
+
+    /**
+     * 回滚该任务下"被编辑过"资产的业务字段 (从划拨时的快照还原)。
+     * 调用时机: 删除进行中/暂停任务 (TaskListViewModel.deleteTask)、重置扫描进度
+     * (ScanViewModel.resetScanProgress) —— 都是"放弃/重来本次盘点"的语义。
+     *
+     * <p>哨兵列 {@code orig_epc IS NOT NULL} 表示"该行有快照" (划拨时必写 epc);
+     * 未划拨 / 已提交 / 历史行快照为空, 不受影响。</p>
+     *
+     * <p>用 {@code UPDATE OR IGNORE}: {@code epc} 有全局唯一索引, 极端情况下 (同任务内
+     * 两行互换固资编号后再回滚) 普通 UPDATE 会因唯一键冲突抛 SQLiteConstraintException
+     * → 整个删除/重置事务回滚 → 操作失败。OR IGNORE 跳过错冲突行 (保留其新值), 事务不中断。</p>
+     *
+     * <p>注意: 快照口径 = 划拨时刻的池值。某资产划拨后若在"进行中"被重新导入覆盖,
+     * 回滚会把它拉回划拨时刻的值 (重导的主数据被丢弃) —— 既定口径。</p>
+     */
+    @Query("UPDATE OR IGNORE Asset SET " +
+           "epc = orig_epc, assetType = orig_asset_type, assetModel = orig_asset_model, " +
+           "serialNumber = orig_serial_number, custodian = orig_custodian, dept = orig_dept, " +
+           "raw_row_json = orig_raw_row_json " +
+           "WHERE taskId = :taskId AND orig_epc IS NOT NULL")
+    int revertEditedFields(long taskId);
+
+    /**
+     * 清该任务下**全部**资产的盘点时间 (含未编辑但被 backfill 写过的行)。
+     * 调用时机: 资产"离开任务回池" (删除任务 / 清除已完成) 或"重置扫描进度" ——
+     * 盘点时间是"本次盘点"的数据, 离开/重来后即失效; 不清则会被下一任务的
+     * {@link #backfillFoundInventoryTime(long)} (带 {@code inventory_time IS NULL} 守卫)
+     * 挡掉, 导出抄到旧时间。完成任务(提交)不清 —— 任务还在, 时间留给导出。
+     */
+    @Query("UPDATE Asset SET inventory_time = NULL WHERE taskId = :taskId")
+    int clearInventoryTimeForTask(long taskId);
+
+    /**
+     * 丢弃该任务的快照 (把 7 个 orig_* 置 NULL) —— "提交 / 放弃"收尾。
+     * 调用时机: 完成任务 (TaskListViewModel.completeTask, = 提交) 与删除任务。
+     * 必须在 {@link #releaseTaskToPool(long)} **之前**调用 —— 后者把 taskId 归零后,
+     * 本方法按 taskId 过滤会匹配 0 行、快照残留。
+     */
+    @Query("UPDATE Asset SET orig_epc = NULL, orig_asset_type = NULL, orig_asset_model = NULL, " +
+           "orig_serial_number = NULL, orig_custodian = NULL, orig_dept = NULL, " +
+           "orig_raw_row_json = NULL WHERE taskId = :taskId")
+    int clearSnapshotForTask(long taskId);
 
     /**
      * 给所有"已扫到但 inventoryTime 还是 null"的资产, 写入它的首次扫描时间.

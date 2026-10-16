@@ -393,8 +393,9 @@ public class ScanViewModel extends AndroidViewModel {
     }
 
     /**
-     * 重置当前任务的扫描进度: 只删本任务的 ScanRecord + 盘盈补全 (ExtraClaim),
-     * <b>保留任务与资产</b>, 并清空内存去重集 → 可原地重新扫描 (不必重建任务 / 重导 Excel)。
+     * 重置当前任务的扫描进度: 删本任务的 ScanRecord + 盘盈补全 (ExtraClaim),
+     * 并把编辑过的资产字段回滚到划拨快照、清盘点时间; <b>保留任务、资产与快照</b>,
+     * 并清空内存去重集 → 可原地重新扫描 (不必重建任务 / 重导 Excel)。
      * 结果通过 {@link #clearResult()} 回调给 UI。
      *
      * <p>关键: 必须清 {@link #scannedEpcSet} —— 否则重扫同样的标签会被"已见过"的内存
@@ -422,6 +423,10 @@ public class ScanViewModel extends AndroidViewModel {
                 app.getDb().runInTransaction(() -> {
                     db.extraClaimDao().deleteByTask(taskId);
                     scansHolder[0] = db.scanRecordDao().deleteByTask(taskId);
+                    // 重置 = 放弃本次盘点重来: 回滚编辑过的字段到划拨快照 + 清盘点时间;
+                    // 保留任务与快照 (任务还在, 之后若删除任务仍能回滚).
+                    db.assetDao().revertEditedFields(taskId);
+                    db.assetDao().clearInventoryTimeForTask(taskId);
                 });
             } catch (Exception e) {
                 Log.e(TAG, "resetScanProgress db transaction failed", e);

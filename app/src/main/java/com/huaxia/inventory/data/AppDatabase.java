@@ -16,7 +16,7 @@ import com.huaxia.inventory.data.entity.ScanRecord;
 
 @Database(
         entities = {InventoryTask.class, Asset.class, ScanRecord.class, ExtraClaim.class},
-        version = 9,
+        version = 10,
         exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static final String TAG = "AppDatabase";
@@ -117,6 +117,31 @@ public abstract class AppDatabase extends RoomDatabase {
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_Asset_taskId_dept` "
                     + "ON `Asset` (`taskId`, `dept`)");
             Log.i(TAG, "[AppDatabase] MIGRATION_8_9 applied: added index_Asset_taskId_dept");
+        }
+    };
+
+    /**
+     * v9 → v10: Asset 新增 7 个可空"快照列", 保存资产"划拨进任务时"的业务字段原值,
+     * 支撑"划拨建快照 → 进行中编辑=草稿 → 完成=提交 → 删除/重置=回滚"语义:
+     * 划拨时 {@code assignPoolToTask} 打快照, 删除/重置时 {@code revertEditedFields}
+     * 还原, 完成时 {@code clearSnapshotForTask} 丢弃.
+     * <p>历史行升级后 orig_* = NULL (= 无快照); 回滚以 {@code orig_epc IS NOT NULL}
+     * 为哨兵, 故历史行不受影响.</p>
+     * <p>ALTER TABLE ADD COLUMN 不支持 IF NOT EXISTS — Room 按版本号只跑一次, 与
+     * MIGRATION_6_7 同理. 快照字段是文本, 用 {@code TEXT} (区别于整数时间列的
+     * {@code INTEGER}).</p>
+     */
+    public static final Migration MIGRATION_9_10 = new Migration(9, 10) {
+        @Override
+        public void migrate(SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_epc TEXT");
+            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_asset_type TEXT");
+            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_asset_model TEXT");
+            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_serial_number TEXT");
+            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_custodian TEXT");
+            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_dept TEXT");
+            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_raw_row_json TEXT");
+            Log.i(TAG, "[AppDatabase] MIGRATION_9_10 applied: added 7 Asset snapshot columns");
         }
     };
 }

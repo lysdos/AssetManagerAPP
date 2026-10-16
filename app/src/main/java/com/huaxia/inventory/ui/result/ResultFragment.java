@@ -67,6 +67,8 @@ public class ResultFragment extends Fragment {
     private AssetResultAdapter assetAdapter;
     private ActivityResultLauncher<String> exportLauncher;
     private long currentTaskId = -1L;
+    /** 只读模式 (已完成任务"查看详情"): 弹窗只读, 不能编辑/保存/删除盘盈。 */
+    private boolean readOnly;
 
     @Override
     public void onCreate(@Nullable Bundle s) {
@@ -117,6 +119,9 @@ public class ResultFragment extends Fragment {
             return;
         }
         currentTaskId = taskId;
+        // 只读: 由"任务卡查看详情"传入 ARG_VIEW_TASK_ID (该入口只对已完成任务暴露) →
+        // 已完成任务结果页只读 (可看/导出, 不可编辑)。当前任务 (session 路径) 永远可编辑。
+        readOnly = viewTaskId >= 0L;
 
         // 读取导航参数中的 tab，设置初始筛选
         if (getArguments() != null) {
@@ -338,7 +343,7 @@ public class ResultFragment extends Fragment {
 
     private void showAssetDetailDialog(Asset asset) {
         boolean isMatched = matchedIdsCache.contains(asset.id);
-        AssetDetailDialog.show(this, asset, isMatched, this::onAssetDetailSaved);
+        AssetDetailDialog.show(this, asset, isMatched, readOnly, this::onAssetDetailSaved);
     }
 
     private void onAssetDetailSaved(Asset pendingSave,
@@ -407,7 +412,7 @@ public class ResultFragment extends Fragment {
     }
 
     private void showExtraDetailDialog(ExtraWithClaim data) {
-        ExtraDetailDialog.show(this, data,
+        ExtraDetailDialog.show(this, data, readOnly,
                 claim -> onExtraDetailSaved(data.scan.id, claim),
                 () -> confirmDeleteExtra(data));
     }

@@ -36,8 +36,12 @@ public final class ExtraDetailDialog {
 
     private ExtraDetailDialog() {}
 
+    /**
+     * @param readOnly 只读模式 (已完成任务"查看详情"): 字段不可编辑, 无补全保存 / 单条删除入口。
+     */
     public static void show(@NonNull Fragment fragment,
                             @NonNull ExtraWithClaim data,
+                            boolean readOnly,
                             @NonNull SaveCallback onSave,
                             @NonNull DeleteCallback onDelete) {
         View view = LayoutInflater.from(fragment.requireContext())
@@ -98,6 +102,18 @@ public final class ExtraDetailDialog {
             dialog.dismiss();
             onSave.onSave(claim);
         });
+
+        if (readOnly) {
+            // 只读 (查看已完成任务): 字段不可编辑, 隐藏补全保存 + 单条删除入口。
+            epcEt.setEnabled(false);
+            typeEt.setEnabled(false);
+            modelEt.setEnabled(false);
+            serialEt.setEnabled(false);
+            deptEt.setEnabled(false);
+            borrowerEt.setEnabled(false);
+            view.findViewById(R.id.extraDlgDeleteBtn).setVisibility(View.GONE);
+            view.findViewById(R.id.extraDlgSaveBtn).setVisibility(View.GONE);
+        }
 
         dialog.show();
 

@@ -62,4 +62,30 @@ public class Asset {
     @Nullable
     @ColumnInfo(name = "created_at")
     public Long createdAt;
+
+    // ---- 快照列 (v10): 划拨进任务时保存的业务字段原值, 供"删除/重置任务"回滚 ----
+    // 非空 = 该资产正处在某未提交(进行中/暂停)任务中, 可被回滚; 完成任务(提交)
+    // 或删除任务时清空. 结果页编辑改的是上面的"当前列", 不动这里 — 原值因此得
+    // 以保留到回滚那一刻. 导出只读"当前列", 不读快照.
+    @Nullable
+    @ColumnInfo(name = "orig_epc")
+    public String origEpc;
+    @Nullable
+    @ColumnInfo(name = "orig_asset_type")
+    public String origAssetType;
+    @Nullable
+    @ColumnInfo(name = "orig_asset_model")
+    public String origAssetModel;
+    @Nullable
+    @ColumnInfo(name = "orig_serial_number")
+    public String origSerialNumber;
+    @Nullable
+    @ColumnInfo(name = "orig_custodian")
+    public String origCustodian;
+    @Nullable
+    @ColumnInfo(name = "orig_dept")
+    public String origDept;
+    @Nullable
+    @ColumnInfo(name = "orig_raw_row_json")
+    public String origRawRowJson;
 }
