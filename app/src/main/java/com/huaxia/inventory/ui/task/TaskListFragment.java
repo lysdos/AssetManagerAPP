@@ -175,6 +175,9 @@ public class TaskListFragment extends Fragment {
      * 从扫描页点统计卡可再下钻到结果页看列表 / 导出。
      */
     private void navigateToScanView(long viewTaskId) {
+        // 记入 session: 让底部 tab 新建的扫描/结果 fragment 也能保持查看上下文。
+        ((InventoryApp) requireActivity().getApplication())
+                .getSession().setViewingTaskId(viewTaskId);
         ScanFragment fragment = new ScanFragment();
         Bundle args = new Bundle();
         args.putLong(ScanFragment.ARG_VIEW_TASK_ID, viewTaskId);

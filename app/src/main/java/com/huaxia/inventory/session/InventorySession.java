@@ -49,6 +49,15 @@ public class InventorySession {
     /** 单条扫描记录删除广播 (见 {@link ScanRemoval}). */
     private final MutableLiveData<ScanRemoval> lastScanRemoval = new MutableLiveData<>();
 
+    /**
+     * 正在"只读查看"的已完成任务 id; null = 未在查看。
+     * 由任务页"查看详情"设置、进入任务页时清除。扫描页 / 结果页在自身 ARG 缺省时
+     * 回落到它 —— 这样底部 tab 切换 (新建无参 fragment) 也能保持在该任务的查看上下文,
+     * 不必回到任务页重新点"查看详情"。主线程读写, volatile 保可见性。
+     */
+    @Nullable
+    private volatile Long viewingTaskId;
+
     @Nullable
     public Long getCurrentTaskId() {
         return currentTaskId.getValue();
@@ -61,6 +70,15 @@ public class InventorySession {
     /** 单条扫描记录删除事件流, 供 {@code ScanViewModel} 驱逐内存去重集. */
     public LiveData<ScanRemoval> scanRemovals() {
         return lastScanRemoval;
+    }
+
+    @Nullable
+    public Long getViewingTaskId() {
+        return viewingTaskId;
+    }
+
+    public void setViewingTaskId(@Nullable Long id) {
+        this.viewingTaskId = id;
     }
 
     /**

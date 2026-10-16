@@ -58,7 +58,11 @@ public class MainActivity extends AppCompatActivity {
         BottomNavigationView nav = findViewById(R.id.bottomNav);
         nav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
-            if (id == R.id.nav_task) return showFragment(new TaskListFragment(), "task");
+            if (id == R.id.nav_task) {
+                // 进任务页 = 离开"查看已完成任务"模式, 否则扫描/结果 tab 会继续显示旧任务。
+                ((InventoryApp) getApplication()).getSession().setViewingTaskId(null);
+                return showFragment(new TaskListFragment(), "task");
+            }
             if (id == R.id.nav_scan)   return showFragment(new ScanFragment(),   "scan");
             if (id == R.id.nav_result) return showFragment(new ResultFragment(), "result");
             return false;

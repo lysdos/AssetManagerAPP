@@ -123,19 +123,27 @@ public class ScanFragment extends Fragment {
         applyScanBtnGreen();
 
         // "查看详情" 传入 ARG_VIEW_TASK_ID → 只读查看模式 (看某已完成任务的统计, 不绑 session).
+        // 参数缺省时回落到 session 的"查看中任务" —— 底部 tab 新建的无参 fragment 也保持上下文。
         long viewTaskId = getArguments() != null
                 ? getArguments().getLong(ARG_VIEW_TASK_ID, -1L) : -1L;
+        if (viewTaskId < 0L) {
+            Long viewing = ((InventoryApp) requireActivity().getApplication())
+                    .getSession().getViewingTaskId();
+            if (viewing != null) viewTaskId = viewing;
+        }
         readOnly = viewTaskId >= 0L;
+        // lambda 捕获要求 effectively-final — 拷贝一份给点击回调.
+        final long cardViewTaskId = viewTaskId;
 
         // 点击统计卡片跳转结果页并筛选 (查看模式下带上 taskId → 结果页也只读).
         v.findViewById(R.id.inStockStat).setOnClickListener(
-                card -> navigateToResult(ResultTab.ALL, viewTaskId));
+                card -> navigateToResult(ResultTab.ALL, cardViewTaskId));
         v.findViewById(R.id.scannedStat).setOnClickListener(
-                card -> navigateToResult(ResultTab.FOUND, viewTaskId));
+                card -> navigateToResult(ResultTab.FOUND, cardViewTaskId));
         v.findViewById(R.id.anomalyStat).setOnClickListener(
-                card -> navigateToResult(ResultTab.MISSING, viewTaskId));
+                card -> navigateToResult(ResultTab.MISSING, cardViewTaskId));
         v.findViewById(R.id.extraStat).setOnClickListener(
-                card -> navigateToResult(ResultTab.EXTRA, viewTaskId));
+                card -> navigateToResult(ResultTab.EXTRA, cardViewTaskId));
 
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
 

@@ -109,6 +109,11 @@ public class ResultFragment extends Fragment {
         // 显式传入 viewTaskId 时用它 (任务卡"查看详情"查看已完成任务); 否则用当前任务。
         long viewTaskId = getArguments() != null
                 ? getArguments().getLong(ARG_VIEW_TASK_ID, -1L) : -1L;
+        // 参数缺省时回落到 session 的"查看中任务" —— 底部 tab 切换也保持查看上下文。
+        if (viewTaskId < 0L) {
+            Long viewing = app.getSession().getViewingTaskId();
+            if (viewing != null) viewTaskId = viewing;
+        }
         Long taskId = viewTaskId >= 0L
                 ? Long.valueOf(viewTaskId) : app.getSession().getCurrentTaskId();
         if (taskId == null) {

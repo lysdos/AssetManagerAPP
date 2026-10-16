@@ -39,7 +39,7 @@ public class ScanViewModeGuardTest {
                 text.contains("if (!readOnly)"));
 
         assertTrue("result drilldown must pass viewTaskId. Source:\n" + text,
-                text.contains("navigateToResult(ResultTab.ALL, viewTaskId)"));
+                text.contains("navigateToResult(ResultTab.ALL, cardViewTaskId)"));
     }
 
     @Test
