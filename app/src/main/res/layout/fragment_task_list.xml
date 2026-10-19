@@ -58,11 +58,18 @@
                     android:layout_marginStart="5dp" />
             </LinearLayout>
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/taskListRv"
+            <!--
+              任务卡片容器用普通 LinearLayout, 不用 RecyclerView:
+              RecyclerView 自带滚动, 以 wrap_content 嵌在 ScrollView 里时, 它的 auto-measure
+              会拿"可用视口高度"当排布预算 —— 内容一旦超过视口, 之后新增的卡片会被静默丢弃
+              (既不排布也不撑高, 所以滑到底也看不到)。任务数量是个位数, item 复用本来也无意义,
+              整页滚动交给外层 ScrollView。
+            -->
+            <LinearLayout
+                android:id="@+id/taskListContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false" />
+                android:orientation="vertical" />
 
             <TextView
                 android:id="@+id/taskEmptyTv"

@@ -11,10 +11,9 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 import androidx.appcompat.widget.PopupMenu;
 import com.google.android.material.button.MaterialButton;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
@@ -31,7 +30,7 @@ public class TaskListFragment extends Fragment {
     private TaskAdapter adapter;
     private TextView totalNumber, progressNumber, doneNumber;
     private TextView taskEmptyTv;
-    private RecyclerView rv;
+    private LinearLayout taskListContainer;
 
     @Nullable
     @Override
@@ -56,10 +55,9 @@ public class TaskListFragment extends Fragment {
         doneLabel.setText(R.string.task_summary_done);
 
         taskEmptyTv = v.findViewById(R.id.taskEmptyTv);
-        rv = v.findViewById(R.id.taskListRv);
-        rv.setLayoutManager(new LinearLayoutManager(requireContext()));
+        taskListContainer = v.findViewById(R.id.taskListContainer);
 
-        adapter = new TaskAdapter(new TaskAdapter.Listener() {
+        adapter = new TaskAdapter(taskListContainer, new TaskAdapter.Listener() {
             @Override public void onStartTask(InventoryTask task) {
                 // switchToTask 回调在 diskIO 线程触发; session 用 postValue,
                 // 立刻 getValue() 读到的是旧值, cur != taskId 会恒真.
@@ -105,7 +103,6 @@ public class TaskListFragment extends Fragment {
                 showTaskMorePopup(task, anchor);
             }
         });
-        rv.setAdapter(adapter);
 
         MaterialButton createBtn = v.findViewById(R.id.taskCreateBtn);
         createBtn.setOnClickListener(btn ->

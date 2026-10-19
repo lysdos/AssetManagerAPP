@@ -3,13 +3,11 @@ package com.huaxia.inventory.ui.task;
 import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
-import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.button.MaterialButton;
 import com.huaxia.inventory.R;
 import com.huaxia.inventory.data.entity.InventoryTask;
@@ -17,7 +15,15 @@ import com.huaxia.inventory.util.DateUtil;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.VH> {
+/**
+ * 任务卡片列表。
+ *
+ * <p>容器是普通 {@link LinearLayout} 而不是 RecyclerView —— RecyclerView 自带滚动, 以
+ * {@code wrap_content} 嵌在 ScrollView 里时, 它的 auto-measure 拿"可用视口高度"当排布预算:
+ * 内容一旦超过视口, 之后新增的卡片会被静默丢弃 (既不排布也不撑高, 滑到底也看不到)。
+ * 任务数量是个位数, item 复用本来也无意义; 整页滚动交给外层 ScrollView。</p>
+ */
+public class TaskAdapter {
 
     public interface Listener {
         void onStartTask(InventoryTask task);
@@ -36,37 +42,41 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.VH> {
     private static final String STATUS_COMPLETED = "COMPLETED";
 
     private final List<InventoryTask> data = new ArrayList<>();
+    private final LinearLayout container;
+    private final LayoutInflater inflater;
     private final Listener listener;
     private long currentTaskId = -1L;
 
-    public TaskAdapter(Listener listener) {
+    public TaskAdapter(LinearLayout container, Listener listener) {
+        this.container = container;
+        this.inflater = LayoutInflater.from(container.getContext());
         this.listener = listener;
     }
 
     public void submit(List<InventoryTask> list) {
         data.clear();
         if (list != null) data.addAll(list);
-        notifyDataSetChanged();
+        rebuild();
     }
 
     public void setCurrentTaskId(long id) {
         if (currentTaskId != id) {
             currentTaskId = id;
-            notifyDataSetChanged();
+            rebuild();
         }
     }
 
-    @NonNull
-    @Override
-    public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View v = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.view_task_card, parent, false);
-        return new VH(v);
+    /** 全量重建卡片。列表是个位数规模, 直接 removeAllViews + 重新 inflate 即可。 */
+    private void rebuild() {
+        container.removeAllViews();
+        for (InventoryTask t : data) {
+            View v = inflater.inflate(R.layout.view_task_card, container, false);
+            bind(new VH(v), t);
+            container.addView(v);
+        }
     }
 
-    @Override
-    public void onBindViewHolder(@NonNull VH h, int position) {
-        InventoryTask t = data.get(position);
+    private void bind(VH h, InventoryTask t) {
         h.name.setText(t.sourceFileName != null ? t.sourceFileName : "未命名任务");
 
         String status = t.status == null ? STATUS_IN_PROGRESS : t.status;
@@ -189,18 +199,17 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.VH> {
         }
     }
 
-    @Override
-    public int getItemCount() { return data.size(); }
-
-    static class VH extends RecyclerView.ViewHolder {
+    /** 单张卡片的 view 引用。{@code itemView} 保留是为了绑定方法里统一取 context。 */
+    static class VH {
+        final View itemView;
         final TextView name, status, dept, date, metaTotal, remark;
         final TextView progressLeft, progressRight;
         final ProgressBar progressBar;
         final MaterialButton primary, secondary;
         final ImageButton more;
 
-        VH(@NonNull View v) {
-            super(v);
+        VH(View v) {
+            itemView = v;
             name = v.findViewById(R.id.taskNameTv);
             status = v.findViewById(R.id.taskStatusTv);
             dept = v.findViewById(R.id.taskDeptTv);
