@@ -12,9 +12,19 @@ import java.util.List;
 @Dao
 public interface AssetDao {
 
+    /**
+     * 仅测试使用 —— <b>生产代码零调用, 不要拿它当写入入口</b>。
+     * {@code INSERT OR REPLACE} 走 DELETE + INSERT: 会重置 {@code id}、清空整行
+     * (含 7 个 {@code orig_*} 快照列与 {@code inventory_time} / {@code created_at}),
+     * 并让引用旧 id 的 {@code ScanRecord.matchedAssetId} 变孤儿。
+     * 生产写入一律走 {@link #upsertOne(Asset)} / {@link #upsertBatch(List)}。
+     */
+    @androidx.annotation.VisibleForTesting
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     long insert(Asset asset);
 
+    /** 同 {@link #insert(Asset)} —— 仅测试使用, 生产代码零调用。 */
+    @androidx.annotation.VisibleForTesting
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertAll(List<Asset> assets);
 

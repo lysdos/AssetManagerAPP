@@ -165,16 +165,20 @@ public class ResultFragment extends Fragment {
                 rv.setVisibility(View.VISIBLE);
             }
             // matchedIds 由 vm.matchedIds() 一次性拉取, UI 只读 — 不再在 observer
-            // 内 dispatch findFound 全表加载. 复用同一个 assetAdapter 实例, 只调
-            // setItems + setMatchedIds + notifyDataSetChanged — 避免多次
-            // new AssetResultAdapter + setAdapter 让 RecyclerView 内部短链残留.
+            // 内 dispatch findFound 全表加载. 复用同一个 assetAdapter 实例,
+            // 避免多次 new AssetResultAdapter 让 RecyclerView 内部短链残留.
             if (assetAdapter == null) {
                 assetAdapter = new AssetResultAdapter(
                         assets, matchedIdsCache, this::showAssetDetailDialog);
+            }
+            assetAdapter.setItems(assets);
+            assetAdapter.setMatchedIds(matchedIdsCache);
+            // EXTRA tab 会把 ExtraResultAdapter 挂到 rv 上, 切回其它 tab 时必须换回来
+            // (否则列表停在盘盈数据、与标题数量不符). 已是同一实例时只 notify ——
+            // 重复 setAdapter 会 removeAndRecycleViews 把列表滚回顶部.
+            if (rv.getAdapter() != assetAdapter) {
                 rv.setAdapter(assetAdapter);
             } else {
-                assetAdapter.setItems(assets);
-                assetAdapter.setMatchedIds(matchedIdsCache);
                 assetAdapter.notifyDataSetChanged();
             }
         });

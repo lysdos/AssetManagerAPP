@@ -66,6 +66,7 @@
     <string name="scan_clear_task_confirm_cancel">取消</string>
     <string name="scan_clear_task_done">已重置 %1$d 条扫描记录</string>
     <string name="scan_clear_task_failed">重置失败：%1$s</string>
+    <string name="scan_clear_task_no_task">当前无任务，无法重置扫描进度</string>
     <string name="scan_device_status">设备状态：%1$s</string>
     <!-- 无任务「读码模式」: 空闲提示 + 读到的编码(渲染到状态行) -->
     <string name="scan_reader_idle">读码模式 · 等待标签…</string>

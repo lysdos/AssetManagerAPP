@@ -110,6 +110,11 @@ public class ImportDialogFragment extends DialogFragment {
 
         importVm.parsedFile().observe(getViewLifecycleOwner(), pf -> {
             if (pf == null) return;
+            // importVm 是 activity 级的, LiveData 会保留上次的值: 导入完成自动关闭后
+            // 再打开弹窗, observer 会立刻收到上一次的 ParsedFile, 把"开始导入"在未选
+            // 文件时就点亮 (pickedUri 仍是 null, 点了没反应). 只在本次弹窗内真的选过
+            // 文件时才渲染 —— 不能用 commited 守卫, 它要到 startCommit() 才置 true.
+            if (pickedUri == null) return;
             // 解析完成
             pickedSuccessCount = pf.successCount;
             pickedErrorCount = pf.errorCount;
@@ -131,6 +136,8 @@ public class ImportDialogFragment extends DialogFragment {
         });
         importVm.parseError().observe(getViewLifecycleOwner(), err -> {
             if (err == null) return;
+            // 同上: 避免重开弹窗时把上一次的解析错误原样再显示一遍.
+            if (pickedUri == null) return;
             showError(getString(R.string.err_parse_failed, err));
             uploadArea.setEnabled(true);
             startImportBtn.setEnabled(false);

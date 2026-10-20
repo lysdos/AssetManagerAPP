@@ -160,6 +160,10 @@ public class ScanFragment extends Fragment {
             // 就绪态启用(读码同样需要能按).
             renderReaderIdle();
             scanBtn.setEnabled(false);
+            // 无任务 = 没有"本次盘点"可重置 → 禁用重置入口 (否则点了只能弹一句
+            // "当前无任务", 徒增一次无效交互). 任务出现时本 fragment 必被重建
+            // (底部 tab 切换走 replace), 不会留下"永久禁用"的残留状态.
+            clearTaskBtn.setEnabled(false);
             renderEmptyStats();
             currentTaskTv.setText(R.string.scan_current_task_none);
             // 仍要订阅 clearResult, 这样从其他入口触发重置也能收到提示
@@ -238,7 +242,10 @@ public class ScanFragment extends Fragment {
         InventoryApp app = (InventoryApp) requireActivity().getApplication();
         Long taskId = app.getSession().getCurrentTaskId();
         if (taskId == null) {
-            Snackbar.make(requireView(), R.string.scan_clear_task_failed,
+            // 防御分支: 入口按钮在无任务时已禁用 (onViewCreated), 这里兜住
+            // "渲染后 session 被清" 的窗口. 注意 scan_clear_task_failed 含 %1$s
+            // 占位符, 裸传资源 id 会原样显示 "重置失败：%1$s" —— 用无占位符文案.
+            Snackbar.make(requireView(), R.string.scan_clear_task_no_task,
                     Snackbar.LENGTH_SHORT).show();
             return;
         }
