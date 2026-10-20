@@ -18,7 +18,7 @@ Android RFID 资产盘点应用，运行在 UROVO 工业 PDA 上。
 
 - Java 11 / AndroidX (minSdk 26, targetSdk 34, compileSdk 34)
 - Single Activity + BottomNavigationView（📋 任务 / 🔍 扫描 / 📊 结果 三 tab）+ 若干 Fragment / Dialog
-- Room 2.6（本地数据库，当前 schema v11）
+- Room 2.6（本地数据库，当前 schema **v1** = 首次发布基线，交付前已收敛掉开发期 v2..v11 的迁移链）
 - Apache POI 5.2.5（Excel 解析 / 流式写出）
 - Jackson 2.17（JSON）
 - CameraX 1.3 + ML Kit Barcode（手动盘点页的摄像头扫码兜底）
@@ -73,8 +73,8 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 ./gradlew :app:testDebugUnitTest
 ```
 
-当前全量单测 **231 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
-- **源码文本守卫**：反射式提取方法体 + 断言，钉住事务边界、生命周期守卫、迁移版本、索引声明等不变量；
+当前全量单测 **226 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
+- **源码文本守卫**：反射式提取方法体 + 断言，钉住事务边界、生命周期守卫、迁移链完整性、索引声明等不变量；
 - **Robolectric 行为测试**：验证 detach 后回调、旋转时弹窗关闭等运行时行为。
 
 ## 部署到 UROVO PDA
@@ -93,7 +93,6 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 ## 已知限制
 
 - release 签名凭据（`local.properties` / `app/keystore/`）随仓库跟踪，属交付包的一部分 — 依赖外部分发渠道管控
-- DB 迁移链存在历史缺口 2→3→4→5：仅当已有这些旧版本号的数据时才会退化走 destructive fallback（这些版本实际未上线；v5 及以后均有正常迁移路径）
 - 深色模式沿用系统 DayNight，未做专项优化
 - 物理 PDA 扫描枪触发键（F1 / KEYCODE_BUTTON_R1 等）需在真机确认
 
@@ -142,7 +141,7 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 
 ## 验证
 
-单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，231 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删等主流程做一次回归。
+单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，226 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删等主流程做一次回归。
 
 ## 开发者注意事项
 
@@ -150,4 +149,4 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 - 启动 RFID 扫描时 `epc` 字段必须先做归一化 (trim + 纯十进制 + 16/17/24 位三分支，详见 `EpcNormalizer.normalize`；2026-06-16 后已废弃 hex 转换)
 - EPC 去重使用 `HashSet` + DB 唯一索引双重保护
 - 导出 Excel 时从首个 asset 的 `rawRowJson` 重建 8 个必需列表头顺序 (序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期)，并丢弃"盘点日期"列；尾部追加两列 `RESULT_COLUMNS = ["盘点状态", "盘点时间"]`
-- `Asset` 有 7 个 `orig_*` "快照列"（v10）：建任务划拨时保存业务字段原值，删除/重置任务回滚（`revertEditedFields`）、完成任务丢弃（`clearSnapshotForTask`）。结果页保存走整行 `@Update`（`AssetDetailDialog.copyAsset`），**新增 Asset 持久化字段时必须同步复制 `orig_*`**，否则每次保存会静默清空快照
+- `Asset` 有 7 个 `orig_*` "快照列"：建任务划拨时保存业务字段原值，删除/重置任务回滚（`revertEditedFields`）、完成任务丢弃（`clearSnapshotForTask`）。结果页保存走整行 `@Update`（`AssetDetailDialog.copyAsset`），**新增 Asset 持久化字段时必须同步复制 `orig_*`**，否则每次保存会静默清空快照

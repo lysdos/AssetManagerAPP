@@ -1,10 +1,7 @@
 package com.huaxia.inventory.data;
 
-import android.util.Log;
 import androidx.room.Database;
 import androidx.room.RoomDatabase;
-import androidx.room.migration.Migration;
-import androidx.sqlite.db.SupportSQLiteDatabase;
 import com.huaxia.inventory.data.dao.AssetDao;
 import com.huaxia.inventory.data.dao.ExtraClaimDao;
 import com.huaxia.inventory.data.dao.InventoryTaskDao;
@@ -14,148 +11,28 @@ import com.huaxia.inventory.data.entity.ExtraClaim;
 import com.huaxia.inventory.data.entity.InventoryTask;
 import com.huaxia.inventory.data.entity.ScanRecord;
 
+/**
+ * 本地数据库。
+ *
+ * <p><b>{@code version = 1} 是首次发布基线</b> —— 交付前把开发期迭代出来的 v2..v11
+ * 迁移链整体收敛掉了: 那些版本号从未交付给任何用户, 维护它们只有成本没有收益
+ * (其中 2→3→4→5 还是缺口, 只能靠 destructive fallback 兜底)。表结构本身没变,
+ * 全新安装直接按实体定义建库。</p>
+ *
+ * <p><b>发布之后</b>每次改表结构: {@code version} +1, 在 {@code AppDatabase} 里声明
+ * {@code MIGRATION_(n-1)_n}, 并在 {@code InventoryApp} 的 builder 里注册 —— 两者缺一
+ * {@code DatabaseMigrationChainGuardTest} 会失败。配合 {@code InventoryApp} 使用的
+ * {@code fallbackToDestructiveMigrationOnDowngrade()}, "漏写迁移"会在升级时直接抛异常
+ * 而不是静默清空用户数据。</p>
+ */
 @Database(
         entities = {InventoryTask.class, Asset.class, ScanRecord.class, ExtraClaim.class},
-        version = 11,
+        version = 1,
         exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
-    private static final String TAG = "AppDatabase";
 
     public abstract InventoryTaskDao inventoryTaskDao();
     public abstract AssetDao assetDao();
     public abstract ScanRecordDao scanRecordDao();
     public abstract ExtraClaimDao extraClaimDao();
-
-    /**
-     * v1 → v2: Asset 表新增 inventory_time 列（盘点时间，毫秒），可空。
-     * 现有行 inventory_time = NULL，等用户首次在结果页点开弹窗保存后再回填。
-     */
-    public static final Migration MIGRATION_1_2 = new Migration(1, 2) {
-        @Override
-        public void migrate(SupportSQLiteDatabase db) {
-            db.execSQL("ALTER TABLE Asset ADD COLUMN inventory_time INTEGER");
-        }
-    };
-
-    /**
-     * v5 → v6: ScanRecord 加复合索引 {@code (taskId, matchedAssetId)},
-     * 让 {@code InventoryTaskDao.recomputeScannedCount} 的
-     * {@code COUNT(DISTINCT matchedAssetId) WHERE taskId=? AND matchedAssetId IS NOT NULL}
-     * 走 index-only scan. 表数据 / 唯一索引均不动, 只追加新索引 — 用
-     * {@code IF NOT EXISTS} 保证幂等, 重跑迁移不会失败.
-     * <p>索引名沿用 Room 默认命名 {@code index_ScanRecord_taskId_matchedAssetId},
-     * 由 {@code @Index(value = {"taskId", "matchedAssetId"})} 自动生成.</p>
-     *
-     * <p><b>历史</b>: 2026-07-24 之前, 这里还有过 v3, v4, v5 等几个版本号, 期间
-     * 因 {@code @Entity} 索引变更 (ExtraClaim 表新增, epc 改全局 UNIQUE 等)
-     * 需要 schema 变更, 但实际上没有迁移路径 — 因为这两个版本号范围既没有
-     * 上线用户, 也没有生产数据需要保护, 升级时会走
-     * {@code fallbackToDestructiveMigration()} 全表重建. 后来清理掉了
-     * 占位 migration, 仅保留 v1→v2 / v5→v6 真正注册的版本.</p>
-     */
-    public static final Migration MIGRATION_5_6 = new Migration(5, 6) {
-        @Override
-        public void migrate(SupportSQLiteDatabase db) {
-            try {
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_ScanRecord_taskId_matchedAssetId` "
-                        + "ON `ScanRecord` (`taskId`, `matchedAssetId`)");
-                Log.i(TAG, "[AppDatabase] MIGRATION_5_6 applied: created index_ScanRecord_taskId_matchedAssetId");
-            } catch (Exception e) {
-                // 不抛异常 — IF NOT EXISTS 已挡掉重跑情况; 其它 schema 漂移让
-                // fallbackToDestructiveMigration 接管, 不要二次吞错.
-                Log.e(TAG, "[AppDatabase] MIGRATION_5_6 failed", e);
-                throw e;
-            }
-        }
-    };
-
-    /**
-     * v6 → v7: Asset 表新增 created_at 列（首次导入时间，毫秒），可空。
-     * 历史行升级后 created_at = NULL — 语义为"未知导入时间"，不参与扫描页
-     * 「+N 今日」统计（{@code countCreatedAfter} 用 {@code created_at >= :since}，
-     * NULL 不满足条件）。新导入资产由 {@code ExcelImporter} 写入流起始时间戳。
-     * <p>ALTER TABLE ADD COLUMN 不支持 IF NOT EXISTS，但 Room 按版本号只会跑一次，
-     * 不存在重跑问题（与 MIGRATION_5_6 用 IF NOT EXISTS 防重跑的动机不同）。</p>
-     */
-    public static final Migration MIGRATION_6_7 = new Migration(6, 7) {
-        @Override
-        public void migrate(SupportSQLiteDatabase db) {
-            db.execSQL("ALTER TABLE Asset ADD COLUMN created_at INTEGER");
-            Log.i(TAG, "[AppDatabase] MIGRATION_6_7 applied: added Asset.created_at");
-        }
-    };
-
-    /**
-     * v7 → v8: 补两条分页/排序复合索引（纯加索引，不动数据/字段）:
-     * <ul>
-     *   <li>{@code Asset (taskId, excelRowIndex)} — pageAll/pageFound/pageMissing 的
-     *       ORDER BY, 以及 ExcelExporter 分页导出的每一页;</li>
-     *   <li>{@code ScanRecord (taskId, scannedAt)} — pageExtra/pageRecent 的 ORDER BY。</li>
-     * </ul>
-     * 用 {@code IF NOT EXISTS} 保证幂等; 索引名沿用 Room 默认命名 ({@code @Index} 一致)。
-     */
-    public static final Migration MIGRATION_7_8 = new Migration(7, 8) {
-        @Override
-        public void migrate(SupportSQLiteDatabase db) {
-            db.execSQL("CREATE INDEX IF NOT EXISTS `index_Asset_taskId_excelRowIndex` "
-                    + "ON `Asset` (`taskId`, `excelRowIndex`)");
-            db.execSQL("CREATE INDEX IF NOT EXISTS `index_ScanRecord_taskId_scannedAt` "
-                    + "ON `ScanRecord` (`taskId`, `scannedAt`)");
-            Log.i(TAG, "[AppDatabase] MIGRATION_7_8 applied: added pagination indexes");
-        }
-    };
-
-    /**
-     * v8 → v9: Asset 加复合索引 {@code (taskId, dept)} —— 服务 {@code countPoolByDept} /
-     * {@code distinctDeptPool} / {@code distinctDept} 的 {@code WHERE taskId = 0 AND dept = ?}
-     * 过滤 (建任务时按部门统计池内资产)。纯加索引, 不动数据/字段; 索引名沿用 Room 默认命名
-     * {@code index_Asset_taskId_dept}, 由 {@code @Index(value = {"taskId","dept"})} 生成。
-     */
-    public static final Migration MIGRATION_8_9 = new Migration(8, 9) {
-        @Override
-        public void migrate(SupportSQLiteDatabase db) {
-            db.execSQL("CREATE INDEX IF NOT EXISTS `index_Asset_taskId_dept` "
-                    + "ON `Asset` (`taskId`, `dept`)");
-            Log.i(TAG, "[AppDatabase] MIGRATION_8_9 applied: added index_Asset_taskId_dept");
-        }
-    };
-
-    /**
-     * v9 → v10: Asset 新增 7 个可空"快照列", 保存资产"划拨进任务时"的业务字段原值,
-     * 支撑"划拨建快照 → 进行中编辑=草稿 → 完成=提交 → 删除/重置=回滚"语义:
-     * 划拨时 {@code assignPoolToTask} 打快照, 删除/重置时 {@code revertEditedFields}
-     * 还原, 完成时 {@code clearSnapshotForTask} 丢弃.
-     * <p>历史行升级后 orig_* = NULL (= 无快照); 回滚以 {@code orig_epc IS NOT NULL}
-     * 为哨兵, 故历史行不受影响.</p>
-     * <p>ALTER TABLE ADD COLUMN 不支持 IF NOT EXISTS — Room 按版本号只跑一次, 与
-     * MIGRATION_6_7 同理. 快照字段是文本, 用 {@code TEXT} (区别于整数时间列的
-     * {@code INTEGER}).</p>
-     */
-    public static final Migration MIGRATION_9_10 = new Migration(9, 10) {
-        @Override
-        public void migrate(SupportSQLiteDatabase db) {
-            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_epc TEXT");
-            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_asset_type TEXT");
-            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_asset_model TEXT");
-            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_serial_number TEXT");
-            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_custodian TEXT");
-            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_dept TEXT");
-            db.execSQL("ALTER TABLE Asset ADD COLUMN orig_raw_row_json TEXT");
-            Log.i(TAG, "[AppDatabase] MIGRATION_9_10 applied: added 7 Asset snapshot columns");
-        }
-    };
-
-    /**
-     * v10 → v11: InventoryTask 新增 remark 列（任务备注，可空）。
-     * 历史行升级后 remark = NULL（无备注）; 创建任务时由 CreateTaskDialogFragment
-     * 收集、TaskListViewModel.createTask 写入, 任务卡片显示。
-     * <p>ALTER TABLE ADD COLUMN 不支持 IF NOT EXISTS — Room 按版本号只跑一次。</p>
-     */
-    public static final Migration MIGRATION_10_11 = new Migration(10, 11) {
-        @Override
-        public void migrate(SupportSQLiteDatabase db) {
-            db.execSQL("ALTER TABLE InventoryTask ADD COLUMN remark TEXT");
-            Log.i(TAG, "[AppDatabase] MIGRATION_10_11 applied: added InventoryTask.remark");
-        }
-    };
 }

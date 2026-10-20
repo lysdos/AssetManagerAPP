@@ -74,12 +74,12 @@ public class InventoryApp extends Application {
         executors = new AppExecutors();
         session = new InventorySession();
         rfid = new RfidController(new SdkRfidAdapter());
+        // version = 1 是首次发布基线, 当前没有任何迁移脚本 (详见 AppDatabase javadoc).
+        // 用带 OnDowngrade 后缀的 API: 降级安装仍走 destructive 重建 (合理), 但升级
+        // 路径缺迁移会抛异常、启动即可发现 —— 不带该后缀的 fallbackToDestructiveMigration
+        // 会把"漏写迁移"变成静默清空用户数据, 所以刻意不用它.
         db = Room.databaseBuilder(getApplicationContext(), AppDatabase.class, "huaxia-inventory.db")
-                .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_5_6,
-                        AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8,
-                        AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
-                        AppDatabase.MIGRATION_10_11)
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
 
         // 启动时一次性清理孤儿. 正常删除路径 (TaskListViewModel 三处) 已包 runInTransaction,

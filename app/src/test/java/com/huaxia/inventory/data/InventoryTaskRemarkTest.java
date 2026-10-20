@@ -9,7 +9,7 @@ import java.nio.file.Files;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 防回归: 任务备注 (remark) 必须完整落地 —— 实体列 + 迁移 v11 + 注册 + createTask 写入。
+ * 防回归: 任务备注 (remark) 必须完整落地 —— 实体列 + createTask 写入。
  *
  * <p>曾经的坑: {@code CreateTaskDialogFragment} 收集了备注并传给 {@code createTask}, 但
  * {@code InventoryTask} 没有 remark 字段、{@code createTask} 也没写它 → 备注被静默丢弃。</p>
@@ -21,19 +21,6 @@ public class InventoryTaskRemarkTest {
         String text = read("src/main/java/com/huaxia/inventory/data/entity/InventoryTask.java");
         assertTrue("InventoryTask must declare @ColumnInfo(name = \"remark\"). Source:\n" + text,
                 text.contains("@ColumnInfo(name = \"remark\")"));
-    }
-
-    @Test
-    public void migration10_11_addsRemarkColumn_andRegistered() throws Exception {
-        String db = read("src/main/java/com/huaxia/inventory/data/AppDatabase.java");
-        String app = read("src/main/java/com/huaxia/inventory/InventoryApp.java");
-        assertTrue("AppDatabase must declare MIGRATION_10_11. Source:\n" + db,
-                db.contains("MIGRATION_10_11"));
-        assertTrue("MIGRATION_10_11 must ALTER TABLE InventoryTask ADD COLUMN remark TEXT. "
-                        + "Source:\n" + db,
-                db.contains("ALTER TABLE InventoryTask ADD COLUMN remark TEXT"));
-        assertTrue("InventoryApp must register AppDatabase.MIGRATION_10_11. Source:\n" + app,
-                app.contains("AppDatabase.MIGRATION_10_11"));
     }
 
     @Test
