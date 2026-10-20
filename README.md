@@ -119,7 +119,7 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 - `themes.xml`：Theme.HuaxiaInventory（蓝底白字 + 状态栏沉浸 + windowLightStatusBar=false）
 - 7 个 shape drawable：bg_dashed_border / bg_tag_{blue,green,orange,red} / bg_tip_box / bg_file_info
 - 4 个矢量图标：ic_import / ic_scan / ic_result / ic_export
-  （注：`bg_dashed_border` / `bg_tip_box` / `bg_file_info` / `ic_scan` / `ic_result` 在后续迭代中已随旧页面下线，此处保留的是当次重构的记录）
+  （注：上面列表里的 `attrs.xml` 与 `bg_dashed_border` / `bg_tip_box` / `bg_file_info` / `ic_scan` / `ic_result` 已在后续迭代中下线，此处保留的是当次重构的记录）
 
 ### 新增 DAO 方法
 - `AssetDao.countByCategory` / `countFound` / `countMissing` / `pageAll` / `pageFound` / `pageMissing`
