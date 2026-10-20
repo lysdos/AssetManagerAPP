@@ -31,6 +31,7 @@ public class TaskListFragment extends Fragment {
     private TextView totalNumber, progressNumber, doneNumber;
     private TextView taskEmptyTv;
     private LinearLayout taskListContainer;
+    private MaterialButton clearDoneBtn;
 
     @Nullable
     @Override
@@ -114,7 +115,7 @@ public class TaskListFragment extends Fragment {
                 // 让 dialog 跟随 Activity 完整生命周期管理.
                 new CreateTaskDialogFragment().show(getParentFragmentManager(), "create_task"));
 
-        MaterialButton clearDoneBtn = v.findViewById(R.id.taskClearDoneBtn);
+        clearDoneBtn = v.findViewById(R.id.taskClearDoneBtn);
         clearDoneBtn.setOnClickListener(btn -> {
             AlertDialog dialog = new AlertDialog.Builder(requireContext())
                     .setMessage(R.string.task_msg_confirm_clear_done)
@@ -154,6 +155,8 @@ public class TaskListFragment extends Fragment {
         progressNumber.setText(String.valueOf(inProgress));
         doneNumber.setText(String.valueOf(done));
         taskEmptyTv.setVisibility(total == 0 ? View.VISIBLE : View.GONE);
+        // 没有已完成任务时禁用入口 —— 否则点了会弹确认框、确认后毫无反应 (用户以为没生效).
+        clearDoneBtn.setEnabled(done > 0);
     }
 
     private void navigateToScan() {

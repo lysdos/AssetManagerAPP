@@ -139,13 +139,6 @@ public interface AssetDao {
     @Query("SELECT COUNT(*) FROM Asset WHERE taskId = :taskId AND created_at >= :sinceMillis")
     int countCreatedAfter(long taskId, long sinceMillis);
 
-    @Query("SELECT * FROM Asset WHERE taskId = :taskId ORDER BY excelRowIndex ASC")
-    List<Asset> findAllByTask(long taskId);
-
-    @Query("SELECT * FROM Asset WHERE taskId = :taskId AND id NOT IN " +
-           "(SELECT matchedAssetId FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NOT NULL)")
-    List<Asset> findMissing(long taskId);
-
     @Query("SELECT * FROM Asset WHERE taskId = :taskId AND id IN " +
            "(SELECT matchedAssetId FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NOT NULL) " +
            "ORDER BY excelRowIndex ASC")
@@ -261,12 +254,6 @@ public interface AssetDao {
      */
     @Query("SELECT DISTINCT dept FROM Asset WHERE dept IS NOT NULL ORDER BY dept")
     List<String> distinctDeptAll();
-
-    @Query("SELECT COUNT(*) FROM Asset WHERE dept = :dept")
-    int countByDept(String dept);
-
-    @Query("SELECT COUNT(*) FROM Asset")
-    int countAll();
 
     /**
      * 库存池资产数（taskId = 0）。

@@ -73,7 +73,7 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 ./gradlew :app:testDebugUnitTest
 ```
 
-当前全量单测 **226 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
+当前全量单测 **227 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
 - **源码文本守卫**：反射式提取方法体 + 断言，钉住事务边界、生命周期守卫、迁移链完整性、索引声明等不变量；
 - **Robolectric 行为测试**：验证 detach 后回调、旋转时弹窗关闭等运行时行为。
 
@@ -119,6 +119,7 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 - `themes.xml`：Theme.HuaxiaInventory（蓝底白字 + 状态栏沉浸 + windowLightStatusBar=false）
 - 7 个 shape drawable：bg_dashed_border / bg_tag_{blue,green,orange,red} / bg_tip_box / bg_file_info
 - 4 个矢量图标：ic_import / ic_scan / ic_result / ic_export
+  （注：`bg_dashed_border` / `bg_tip_box` / `bg_file_info` / `ic_scan` / `ic_result` 在后续迭代中已随旧页面下线，此处保留的是当次重构的记录）
 
 ### 新增 DAO 方法
 - `AssetDao.countByCategory` / `countFound` / `countMissing` / `pageAll` / `pageFound` / `pageMissing`
@@ -141,7 +142,7 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 
 ## 验证
 
-单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，226 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删等主流程做一次回归。
+单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，227 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删等主流程做一次回归。
 
 ## 开发者注意事项
 

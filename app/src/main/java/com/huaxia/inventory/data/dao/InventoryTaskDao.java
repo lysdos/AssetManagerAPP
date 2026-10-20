@@ -21,13 +21,7 @@ public interface InventoryTaskDao {
     InventoryTask findById(long id);
 
     @Query("SELECT * FROM InventoryTask ORDER BY importedAt DESC")
-    List<InventoryTask> findAll();
-
-    @Query("SELECT * FROM InventoryTask ORDER BY importedAt DESC")
     LiveData<List<InventoryTask>> findAllLive();
-
-    @Query("SELECT * FROM InventoryTask WHERE status = 'IN_PROGRESS' ORDER BY importedAt DESC LIMIT 1")
-    InventoryTask findInProgress();
 
     @Query("SELECT * FROM InventoryTask WHERE status = 'COMPLETED' ORDER BY importedAt DESC")
     List<InventoryTask> findAllCompleted();

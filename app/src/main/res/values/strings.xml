@@ -16,7 +16,6 @@
     <string name="import_init_db_done">数据库已初始化，当前无任何数据</string>
 
     <!-- Scan -->
-    <string name="scan_start">开始扫描</string>
     <string name="scan_stop">停止扫描</string>
     <string name="scan_status_ready">设备就绪</string>
     <string name="scan_status_not_ready">设备未就绪</string>
@@ -29,8 +28,6 @@
     <string name="import_tip">💡 请确保 Excel 包含「设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人」等列。</string>
     <string name="import_clear">清除</string>
     <string name="import_file_selected">已选择：%1$s</string>
-    <string name="import_progress">正在导入 %1$d / %2$d …</string>
-    <string name="import_done">已导入 %1$d 条</string>
     <!-- 重复导入时, 显示"已存在 M 条已覆盖更新"; M=0 时省略后半句 -->
     <string name="import_done_fmt">✅ 导入完成！已处理 %1$d 条</string>
     <string name="import_done_fmt_with_updates">✅ 导入完成！已处理 %1$d 条（含 %2$d 条已存在的覆盖更新）</string>
@@ -80,7 +77,6 @@
     <string name="result_stat_missing">盘亏</string>
     <string name="result_stat_extra">盘盈</string>
     <string name="result_pagination">共 %1$d 条，显示 %2$d-%3$d</string>
-    <string name="action_export">导出</string>
     <string name="action_prev">上一页</string>
     <string name="action_next">下一页</string>
     <string name="err_parse_failed">Excel 解析失败：%1$s</string>
@@ -106,7 +102,6 @@
     <string name="task_action_pause">暂停</string>
     <string name="task_action_resume">恢复</string>
     <string name="task_status_paused">已暂停</string>
-    <string name="task_progress_fmt">%1$d / %2$d</string>
     <string name="task_progress_checked_fmt">已盘 %1$d 台</string>
     <string name="task_progress_pct_fmt">%1$d%%</string>
     <string name="task_meta_date_fmt">创建：%1$s</string>
@@ -122,20 +117,16 @@
     <string name="task_msg_completed">已标记为已完成</string>
     <string name="task_msg_paused">任务「%1$s」已暂停</string>
     <string name="task_msg_resumed">任务「%1$s」已恢复，可继续盘点</string>
-    <string name="task_content_desc_delete">删除任务</string>
     <string name="task_content_desc_more">更多操作</string>
     <!-- ⋮ → "删除任务" 的提示. 语义 = 释放资产回库存池 + 清扫描 + 删任务壳. -->
     <string name="task_msg_release_done">已释放 %1$d 条资产到库存池</string>
 
     <!-- Create task dialog -->
     <string name="task_create_title">创建盘点任务</string>
-    <string name="task_name_hint">任务名称（必填）</string>
     <string name="task_name_label">任务名称</string>
     <string name="task_name_placeholder">例如：2026年Q3盘点</string>
-    <string name="task_dept_label">领用部门</string>
     <string name="task_dept_label_optional">领用部门（可选）</string>
     <string name="task_preview_fmt">将盘点 %1$d 台</string>
-    <string name="task_preview_all">将盘点全部已导入资产</string>
     <string name="task_preview_empty">暂无已导入资产</string>
     <string name="task_preview_dept_empty">该部门暂无已导入资产</string>
     <string name="task_remark_label">备注（可选）</string>
@@ -143,7 +134,6 @@
     <string name="task_remark_fmt">备注：%s</string>
     <string name="task_create_confirm">创建</string>
     <string name="task_msg_name_required">请输入任务名称</string>
-    <string name="task_msg_no_assets">该部门暂无资产可盘点</string>
     <string name="task_msg_created">任务创建成功，包含 %1$d 台设备待盘点</string>
     <string name="task_msg_no_data">暂无已导入的资产数据，请先通过齿轮菜单导入</string>
     <string name="msg_export_done">已导出</string>
@@ -155,14 +145,9 @@
     <!-- Asset detail dialog -->
     <string name="dialog_asset_title">资产详情</string>
     <string name="label_epc">固资编号</string>
-    <string name="label_asset_name">设备名称</string>
     <string name="label_asset_type">设备类型</string>
     <string name="label_asset_model">设备型号</string>
     <string name="label_serial_no">序列号</string>
-    <string name="label_org">所属机构</string>
-    <string name="label_detailed_location">详细地点</string>
-    <string name="label_placement_location">放置地点</string>
-    <string name="label_asset_status">资产状态</string>
     <string name="label_inventory_status">盘点状态</string>
     <string name="label_inventory_time">盘点时间</string>
     <string name="label_borrow_dept">领用部门</string>
@@ -203,7 +188,6 @@
     <string name="manual_msg_check_done">已盘点：%1$s</string>
     <string name="manual_msg_check_dup">该固资编号已在 %1$s 盘点过</string>
     <string name="manual_asset_status_unknown">—</string>
-    <string name="manual_asset_id_value">%1$s</string>
 
     <!-- Manual scan page: scan status card / start-stop controls -->
     <string name="manual_scan_idle_icon">📱</string>
@@ -221,7 +205,6 @@
     <string name="manual_scan_hardware_active_tip">按 PDA 扳机键扫描条形码</string>
 
     <!-- Power setting -->
-    <string name="action_power_setting">功率设置</string>
     <string name="menu_settings">操作</string>
     <string name="menu_action_power">功率设置</string>
     <string name="menu_action_import">导入资产</string>
@@ -230,6 +213,7 @@
     <string name="power_setting_low">0 dBm (低)</string>
     <string name="power_setting_high">30 dBm (高)</string>
     <string name="power_setting_info">功率说明：\n• 低功率(0-10dBm)：近距离扫描，约1米\n• 中功率(11-20dBm)：中距离扫描，约2米\n• 高功率(21-30dBm)：远距离扫描，约5-8米</string>
+    <string name="power_setting_save">保存设置</string>
     <string name="power_setting_saved">功率已设置为 %1$d dBm</string>
     <string name="power_setting_failed">功率设置失败，请重试</string>
 

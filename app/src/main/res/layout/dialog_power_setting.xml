@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -20,7 +21,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="功率设置"
+            android:text="@string/power_setting_title"
             android:textColor="@android:color/white"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -54,10 +55,10 @@
                 android:id="@+id/tvPowerValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="26"
                 android:textColor="@color/colorPrimary"
                 android:textSize="48sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                tools:text="26" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -76,7 +77,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="当前读写器功率"
+                android:text="@string/power_setting_current"
                 android:textColor="#999999"
                 android:textSize="14sp"
                 android:layout_marginTop="4dp" />
@@ -99,7 +100,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="0 dBm (低)"
+                    android:text="@string/power_setting_low"
                     android:textColor="#999999"
                     android:textSize="12sp" />
 
@@ -107,7 +108,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="30 dBm (高)"
+                    android:text="@string/power_setting_high"
                     android:textColor="#999999"
                     android:textSize="12sp"
                     android:gravity="end" />
@@ -123,7 +124,12 @@
                 android:thumbTint="@color/colorPrimary" />
         </LinearLayout>
 
-        <!-- 预设按钮 -->
+        <!--
+          预设按钮. 标签保留字面量 (不是漏改): 它们与 PowerSettingDialog 里的
+          setPreset(5/15/26/30) 及 InventoryApp.DEFAULT_POWER 是同一组数字, 现在
+          硬编码在两处. 要彻底消除这层耦合, 应把预设值抽成常量数组并由代码 setText,
+          属独立改动, 暂不做 —— 改预设值时务必同时改这里和 PowerSettingDialog.
+        -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -188,7 +194,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="功率说明：\n• 低功率(0-10dBm)：近距离扫描，约1米\n• 中功率(11-20dBm)：中距离扫描，约2米\n• 高功率(21-30dBm)：远距离扫描，约5-8米"
+                android:text="@string/power_setting_info"
                 android:textColor="#666666"
                 android:textSize="13sp"
                 android:lineSpacingExtra="4dp" />
@@ -219,12 +225,12 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
-            android:text="取消" />
+            android:text="@string/action_cancel" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSave"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="保存设置" />
+            android:text="@string/power_setting_save" />
     </LinearLayout>
 </LinearLayout>

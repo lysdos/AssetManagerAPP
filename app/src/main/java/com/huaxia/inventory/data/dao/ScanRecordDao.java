@@ -13,9 +13,6 @@ public interface ScanRecordDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     long insert(ScanRecord record);
 
-    @Query("SELECT * FROM ScanRecord WHERE taskId = :taskId")
-    List<ScanRecord> findAllByTask(long taskId);
-
     @Query("SELECT * FROM ScanRecord WHERE taskId = :taskId AND epc = :epc LIMIT 1")
     ScanRecord findByEpc(long taskId, String epc);
 
@@ -57,7 +54,7 @@ public interface ScanRecordDao {
      *   <li>extraCount：未匹配的扫描记录数（盘盈）</li>
      *   <li>lastScannedAt：最近一次扫描时间戳（毫秒），无数据时为 0</li>
      * </ul>
-     * 用于替代 {@code findAllByTask + 内存去重 + findExtras + findById} 多次全表扫描，
+     * 用于替代"全表查询 + 内存去重 + 逐条 findById"的老写法 (多次全表扫描)，
      * 复杂度从 O(n) 降到 O(1)。
      */
     @Query("SELECT " +
