@@ -45,4 +45,7 @@
     <color name="tipWarningFg">#EF6C00</color>
     <color name="tipErrorBg">#FFEBEE</color>
     <color name="tipErrorFg">#C62828</color>
+
+    <!-- 自适应图标背景色: 取自 appLogo 边角底色, 让前景图边缘与背景无缝 -->
+    <color name="ic_launcher_background">#FAF2EF</color>
 </resources>

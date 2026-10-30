@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">华夏资产管理</string>
+    <string name="app_name">资产管家</string>
 
     <!-- Bottom nav -->
     <string name="nav_task">📋 任务</string>
@@ -21,13 +21,17 @@
     <string name="scan_status_not_ready">设备未就绪</string>
     <string name="scan_start_failed">UHF 启动失败，请检查设备连接</string>
 
-    <string name="app_brand">📦 华夏资产管理</string>
+    <string name="app_brand">📦 资产管理</string>
     <string name="import_title">📥 导入资产数据</string>
     <string name="import_upload_hint">拖拽或 点击浏览</string>
-    <string name="import_upload_format">支持 .xlsx / .xls</string>
-    <string name="import_tip">💡 请确保 Excel 包含「设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人」等列。</string>
+    <string name="import_upload_format">支持 .xlsx</string>
+    <string name="import_tip">💡 请确保 Excel 包含「设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人」等列；首次使用建议先下载导入模板。</string>
     <string name="import_clear">清除</string>
     <string name="import_file_selected">已选择：%1$s</string>
+    <string name="import_download_template">📄 下载导入模板</string>
+    <string name="import_template_file_name">资产导入模板.xlsx</string>
+    <string name="import_template_saved">✅ 模板已保存</string>
+    <string name="import_template_failed">模板保存失败，请重试</string>
     <!-- 重复导入时, 显示"已存在 M 条已覆盖更新"; M=0 时省略后半句 -->
     <string name="import_done_fmt">✅ 导入完成！已处理 %1$d 条</string>
     <string name="import_done_fmt_with_updates">✅ 导入完成！已处理 %1$d 条（含 %2$d 条已存在的覆盖更新）</string>

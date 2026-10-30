@@ -1,13 +1,18 @@
 package com.huaxia.inventory.ui.import_;
 
+import android.app.Activity;
 import android.app.Dialog;
+import android.content.ContentResolver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.res.AssetManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.OpenableColumns;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -28,6 +33,9 @@ import com.google.android.material.button.MaterialButton;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.R;
 import com.huaxia.inventory.ui.util.LifecycleDialogs;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * 导入资产弹窗（齿轮 PopupMenu → "导入资产" 触发）。
@@ -43,7 +51,14 @@ import com.huaxia.inventory.ui.util.LifecycleDialogs;
  */
 public class ImportDialogFragment extends DialogFragment {
 
+    private static final String TAG = "ImportDialog";
+    /** 打包在 assets 中的导入模板, 只有复制动作, 不在运行时生成. */
+    private static final String TEMPLATE_ASSET = "import_template.xlsx";
+    private static final String XLSX_MIME =
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
     private ImportViewModel importVm;
+    private ActivityResultLauncher<String> templateLauncher;
 
     private LinearLayout uploadArea, fileInfoRow;
     private TextView fileInfoNameTv, progressTv, errorTv;
@@ -78,6 +93,15 @@ public class ImportDialogFragment extends DialogFragment {
                 importVm.parseFile(uri, pickedName);
             });
 
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // SAF 另存为: 与导出 Excel 一致, 不申请存储权限.
+        templateLauncher = registerForActivityResult(
+                new ActivityResultContracts.CreateDocument(XLSX_MIME),
+                uri -> { if (uri != null) saveTemplate(uri); });
+    }
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
@@ -98,11 +122,13 @@ public class ImportDialogFragment extends DialogFragment {
         errorTv = v.findViewById(R.id.errorTv);
         startImportBtn = v.findViewById(R.id.startImportBtn);
         initDbBtn = v.findViewById(R.id.initDbBtn);
+        MaterialButton downloadTemplateBtn = v.findViewById(R.id.downloadTemplateBtn);
         ImageButton closeBtn = v.findViewById(R.id.importCloseBtn);
         Button clearFileBtn = v.findViewById(R.id.clearFileBtn);
 
         uploadArea.setOnClickListener(btn -> filePicker.launch(new String[]{
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+        downloadTemplateBtn.setOnClickListener(btn -> downloadTemplate());
         clearFileBtn.setOnClickListener(btn -> clearPicked());
         startImportBtn.setOnClickListener(btn -> startCommit());
         initDbBtn.setOnClickListener(btn -> confirmInitDb());
@@ -192,6 +218,56 @@ public class ImportDialogFragment extends DialogFragment {
     public void onDestroyView() {
         super.onDestroyView();
         mainHandler.removeCallbacksAndMessages(null);
+    }
+
+    /** 触发 SAF「另存为」, 用户选好位置后在 saveTemplate 里复制 assets 中的模板. */
+    private void downloadTemplate() {
+        try {
+            templateLauncher.launch(getString(R.string.import_template_file_name));
+        } catch (Exception e) {
+            Log.e(TAG, "launch template save failed", e);
+            Toast.makeText(requireContext(), R.string.import_template_failed,
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * 复制 assets 中的模板到用户选定的 Uri.
+     * <p>切到 excelIO 之前先缓存 Application 级 Context — SAF 写盘期间用户可能切走,
+     * fragment detach 后再调 requireContext() 会抛 IllegalStateException.</p>
+     */
+    private void saveTemplate(@NonNull Uri uri) {
+        final Context appCtx = requireContext().getApplicationContext();
+        final ContentResolver resolver = appCtx.getContentResolver();
+        final AssetManager assets = appCtx.getAssets();
+        ((InventoryApp) requireActivity().getApplication()).getExecutors().excelIO.execute(() -> {
+            String error = null;
+            try (InputStream in = assets.open(TEMPLATE_ASSET);
+                 OutputStream out = resolver.openOutputStream(uri)) {
+                if (out == null) throw new IOException("openOutputStream returned null");
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) != -1) {
+                    out.write(buf, 0, n);
+                }
+            } catch (Exception e) {
+                error = e.getClass().getSimpleName();
+                Log.e(TAG, "saveTemplate failed", e);
+            }
+            postTemplateResult(error);
+        });
+    }
+
+    private void postTemplateResult(@Nullable String error) {
+        if (!isAdded()) return;
+        Activity activity = getActivity();
+        if (activity == null) return;
+        activity.runOnUiThread(() -> {
+            if (!isAdded()) return;
+            Toast.makeText(requireContext(),
+                    error == null ? R.string.import_template_saved : R.string.import_template_failed,
+                    error == null ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG).show();
+        });
     }
 
     private void showFileInfo() {

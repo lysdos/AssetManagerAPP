@@ -86,6 +86,22 @@
                 android:textColor="#aaaaaa" />
         </LinearLayout>
 
+        <!-- 模板下载: 没有现成 Excel 时先下载标准模板 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/downloadTemplateBtn"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="4dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="@string/import_download_template"
+            android:textColor="@color/colorPrimary"
+            android:textSize="13sp" />
+
         <!-- File info row -->
         <LinearLayout
             android:id="@+id/fileInfoRow"
@@ -108,7 +124,7 @@
                 android:textColor="#333333"
                 android:singleLine="true"
                 android:ellipsize="middle"
-                tools:text="已选择：华夏资产导入测试.xlsx" />
+                tools:text="已选择：资产导入测试.xlsx" />
 
             <Button
                 android:id="@+id/clearFileBtn"
