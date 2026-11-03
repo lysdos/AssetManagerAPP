@@ -1,9 +1,13 @@
-# 固定资产盘点 (Huaxia Inventory)
+# 资产管家 (Asset Manager)
 
-Android RFID 资产盘点应用，运行在 UROVO 工业 PDA 上。
+通用版固定资产盘点应用，运行在 UROVO 工业 PDA 上。
+
+> 本仓库为**通用版**，`applicationId = com.assetmanager.inventory`；客户定制版使用
+> `com.huaxia.inventory`，两者可并存安装、数据互不影响。
 
 ## 功能
 
+- 资产总览：全量台账（库存池 + 已划拨）总数 / 领用部门 / 设备类型分布、关键词搜索、交叉筛选、20 条/页分页；点击资产行可编辑业务字段（已完成任务资产只读）
 - 从 Excel 导入资产清单（8 个必需列：序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期；重复固资编号按行覆盖更新）
 - 盘点任务管理：创建（可按领用部门限定、可填备注，备注显示在任务卡片）/ 暂停 / 恢复 / 完成任务 / 删除（资产退回库存池）/ 清除已完成；已完成任务「查看详情」→ 扫描页只读查看统计（切换 扫描/结果 tab 保持该任务，可再下钻结果页看列表 / 导出，不可编辑）
 - 编辑的草稿 / 提交语义：进行中或暂停任务的字段编辑为**草稿**（不改主数据）；**完成任务 = 提交**（编辑值成为主数据）；**删除 / 重置任务 = 回滚**到导入原值，并清盘点时间
@@ -17,7 +21,7 @@ Android RFID 资产盘点应用，运行在 UROVO 工业 PDA 上。
 ## 技术栈
 
 - Java 11 / AndroidX (minSdk 26, targetSdk 34, compileSdk 34)
-- Single Activity + BottomNavigationView（📋 任务 / 🔍 扫描 / 📊 结果 三 tab）+ 若干 Fragment / Dialog
+- Single Activity + BottomNavigationView（📦 资产 / 📋 任务 / 🔍 扫描 / 📊 结果 四 tab）+ 若干 Fragment / Dialog
 - Room 2.6（本地数据库，当前 schema **v1** = 首次发布基线，交付前已收敛掉开发期 v2..v11 的迁移链）
 - Apache POI 5.2.5（Excel 解析 / 流式写出）
 - Jackson 2.17（JSON）
@@ -38,6 +42,7 @@ app/src/main/java/com/huaxia/inventory/
 ├── excel/             # Excel 导入/导出
 ├── session/           # 任务状态共享
 ├── ui/
+│   ├── asset/         #   资产总览（全量台账 / 筛选 / 分页 / 编辑）
 │   ├── task/          #   任务列表
 │   ├── scan/          #   扫描
 │   ├── manual/        #   手动盘点（输入 / 摄像头扫码）
@@ -46,7 +51,7 @@ app/src/main/java/com/huaxia/inventory/
 │   └── setting/       #   功率设置弹窗
 └── util/              # 工具类
 ```
-底部导航三 tab：📋 任务 / 🔍 扫描 / 📊 结果（导入已移入右上角齿轮菜单）。
+底部导航四 tab：📦 资产 / 📋 任务 / 🔍 扫描 / 📊 结果（导入已移入右上角齿轮菜单）。冷启动默认落在资产 tab。
 
 ## 构建
 
@@ -63,8 +68,8 @@ echo "sdk.dir=/path/to/Android/sdk" > local.properties
 # 安装到设备
 ./gradlew :app:installDebug
 
-# 启动
-adb shell am start -n com.huaxia.inventory/.MainActivity
+# 启动（applicationId 与源码包名不同，需写完整组件名）
+adb shell am start -n com.assetmanager.inventory/com.huaxia.inventory.MainActivity
 ```
 
 ## 测试
@@ -73,7 +78,7 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 ./gradlew :app:testDebugUnitTest
 ```
 
-当前全量单测 **227 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
+当前全量单测 **257 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
 - **源码文本守卫**：反射式提取方法体 + 断言，钉住事务边界、生命周期守卫、迁移链完整性、索引声明等不变量；
 - **Robolectric 行为测试**：验证 detach 后回调、旋转时弹窗关闭等运行时行为。
 
@@ -142,7 +147,7 @@ adb shell am start -n com.huaxia.inventory/.MainActivity
 
 ## 验证
 
-单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，227 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删等主流程做一次回归。
+单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，257 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删等主流程做一次回归。
 
 ## 开发者注意事项
 

@@ -32,7 +32,9 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.huaxia.inventory"
+        // 通用版「资产管家」使用独立包名, 与客户定制版 com.huaxia.inventory 并存安装.
+        // 包名一旦发布不可再改 (改动等于换一个 App, 设备数据不迁移).
+        applicationId "com.assetmanager.inventory"
         minSdk 26
         targetSdk 34
         versionCode 1

@@ -1,6 +1,7 @@
 package com.huaxia.inventory.data.dao;
 
 import androidx.annotation.Nullable;
+import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
@@ -11,6 +12,31 @@ import java.util.List;
 
 @Dao
 public interface AssetDao {
+
+    // ---- 全局资产台账 (资产 tab) 的 SQL 片段 ----
+    // 空串/NULL 统一归入 '' 桶, UI 再映射为「未填写部门 / 未分类」; 这样筛选参数
+    // NULL = 不筛选, "" = 筛"未填写"这个真实桶, 两者不会混淆.
+    String DEPT_BUCKET =
+            "CASE WHEN TRIM(COALESCE(dept, '')) = '' THEN '' ELSE TRIM(dept) END";
+    String TYPE_BUCKET =
+            "CASE WHEN TRIM(COALESCE(assetType, '')) = '' THEN '' ELSE TRIM(assetType) END";
+
+    /**
+     * 关键词匹配 6 个字段. {@code keywordPattern} 由 ViewModel 构造为
+     * {@code %kw%}, 并把 {@code ! % _} 转义为 {@code !! !% !_} (ESCAPE '!').
+     */
+    String KEYWORD_WHERE =
+            "(COALESCE(epc, '') LIKE :keywordPattern ESCAPE '!' " +
+            "OR COALESCE(assetType, '') LIKE :keywordPattern ESCAPE '!' " +
+            "OR COALESCE(assetModel, '') LIKE :keywordPattern ESCAPE '!' " +
+            "OR COALESCE(serialNumber, '') LIKE :keywordPattern ESCAPE '!' " +
+            "OR COALESCE(dept, '') LIKE :keywordPattern ESCAPE '!' " +
+            "OR COALESCE(custodian, '') LIKE :keywordPattern ESCAPE '!')";
+
+    String FILTER_WHERE =
+            KEYWORD_WHERE +
+            " AND (:deptBucket IS NULL OR " + DEPT_BUCKET + " = :deptBucket)" +
+            " AND (:typeBucket IS NULL OR " + TYPE_BUCKET + " = :typeBucket)";
 
     /**
      * 仅测试使用 —— <b>生产代码零调用, 不要拿它当写入入口</b>。
@@ -345,4 +371,68 @@ public interface AssetDao {
      * 给所有"已扫到但 inventoryTime 还是 null"的资产, 写入它的首次扫描时间.
      * 见下方 default 方法 {@link #backfillFoundInventoryTime(long)}.
      */
+
+    // ========================================================================
+    // 全局资产台账 (资产 tab) —— 不按 taskId 过滤, 包含库存池与所有任务内资产.
+    // ========================================================================
+
+    @Query("SELECT * FROM Asset WHERE id = :id LIMIT 1")
+    Asset findById(long id);
+
+    @Query("SELECT COUNT(*) FROM Asset")
+    int countAll();
+
+    /**
+     * Asset 表变更失效信号: Room 在任意 INSERT/UPDATE/DELETE 后重新查询并派发,
+     * 用于导入、编辑、任务划拨/释放后让资产 tab 自动刷新 (ViewModel 侧再防抖).
+     */
+    @Query("SELECT COUNT(*) FROM Asset")
+    LiveData<Integer> countAllLive();
+
+    @Query("SELECT COUNT(*) FROM Asset WHERE " + FILTER_WHERE)
+    int countFiltered(String keywordPattern,
+                      @Nullable String deptBucket,
+                      @Nullable String typeBucket);
+
+    /** 全局分页: id 顺序稳定 (excelRowIndex 只在单次导入内有意义). */
+    @Query("SELECT * FROM Asset WHERE " + FILTER_WHERE +
+           " ORDER BY id ASC LIMIT :limit OFFSET :offset")
+    List<Asset> pageFiltered(String keywordPattern,
+                             @Nullable String deptBucket,
+                             @Nullable String typeBucket,
+                             int limit, int offset);
+
+    /**
+     * 领用部门分布. 交叉筛选: 忽略部门筛选, 但受关键词 + 类型约束,
+     * 让条形图上的台数与点击后列表的条数一致.
+     */
+    @Query("SELECT " + DEPT_BUCKET + " AS category, COUNT(*) AS count FROM Asset " +
+           "WHERE " + KEYWORD_WHERE +
+           " AND (:typeBucket IS NULL OR " + TYPE_BUCKET + " = :typeBucket) " +
+           "GROUP BY " + DEPT_BUCKET + " ORDER BY count DESC, category ASC")
+    List<CategoryCount> deptDistribution(String keywordPattern,
+                                         @Nullable String typeBucket);
+
+    /**
+     * 设备类型分布. 交叉筛选: 忽略类型筛选, 但受关键词 + 部门约束.
+     */
+    @Query("SELECT " + TYPE_BUCKET + " AS category, COUNT(*) AS count FROM Asset " +
+           "WHERE " + KEYWORD_WHERE +
+           " AND (:deptBucket IS NULL OR " + DEPT_BUCKET + " = :deptBucket) " +
+           "GROUP BY " + TYPE_BUCKET + " ORDER BY count DESC, category ASC")
+    List<CategoryCount> typeDistribution(String keywordPattern,
+                                         @Nullable String deptBucket);
+
+    /**
+     * 台账编辑专用: 只写 6 个业务字段 + raw_row_json.
+     * <p>刻意排除 epc / taskId / excelRowIndex / inventory_time / created_at /
+     * orig_* —— 保证资产 tab 的编辑不会破坏 RFID 匹配、任务归属、盘点时间或回滚快照.
+     * 不更新 epc 也意味着不需要再做全局唯一校验.</p>
+     */
+    @Query("UPDATE Asset SET assetType = :assetType, assetModel = :assetModel, " +
+           "serialNumber = :serialNumber, custodian = :custodian, dept = :dept, " +
+           "raw_row_json = :rawRowJson WHERE id = :id")
+    int updateBusinessFieldsById(long id, String assetType, String assetModel,
+                                 String serialNumber, String custodian, String dept,
+                                 String rawRowJson);
 }

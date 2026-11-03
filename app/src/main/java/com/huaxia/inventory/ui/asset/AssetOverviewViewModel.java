@@ -1,0 +1,338 @@
+package com.huaxia.inventory.ui.asset;
+
+import android.app.Application;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MediatorLiveData;
+
+import com.huaxia.inventory.InventoryApp;
+import com.huaxia.inventory.data.AppDatabase;
+import com.huaxia.inventory.data.dao.AssetDao;
+import com.huaxia.inventory.data.dao.CategoryCount;
+import com.huaxia.inventory.data.entity.Asset;
+import com.huaxia.inventory.data.entity.InventoryTask;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * 全局资产台账 (资产 tab) 的状态.
+ *
+ * <p>一次刷新把总数 / 部门分布 / 类型分布 / 当前页放进同一个 {@link OverviewState},
+ * 避免多个 LiveData 分别到达时 UI 出现"数字和列表不是同一快照"的闪烁.</p>
+ *
+ * <p>并发要点:</p>
+ * <ul>
+ *   <li>过滤条件只在主线程改; 查询在 diskIO.</li>
+ *   <li>{@link #requestSeq} 在每次输入/筛选/翻页时自增, 旧查询完成时发现 token
+ *       过期就丢弃 —— 防止快速输入时 "AB" 的结果晚于 "ABC" 到达并覆盖.</li>
+ *   <li>一次刷新内的 5 个查询包在只读事务里, 拿到一致快照.</li>
+ *   <li>监听 {@link AssetDao#countAllLive()} 作为 Asset 表失效信号; 导入、编辑、
+ *       任务划拨/释放后自动刷新 (300ms 防抖吸收批量写入).</li>
+ * </ul>
+ */
+public class AssetOverviewViewModel extends AndroidViewModel {
+
+    private static final String TAG = "AssetOverviewVM";
+    public static final int PAGE_SIZE = 20;
+    private static final long DEBOUNCE_MS = 300L;
+
+    /** 一次刷新的完整快照. 列表/分布/页码都来自同一次查询. */
+    public static final class OverviewState {
+        public final int totalAll;
+        public final int filteredTotal;
+        public final int page;          // 0-based
+        public final int pageCount;     // 0 when empty
+        public final List<Asset> assets;
+        public final List<CategoryCount> deptBuckets;
+        public final List<CategoryCount> typeBuckets;
+        public final String keyword;    // trimmed, "" = no keyword
+        @Nullable public final String deptBucket; // null = all; "" = 未填写部门
+        @Nullable public final String typeBucket; // null = all; "" = 未分类
+        public final boolean typeExpanded;
+
+        public OverviewState(int totalAll, int filteredTotal, int page, int pageCount,
+                             List<Asset> assets, List<CategoryCount> deptBuckets,
+                             List<CategoryCount> typeBuckets, String keyword,
+                             @Nullable String deptBucket, @Nullable String typeBucket,
+                             boolean typeExpanded) {
+            this.totalAll = totalAll;
+            this.filteredTotal = filteredTotal;
+            this.page = page;
+            this.pageCount = pageCount;
+            this.assets = assets;
+            this.deptBuckets = deptBuckets;
+            this.typeBuckets = typeBuckets;
+            this.keyword = keyword;
+            this.deptBucket = deptBucket;
+            this.typeBucket = typeBucket;
+            this.typeExpanded = typeExpanded;
+        }
+
+        public OverviewState withTypeExpanded(boolean expanded) {
+            return new OverviewState(totalAll, filteredTotal, page, pageCount, assets,
+                    deptBuckets, typeBuckets, keyword, deptBucket, typeBucket, expanded);
+        }
+    }
+
+    public interface LedgerLoadCallback {
+        void onLoaded(@NonNull Asset asset, @Nullable InventoryTask task);
+        void onMissing();
+    }
+
+    public enum SaveResult { SUCCESS, FROZEN, MISSING, ERROR }
+
+    public interface LedgerSaveCallback {
+        void onResult(@NonNull SaveResult result);
+    }
+
+    private final AppDatabase db;
+    private final AssetDao dao;
+    private final Executor diskIO;
+    @Nullable private final Handler handler;
+
+    private final MediatorLiveData<OverviewState> state = new MediatorLiveData<>();
+    private final AtomicInteger requestSeq = new AtomicInteger();
+    private final AtomicBoolean disposed = new AtomicBoolean(false);
+    private final Runnable refreshRunnable = () -> refresh(requestSeq.get());
+
+    // 仅主线程读写
+    private String keyword = "";
+    @Nullable private String deptBucket;
+    @Nullable private String typeBucket;
+    private int requestedPage = 0;
+    // 仅主线程改写; volatile 让后台刷新读到用户最近一次展开/收起操作,
+    // 避免旧查询结果 postValue 时把 typeExpanded 覆盖回旧值.
+    private volatile boolean typeExpanded = false;
+
+    public AssetOverviewViewModel(@NonNull Application app) {
+        this(app, null, null, new Handler(Looper.getMainLooper()));
+    }
+
+    /**
+     * @param handlerOverride null = 立即刷新 (测试用, 便于同步断言); 生产传主线程 Handler.
+     */
+    @VisibleForTesting
+    public AssetOverviewViewModel(@NonNull Application app,
+                                  @Nullable AppDatabase dbOverride,
+                                  @Nullable Executor executorOverride,
+                                  @Nullable Handler handlerOverride) {
+        super(app);
+        InventoryApp inventoryApp = app instanceof InventoryApp ? (InventoryApp) app : null;
+        if (dbOverride != null) {
+            this.db = dbOverride;
+        } else {
+            if (inventoryApp == null) {
+                throw new IllegalArgumentException("InventoryApp required without db override");
+            }
+            this.db = inventoryApp.getDb();
+        }
+        this.dao = db.assetDao();
+        if (executorOverride != null) {
+            this.diskIO = executorOverride;
+        } else {
+            if (inventoryApp == null) {
+                throw new IllegalArgumentException("InventoryApp required without executor override");
+            }
+            this.diskIO = inventoryApp.getExecutors().diskIO;
+        }
+        this.handler = handlerOverride;
+
+        // Asset 表任意变更 (导入/编辑/任务划拨) 都触发一次防抖刷新.
+        state.addSource(dao.countAllLive(), count -> scheduleRefresh());
+        refreshNow();
+    }
+
+    public LiveData<OverviewState> state() {
+        return state;
+    }
+
+    public void setKeyword(@Nullable String raw) {
+        String trimmed = raw == null ? "" : raw.trim();
+        if (trimmed.equals(keyword)) return;
+        keyword = trimmed;
+        requestedPage = 0;
+        scheduleRefresh();
+    }
+
+    public void toggleDeptBucket(@Nullable String bucket) {
+        deptBucket = Objects.equals(deptBucket, bucket) ? null : bucket;
+        requestedPage = 0;
+        refreshNow();
+    }
+
+    public void toggleTypeBucket(@Nullable String bucket) {
+        typeBucket = Objects.equals(typeBucket, bucket) ? null : bucket;
+        requestedPage = 0;
+        refreshNow();
+    }
+
+    public void clearFilters() {
+        keyword = "";
+        deptBucket = null;
+        typeBucket = null;
+        requestedPage = 0;
+        refreshNow();
+    }
+
+    public void nextPage() {
+        OverviewState s = state.getValue();
+        if (s == null || s.page + 1 >= s.pageCount) return;
+        requestedPage = s.page + 1;
+        refreshNow();
+    }
+
+    public void prevPage() {
+        OverviewState s = state.getValue();
+        if (s == null || s.page <= 0) return;
+        requestedPage = s.page - 1;
+        refreshNow();
+    }
+
+    public void toggleTypeExpanded() {
+        typeExpanded = !typeExpanded;
+        OverviewState s = state.getValue();
+        if (s != null) state.setValue(s.withTypeExpanded(typeExpanded));
+    }
+
+    private void scheduleRefresh() {
+        int token = requestSeq.incrementAndGet();
+        if (handler == null) {
+            refresh(token);
+            return;
+        }
+        handler.removeCallbacks(refreshRunnable);
+        handler.postDelayed(refreshRunnable, DEBOUNCE_MS);
+    }
+
+    private void refreshNow() {
+        if (handler != null) handler.removeCallbacks(refreshRunnable);
+        int token = requestSeq.incrementAndGet();
+        refresh(token);
+    }
+
+    private void refresh(final int token) {
+        if (disposed.get()) return;
+        final String kw = keyword;
+        final String dept = deptBucket;
+        final String type = typeBucket;
+        final int pageReq = requestedPage;
+        final String pattern = likePattern(kw);
+
+        diskIO.execute(() -> {
+            if (disposed.get() || token != requestSeq.get()) return;
+            final OverviewState[] out = new OverviewState[1];
+            try {
+                db.runInTransaction(() -> {
+                    int totalAll = dao.countAll();
+                    int filtered = dao.countFiltered(pattern, dept, type);
+                    int pageCount = filtered == 0 ? 0 : (filtered - 1) / PAGE_SIZE + 1;
+                    int page = pageCount == 0 ? 0 : Math.min(pageReq, pageCount - 1);
+                    List<Asset> assets = filtered == 0
+                            ? Collections.emptyList()
+                            : dao.pageFiltered(pattern, dept, type, PAGE_SIZE, page * PAGE_SIZE);
+                    List<CategoryCount> depts = dao.deptDistribution(pattern, type);
+                    List<CategoryCount> types = dao.typeDistribution(pattern, dept);
+                    out[0] = new OverviewState(totalAll, filtered, page, pageCount,
+                            assets, depts, types, kw, dept, type, typeExpanded);
+                });
+            } catch (RuntimeException e) {
+                Log.e(TAG, "refresh failed", e);
+                return;
+            }
+            if (disposed.get() || token != requestSeq.get()) return;
+            state.postValue(out[0]);
+        });
+    }
+
+    public void loadLedgerAsset(long assetId, @NonNull LedgerLoadCallback cb) {
+        diskIO.execute(() -> {
+            if (disposed.get()) return;
+            final Asset asset = dao.findById(assetId);
+            InventoryTask task = null;
+            if (asset != null && asset.taskId != 0L) {
+                task = db.inventoryTaskDao().findById(asset.taskId);
+            }
+            final InventoryTask finalTask = task;
+            postToMain(() -> {
+                if (disposed.get()) return;
+                if (asset == null) cb.onMissing();
+                else cb.onLoaded(asset, finalTask);
+            });
+        });
+    }
+
+    /**
+     * 台账编辑写入口. 只更新 6 个业务字段 + raw_row_json; 事务内重新校验任务状态,
+     * 防止弹窗打开后任务被完成/删除的竞态.
+     */
+    public void saveLedger(@NonNull Asset pending, @NonNull LedgerSaveCallback cb) {
+        final Asset p = pending;
+        diskIO.execute(() -> {
+            if (disposed.get()) return;
+            final SaveResult[] result = {SaveResult.ERROR};
+            try {
+                db.runInTransaction(() -> {
+                    Asset current = dao.findById(p.id);
+                    if (current == null) {
+                        result[0] = SaveResult.MISSING;
+                        return;
+                    }
+                    if (current.taskId != 0L) {
+                        InventoryTask task = db.inventoryTaskDao().findById(current.taskId);
+                        if (task == null || "COMPLETED".equals(task.status)) {
+                            result[0] = SaveResult.FROZEN;
+                            return;
+                        }
+                    }
+                    int rows = dao.updateBusinessFieldsById(p.id, p.assetType, p.assetModel,
+                            p.serialNumber, p.custodian, p.dept, p.rawRowJson);
+                    result[0] = rows > 0 ? SaveResult.SUCCESS : SaveResult.MISSING;
+                });
+            } catch (RuntimeException e) {
+                // 不打印 EPC 明文; 异常类型足够定位
+                Log.e(TAG, "saveLedger failed", e);
+                result[0] = SaveResult.ERROR;
+            }
+            final SaveResult r = result[0];
+            postToMain(() -> {
+                if (!disposed.get()) cb.onResult(r);
+            });
+        });
+    }
+
+    private void postToMain(@NonNull Runnable r) {
+        if (handler == null) {
+            r.run();
+        } else {
+            handler.post(r);
+        }
+    }
+
+    private static String likePattern(@Nullable String keyword) {
+        if (keyword == null || keyword.isEmpty()) return "%";
+        String escaped = keyword.replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
+        return "%" + escaped + "%";
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        disposed.set(true);
+        requestSeq.incrementAndGet();
+        if (handler != null) handler.removeCallbacks(refreshRunnable);
+    }
+}

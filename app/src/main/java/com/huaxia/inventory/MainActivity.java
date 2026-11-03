@@ -18,6 +18,7 @@ import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.ProcessLifecycleOwner;
 import androidx.lifecycle.ViewModelProvider;
 import com.huaxia.inventory.ui.import_.ImportViewModel;
+import com.huaxia.inventory.ui.asset.AssetOverviewFragment;
 import com.huaxia.inventory.ui.manual.ManualScanFragment;
 import com.huaxia.inventory.ui.result.ResultFragment;
 import com.huaxia.inventory.ui.scan.ScanFragment;
@@ -56,8 +57,24 @@ public class MainActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
 
         BottomNavigationView nav = findViewById(R.id.bottomNav);
+
+        if (savedInstanceState == null) {
+            // 资产 tab 是第一个菜单项, 可能在监听器挂上之前就被自动选中.
+            // 先完成默认选中 + 首个 Fragment, 再挂监听器: setSelectedItemId 会同步
+            // 派发导航回调, 但 replace 是异步提交, 若先挂监听器会误判容器为空并
+            // 再 show 一次, 冷启动会创建两个 AssetOverviewFragment.
+            nav.setSelectedItemId(R.id.nav_asset);
+            if (getSupportFragmentManager().findFragmentById(R.id.fragmentContainer) == null) {
+                showFragment(new AssetOverviewFragment(), "asset");
+                nav.getMenu().findItem(R.id.nav_asset).setChecked(true);
+            }
+        }
+
         nav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
+            if (id == R.id.nav_asset) {
+                return showFragment(new AssetOverviewFragment(), "asset");
+            }
             if (id == R.id.nav_task) {
                 // 进任务页 = 离开"查看已完成任务"模式, 否则扫描/结果 tab 会继续显示旧任务。
                 ((InventoryApp) getApplication()).getSession().setViewingTaskId(null);
@@ -67,10 +84,6 @@ public class MainActivity extends AppCompatActivity {
             if (id == R.id.nav_result) return showFragment(new ResultFragment(), "result");
             return false;
         });
-
-        if (savedInstanceState == null) {
-            nav.setSelectedItemId(R.id.nav_task);
-        }
 
         importVm = new ViewModelProvider(this).get(ImportViewModel.class);
         // 导入文件选择 / 解析 / 进度 / 完成提示全部由 ImportDialogFragment 处理
