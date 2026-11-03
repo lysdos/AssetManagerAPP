@@ -98,14 +98,10 @@ public class AssetOverviewFragment extends Fragment {
         listCard = v.findViewById(R.id.assetListCard);
         if (listCard == null) listCard = searchEt;
 
-        prevBtn.setOnClickListener(btn -> {
-            vm.prevPage();
-            scrollView.fullScroll(View.FOCUS_UP);
-        });
-        nextBtn.setOnClickListener(btn -> {
-            vm.nextPage();
-            scrollView.fullScroll(View.FOCUS_UP);
-        });
+        // 翻页只刷新列表内容; 不要 fullScroll 到页面顶部, 否则整个资产页
+        // (hero/部门/类型) 会跟着跳动. 分页条固定在底部, 列表原地更新即可.
+        prevBtn.setOnClickListener(btn -> vm.prevPage());
+        nextBtn.setOnClickListener(btn -> vm.nextPage());
         deptMoreBtn.setOnClickListener(btn -> showDeptDialog());
         typeToggleBtn.setOnClickListener(btn -> vm.toggleTypeExpanded());
 
