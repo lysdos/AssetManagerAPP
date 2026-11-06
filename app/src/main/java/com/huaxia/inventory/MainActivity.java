@@ -18,6 +18,7 @@ import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.ProcessLifecycleOwner;
 import androidx.lifecycle.ViewModelProvider;
 import com.huaxia.inventory.ui.import_.ImportViewModel;
+import com.huaxia.inventory.ui.asset.AssetExportDialogFragment;
 import com.huaxia.inventory.ui.asset.AssetOverviewFragment;
 import com.huaxia.inventory.ui.manual.ManualScanFragment;
 import com.huaxia.inventory.ui.result.ResultFragment;
@@ -125,6 +126,10 @@ public class MainActivity extends AppCompatActivity {
                 openImportDialog();
                 return true;
             }
+            if (id == R.id.menu_action_export_assets) {
+                openExportAssetsDialog();
+                return true;
+            }
             return false;
         });
         popup.show();
@@ -152,6 +157,10 @@ public class MainActivity extends AppCompatActivity {
     private void openImportDialog() {
         new com.huaxia.inventory.ui.import_.ImportDialogFragment()
                 .show(getSupportFragmentManager(), "import");
+    }
+
+    private void openExportAssetsDialog() {
+        new AssetExportDialogFragment().show(getSupportFragmentManager(), "export_assets");
     }
 
     private boolean showFragment(Fragment fragment, String tag) {

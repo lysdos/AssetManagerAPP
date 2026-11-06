@@ -1,6 +1,8 @@
 package com.huaxia.inventory.ui.asset;
 
 import android.app.Application;
+import android.content.Context;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -11,6 +13,7 @@ import androidx.annotation.VisibleForTesting;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MediatorLiveData;
+import androidx.lifecycle.MutableLiveData;
 
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.data.AppDatabase;
@@ -18,13 +21,20 @@ import com.huaxia.inventory.data.dao.AssetDao;
 import com.huaxia.inventory.data.dao.CategoryCount;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.InventoryTask;
+import com.huaxia.inventory.excel.AssetLedgerExporter;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 全局资产台账 (资产 tab) 的状态.
@@ -97,14 +107,32 @@ public class AssetOverviewViewModel extends AndroidViewModel {
         void onResult(@NonNull SaveResult result);
     }
 
+    /** 资产台账导出结果，经 LiveData 投递到主线程. */
+    public static final class ExportResult {
+        public final boolean success;
+        public final int count;
+        /** 发起导出的序号；用于丢弃旧导出晚到的结果. */
+        public final long token;
+
+        public ExportResult(boolean success, int count, long token) {
+            this.success = success;
+            this.count = count;
+            this.token = token;
+        }
+    }
+
     private final AppDatabase db;
     private final AssetDao dao;
     private final Executor diskIO;
+    private final Executor excelIO;
     @Nullable private final Handler handler;
 
     private final MediatorLiveData<OverviewState> state = new MediatorLiveData<>();
+    private final MutableLiveData<ExportResult> exportResult = new MutableLiveData<>();
     private final AtomicInteger requestSeq = new AtomicInteger();
     private final AtomicBoolean disposed = new AtomicBoolean(false);
+    private final AtomicBoolean exportRunning = new AtomicBoolean(false);
+    private final AtomicLong exportToken = new AtomicLong();
     private final Runnable refreshRunnable = () -> refresh(requestSeq.get());
 
     // 仅主线程读写
@@ -141,11 +169,13 @@ public class AssetOverviewViewModel extends AndroidViewModel {
         this.dao = db.assetDao();
         if (executorOverride != null) {
             this.diskIO = executorOverride;
+            this.excelIO = executorOverride;
         } else {
             if (inventoryApp == null) {
                 throw new IllegalArgumentException("InventoryApp required without executor override");
             }
             this.diskIO = inventoryApp.getExecutors().diskIO;
+            this.excelIO = inventoryApp.getExecutors().excelIO;
         }
         this.handler = handlerOverride;
 
@@ -156,6 +186,23 @@ public class AssetOverviewViewModel extends AndroidViewModel {
 
     public LiveData<OverviewState> state() {
         return state;
+    }
+
+    /** 导出完成事件；没有导出进行时可能保留上一次结果，由弹窗消费/清空. */
+    public LiveData<ExportResult> exportResult() {
+        return exportResult;
+    }
+
+    public boolean isExportRunning() {
+        return exportRunning.get();
+    }
+
+    public long currentExportToken() {
+        return exportToken.get();
+    }
+
+    public void clearExportResult() {
+        exportResult.setValue(null);
     }
 
     public void setKeyword(@Nullable String raw) {
@@ -309,6 +356,68 @@ public class AssetOverviewViewModel extends AndroidViewModel {
             postToMain(() -> {
                 if (!disposed.get()) cb.onResult(r);
             });
+        });
+    }
+
+    /**
+     * 导出资产台账. {@code filtered=true} 使用调用方传入的筛选快照（可从
+     * savedInstanceState 恢复，避免进程重建后静默退化成全量），否则导出全量台账.
+     *
+     * <p>先写入 cache 临时文件，成功后再以 {@code "wt"} 模式覆盖目标 SAF 文档；
+     * 避免导出中途失败时在用户选择的位置留下一个"能打开但缺行"的半成品 xlsx，
+     * 也避免部分 Provider 的 {@code "w"} 模式不截断旧文件尾部。</p>
+     */
+    public void exportLedger(boolean filtered,
+                             @Nullable String keyword,
+                             @Nullable String deptBucket,
+                             @Nullable String typeBucket,
+                             @NonNull Uri uri) {
+        if (disposed.get()) return;
+        if (!exportRunning.compareAndSet(false, true)) {
+            exportResult.postValue(new ExportResult(false, 0, exportToken.get()));
+            return;
+        }
+        final long token = exportToken.incrementAndGet();
+        exportResult.setValue(null);
+
+        final String pattern = likePattern(filtered ? keyword : "");
+        final String dept = filtered ? deptBucket : null;
+        final String type = filtered ? typeBucket : null;
+        final Context ctx = getApplication().getApplicationContext();
+        final File cacheDir = ctx.getCacheDir();
+
+        excelIO.execute(() -> {
+            int count = -1;
+            File tmp = null;
+            try {
+                // 1) 先完整生成到 cache 临时文件；失败不会碰目标文档。
+                tmp = File.createTempFile("asset_ledger_", ".xlsx", cacheDir);
+                try (OutputStream fileOut = new FileOutputStream(tmp)) {
+                    count = AssetLedgerExporter.export(fileOut, dao, pattern, dept, type, cacheDir);
+                }
+                // 2) 成功后再覆盖目标；"wt" 明确要求截断，避免旧文件尾部残留。
+                try (InputStream in = new FileInputStream(tmp);
+                     OutputStream out = ctx.getContentResolver().openOutputStream(uri, "wt")) {
+                    if (out == null) {
+                        throw new IllegalStateException("openOutputStream returned null");
+                    }
+                    byte[] buf = new byte[8192];
+                    int n;
+                    while ((n = in.read(buf)) != -1) {
+                        out.write(buf, 0, n);
+                    }
+                }
+            } catch (Exception e) {
+                // 不打印 URI / 文件路径; 异常类型足够定位
+                Log.e(TAG, "exportLedger failed: " + e.getClass().getSimpleName());
+                count = -1;
+            } finally {
+                if (tmp != null) {
+                    tmp.delete();
+                }
+                exportRunning.set(false);
+                exportResult.postValue(new ExportResult(count >= 0, Math.max(count, 0), token));
+            }
         });
     }
 

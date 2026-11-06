@@ -1274,6 +1274,51 @@
             line-height: 1.6;
             margin-top: -4px;
         }
+        /* 导出资产弹窗 */
+        .as-export-title {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .as-export-opt {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            background: #f7fbff;
+            border: 1px solid #d6e9fb;
+            border-radius: 10px;
+            font-family: inherit;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .as-export-opt:active {
+            background: #e6f2fd;
+        }
+        .as-export-opt .n {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        .as-export-opt .m {
+            font-size: 12px;
+            color: #1976d2;
+            margin-top: 3px;
+        }
+        .as-export-opt .chev {
+            font-size: 20px;
+            color: #b0d4f1;
+            line-height: 1;
+        }
+        .as-export-cur {
+            font-size: 12px;
+            color: #1976d2;
+            line-height: 1.6;
+            margin: 2px 0 10px;
+        }
         /* 修改资产：现场新增类型 / 部门时的内联输入 */
         .as-new-field {
             display: none;
@@ -1387,6 +1432,14 @@
                         <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
                     <span>导入资产</span>
+                </button>
+                <button class="dropdown-item" onclick="openExportDialog()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span>导出资产</span>
                 </button>
             </div>
         </div>
@@ -1805,6 +1858,43 @@
             </div>
             <div class="dialog-footer">
                 <button class="dialog-btn cancel" onclick="closeDeptDialog()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导出资产弹窗 -->
+    <div class="dialog-overlay" id="exportDialogOverlay" onclick="closeExportDialog()">
+        <div class="dialog dialog-wide" onclick="event.stopPropagation()">
+            <div class="dialog-header">
+                <h3>导出资产</h3>
+                <button class="dialog-close" onclick="closeExportDialog()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="dialog-body" style="padding:18px 20px;">
+                <div class="as-export-title">选择导出范围</div>
+                <button class="as-export-opt" onclick="doExportAssets('all')">
+                    <div>
+                        <div class="n">全部资产</div>
+                        <div class="m" id="exportAllCount">共 0 台</div>
+                    </div>
+                    <span class="chev">›</span>
+                </button>
+                <button class="as-export-opt" id="exportOptFiltered" onclick="doExportAssets('filtered')">
+                    <div>
+                        <div class="n">当前筛选结果</div>
+                        <div class="m" id="exportFilteredCount">共 0 台</div>
+                    </div>
+                    <span class="chev">›</span>
+                </button>
+                <div class="as-export-cur" id="exportFilterDesc"></div>
+                <div class="as-edit-note">导出为 Excel 文件（.xlsx），列顺序与导入模板一致：序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期，可直接用 Excel 或 WPS 打开。</div>
+            </div>
+            <div class="dialog-footer">
+                <button class="dialog-btn cancel" onclick="closeExportDialog()">取消</button>
             </div>
         </div>
     </div>
@@ -6363,6 +6453,254 @@
             assetPage = 1;
             renderAssetStats();
             renderAssetList();
+        }
+
+        // ========== 导出资产（生成真实 .xlsx，不依赖第三方库） ==========
+        const EXPORT_COLS = ['序号', '设备类型', '设备型号', '序列号', '固资编号', '领用部门', '领用人', '盘点日期'];
+
+        function openExportDialog() {
+            document.getElementById('settingsDropdown').classList.remove('show');
+            const filtered = filterAssetsForDim(null);
+            const total = assetDatabase.length;
+            document.getElementById('exportAllCount').textContent = '共 ' + total.toLocaleString('zh-CN') + ' 台';
+            document.getElementById('exportFilteredCount').textContent = '共 ' + filtered.length.toLocaleString('zh-CN') + ' 台';
+            const noFilter = filtered.length === total;
+            document.getElementById('exportOptFiltered').style.display = noFilter ? 'none' : 'flex';
+
+            const desc = [];
+            if (assetFilter.keyword.trim()) desc.push('关键词「' + assetFilter.keyword.trim() + '」');
+            if (assetFilter.dept) desc.push('部门「' + (assetFilter.dept === '__none__' ? NO_DEPT : assetFilter.dept) + '」');
+            if (assetFilter.type) desc.push('类型「' + assetFilter.type + '」');
+            document.getElementById('exportFilterDesc').textContent = desc.length
+                ? '当前筛选：' + desc.join(' + ')
+                : '当前未设置筛选条件，两种范围导出的内容相同。';
+
+            document.getElementById('exportDialogOverlay').classList.add('show');
+        }
+
+        function closeExportDialog() {
+            document.getElementById('exportDialogOverlay').classList.remove('show');
+        }
+
+        function doExportAssets(scope) {
+            const rows = scope === 'filtered' ? filterAssetsForDim(null) : assetDatabase;
+            if (!rows.length) {
+                showToast('没有可导出的资产');
+                return;
+            }
+            try {
+                const bytes = buildAssetXlsx(rows);
+                const d = new Date();
+                const stamp = '' + d.getFullYear() +
+                    String(d.getMonth() + 1).padStart(2, '0') +
+                    String(d.getDate()).padStart(2, '0');
+                const fileName = '资产台账_' + (scope === 'filtered' ? '筛选结果' : '全部') + '_' + stamp + '.xlsx';
+                downloadBytes(bytes, fileName);
+                closeExportDialog();
+                showToast('已导出 ' + rows.length.toLocaleString('zh-CN') + ' 条资产');
+            } catch (err) {
+                showToast('导出失败：' + ((err && err.message) ? err.message : err));
+            }
+        }
+
+        function downloadBytes(bytes, fileName) {
+            const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                if (a.parentNode) a.parentNode.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 1500);
+        }
+
+        function xmlEsc(v) {
+            return String(v == null ? '' : v)
+                .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        }
+
+        // 工作表：表头走样式 1（加粗），其余全部 inlineStr，避免固资编号被转成科学计数法
+        function xlsxSheetXml(rows) {
+            const L = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+            const out = [];
+            out.push('<row r="1">' + EXPORT_COLS.map((t, i) =>
+                '<c r="' + L[i] + '1" s="1" t="inlineStr"><is><t>' + xmlEsc(t) + '</t></is></c>').join('') + '</row>');
+            rows.forEach((a, idx) => {
+                const r = idx + 2;
+                const vals = [
+                    idx + 1,
+                    a.type || '未分类',
+                    a.model || '',
+                    a.sn || '',
+                    a.id || '',
+                    a.dept || '',
+                    a.owner || '',
+                    a.date || ''
+                ];
+                out.push('<row r="' + r + '">' + vals.map((v, i) =>
+                    '<c r="' + L[i] + r + '" t="inlineStr"><is><t>' + xmlEsc(v) + '</t></is></c>').join('') + '</row>');
+            });
+            return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+                '<cols><col min="1" max="1" width="7"/><col min="2" max="3" width="24"/>' +
+                '<col min="4" max="4" width="22"/><col min="5" max="5" width="20"/>' +
+                '<col min="6" max="7" width="18"/><col min="8" max="8" width="14"/></cols>' +
+                '<sheetData>' + out.join('') + '</sheetData></worksheet>';
+        }
+
+        function buildAssetXlsx(rows) {
+            const enc = new TextEncoder();
+            const head = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+            const files = [
+                {
+                    name: '[Content_Types].xml',
+                    xml: head + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+                        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+                        '<Default Extension="xml" ContentType="application/xml"/>' +
+                        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+                        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+                        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+                        '</Types>'
+                },
+                {
+                    name: '_rels/.rels',
+                    xml: head + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+                        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+                        '</Relationships>'
+                },
+                {
+                    name: 'xl/workbook.xml',
+                    xml: head + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+                        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+                        '<sheets><sheet name="资产台账" sheetId="1" r:id="rId1"/></sheets></workbook>'
+                },
+                {
+                    name: 'xl/_rels/workbook.xml.rels',
+                    xml: head + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+                        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+                        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+                        '</Relationships>'
+                },
+                {
+                    name: 'xl/styles.xml',
+                    xml: head + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+                        '<fonts count="2"><font><sz val="11"/><name val="宋体"/></font>' +
+                        '<font><b/><sz val="11"/><name val="宋体"/></font></fonts>' +
+                        '<fills count="2"><fill><patternFill patternType="none"/></fill>' +
+                        '<fill><patternFill patternType="gray125"/></fill></fills>' +
+                        '<borders count="1"><border/></borders>' +
+                        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+                        '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+                        '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>' +
+                        '<cellStyles count="1"><cellStyle name="常规" xfId="0" builtinId="0"/></cellStyles>' +
+                        '</styleSheet>'
+                },
+                {
+                    name: 'xl/worksheets/sheet1.xml',
+                    xml: xlsxSheetXml(rows)
+                }
+            ];
+            return zipStore(files.map(f => ({ name: f.name, data: enc.encode(f.xml) })));
+        }
+
+        const CRC_TABLE = (function () {
+            const t = new Uint32Array(256);
+            for (let n = 0; n < 256; n++) {
+                let c = n;
+                for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+                t[n] = c >>> 0;
+            }
+            return t;
+        })();
+
+        function crc32(bytes) {
+            let c = 0xFFFFFFFF;
+            for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+            return (c ^ 0xFFFFFFFF) >>> 0;
+        }
+
+        // 最小 ZIP 写入（store 模式，不压缩）
+        function zipStore(entries) {
+            const chunks = [];
+            const central = [];
+            let offset = 0;
+
+            entries.forEach(item => {
+                const nameB = new TextEncoder().encode(item.name);
+                const data = item.data;
+                const crc = crc32(data);
+
+                const local = new Uint8Array(30 + nameB.length);
+                const lv = new DataView(local.buffer);
+                lv.setUint32(0, 0x04034b50, true);
+                lv.setUint16(4, 20, true);
+                lv.setUint16(6, 0x0800, true);
+                lv.setUint16(8, 0, true);
+                lv.setUint16(10, 0, true);
+                lv.setUint16(12, 0x21, true);
+                lv.setUint32(14, crc, true);
+                lv.setUint32(18, data.length, true);
+                lv.setUint32(22, data.length, true);
+                lv.setUint16(26, nameB.length, true);
+                lv.setUint16(28, 0, true);
+                local.set(nameB, 30);
+                chunks.push(local, data);
+
+                const cen = new Uint8Array(46 + nameB.length);
+                const cv = new DataView(cen.buffer);
+                cv.setUint32(0, 0x02014b50, true);
+                cv.setUint16(4, 20, true);
+                cv.setUint16(6, 20, true);
+                cv.setUint16(8, 0x0800, true);
+                cv.setUint16(10, 0, true);
+                cv.setUint16(12, 0, true);
+                cv.setUint16(14, 0x21, true);
+                cv.setUint32(16, crc, true);
+                cv.setUint32(20, data.length, true);
+                cv.setUint32(24, data.length, true);
+                cv.setUint16(28, nameB.length, true);
+                cv.setUint16(30, 0, true);
+                cv.setUint16(32, 0, true);
+                cv.setUint16(34, 0, true);
+                cv.setUint16(36, 0, true);
+                cv.setUint32(38, 0, true);
+                cv.setUint32(42, offset, true);
+                cen.set(nameB, 46);
+                central.push(cen);
+
+                offset += local.length + data.length;
+            });
+
+            let cdSize = 0;
+            central.forEach(c => { cdSize += c.length; });
+
+            const end = new Uint8Array(22);
+            const ev = new DataView(end.buffer);
+            ev.setUint32(0, 0x06054b50, true);
+            ev.setUint16(4, 0, true);
+            ev.setUint16(6, 0, true);
+            ev.setUint16(8, entries.length, true);
+            ev.setUint16(10, entries.length, true);
+            ev.setUint32(12, cdSize, true);
+            ev.setUint32(16, offset, true);
+            ev.setUint16(20, 0, true);
+
+            const all = chunks.concat(central, [end]);
+            let total = 0;
+            all.forEach(c => { total += c.length; });
+            const out = new Uint8Array(total);
+            let pos = 0;
+            all.forEach(c => { out.set(c, pos); pos += c.length; });
+            return out;
         }
 
         function toggleAssetTypes() {

@@ -32,6 +32,10 @@ public final class XlsxStreamWriter implements AutoCloseable {
 
     private int nextFileId;
     private final File tempDir;
+    /** 可选列宽（字符单位），长度与表头列数一致；null 表示不写 &lt;cols&gt;. */
+    private int[] columnWidths;
+    /** 工作表名；默认「盘点结果」，资产台账导出可改为「资产台账」. */
+    private String sheetName = "盘点结果";
 
     /**
      * @param parentTmpDir 临时文件父目录, 推荐传入 {@code context.getCacheDir()}.
@@ -57,11 +61,36 @@ public final class XlsxStreamWriter implements AutoCloseable {
 
     // ---- 公共 API ----
 
+    /**
+     * 设置工作表列宽（字符单位）。必须在 {@link #finish()} 前调用。
+     * 不设置时保持原有行为，不写 &lt;cols&gt; 节点。
+     */
+    /** 设置工作表名；默认「盘点结果」，必须在 {@link #finish()} 前调用。 */
+    public void setSheetName(String name) {
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("sheet name must not be empty");
+        }
+        this.sheetName = name;
+    }
+
+    public void setColumnWidths(int... widths) {
+        if (widths == null || widths.length == 0) {
+            this.columnWidths = null;
+            return;
+        }
+        for (int width : widths) {
+            if (width <= 0) {
+                throw new IllegalArgumentException("column width must be > 0");
+            }
+        }
+        this.columnWidths = widths.clone();
+    }
+
     public void writeRow(String... values) {
         List<CellData> row = new ArrayList<>();
         if (values != null) {
             for (String v : values) {
-                row.add(new CellData(v, false));
+                row.add(new CellData(v, false, 0));
             }
         }
         addRow(row);
@@ -72,12 +101,23 @@ public final class XlsxStreamWriter implements AutoCloseable {
         if (values != null) {
             for (Object v : values) {
                 if (v == null) {
-                    row.add(new CellData("", false));
+                    row.add(new CellData("", false, 0));
                 } else if (v instanceof Number) {
-                    row.add(new CellData(v.toString(), true));
+                    row.add(new CellData(v.toString(), true, 0));
                 } else {
-                    row.add(new CellData(v.toString(), false));
+                    row.add(new CellData(v.toString(), false, 0));
                 }
+            }
+        }
+        addRow(row);
+    }
+
+    /** 写一行加粗表头（使用 styles.xml 中 fontId=1 的样式）。 */
+    public void writeHeaderRow(String... values) {
+        List<CellData> row = new ArrayList<>();
+        if (values != null) {
+            for (String v : values) {
+                row.add(new CellData(v, false, 1));
             }
         }
         addRow(row);
@@ -126,6 +166,11 @@ public final class XlsxStreamWriter implements AutoCloseable {
                     w.write("<c r=\"");
                     w.write(ref);
                     w.write('"');
+                    if (c.style != 0) {
+                        w.write(" s=\"");
+                        w.write(String.valueOf(c.style));
+                        w.write('"');
+                    }
                     if (c.isNumber) {
                         w.write(" t=\"n\"><v>");
                         w.write(esc(c.value));
@@ -174,6 +219,19 @@ public final class XlsxStreamWriter implements AutoCloseable {
         sw.write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
                 + "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\""
                 + " xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">");
+        if (columnWidths != null) {
+            sw.write("<cols>");
+            for (int i = 0; i < columnWidths.length; i++) {
+                sw.write("<col min=\"");
+                sw.write(String.valueOf(i + 1));
+                sw.write("\" max=\"");
+                sw.write(String.valueOf(i + 1));
+                sw.write("\" width=\"");
+                sw.write(String.valueOf(columnWidths[i]));
+                sw.write("\"/>");
+            }
+            sw.write("</cols>");
+        }
         sw.write("<sheetData>");
 
         for (FlushedChunk chunk : chunks) {
@@ -218,7 +276,8 @@ public final class XlsxStreamWriter implements AutoCloseable {
         os.write(("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
                 + "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\""
                 + " xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
-                + "<sheets><sheet name=\"盘点结果\" sheetId=\"1\" r:id=\"rId1\"/></sheets>"
+                + "<sheets><sheet name=\"" + esc(sheetName)
+                + "\" sheetId=\"1\" r:id=\"rId1\"/></sheets>"
                 + "</workbook>").getBytes(StandardCharsets.UTF_8));
     }
 
@@ -292,9 +351,11 @@ public final class XlsxStreamWriter implements AutoCloseable {
     private static final class CellData {
         final String value;
         final boolean isNumber;
-        CellData(String value, boolean isNumber) {
+        final int style;
+        CellData(String value, boolean isNumber, int style) {
             this.value = value != null ? value : "";
             this.isNumber = isNumber;
+            this.style = style;
         }
     }
 

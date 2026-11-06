@@ -212,6 +212,7 @@
     <string name="menu_settings">操作</string>
     <string name="menu_action_power">功率设置</string>
     <string name="menu_action_import">导入资产</string>
+    <string name="menu_action_export_assets">导出资产</string>
     <string name="power_setting_title">功率设置</string>
     <string name="power_setting_current">当前读写器功率</string>
     <string name="power_setting_low">0 dBm (低)</string>
@@ -277,4 +278,26 @@
     <string name="asset_epc_readonly_hint">固资编号为唯一标识，不可修改</string>
     <string name="asset_task_frozen_error">任务已完成，资产已冻结，无法保存</string>
     <string name="asset_asset_missing">资产不存在或已被删除</string>
+
+    <!-- 导出资产 -->
+    <string name="asset_export_title">导出资产</string>
+    <string name="asset_export_scope_title">选择导出范围</string>
+    <string name="asset_export_all">全部资产</string>
+    <string name="asset_export_filtered">当前筛选结果</string>
+    <string name="asset_export_count_fmt">共 %1$d 台</string>
+    <string name="asset_export_count_loading">统计中…</string>
+    <string name="asset_export_filter_none">当前未设置筛选条件</string>
+    <string name="asset_export_filter_prefix_fmt">当前筛选：%1$s</string>
+    <string name="asset_export_filter_keyword_fmt">关键词「%1$s」</string>
+    <string name="asset_export_filter_dept_fmt">部门「%1$s」</string>
+    <string name="asset_export_filter_type_fmt">类型「%1$s」</string>
+    <string name="asset_export_filter_join"> + </string>
+    <string name="asset_export_note">导出为 Excel 文件（.xlsx），列顺序与导入模板一致：序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期，可直接用 Excel 或 WPS 打开。</string>
+    <string name="asset_export_chevron">›</string>
+    <string name="asset_export_in_progress">正在导出…</string>
+    <string name="asset_export_saved_fmt">已导出 %1$d 条资产</string>
+    <string name="asset_export_failed">导出失败，请重试</string>
+    <string name="asset_export_no_assets">没有可导出的资产</string>
+    <string name="asset_export_file_all_fmt">资产台账_全部_%1$s.xlsx</string>
+    <string name="asset_export_file_filtered_fmt">资产台账_筛选结果_%1$s.xlsx</string>
 </resources>

@@ -65,6 +65,14 @@ public class AssetOverviewLayoutTest {
         assertNotNull(deptDialog.findViewById(R.id.deptDialogSearchEt));
         assertNotNull(deptDialog.findViewById(R.id.deptDialogListContainer));
 
+        View exportDialog = inflater.inflate(R.layout.dialog_export_assets, null, false);
+        assertNotNull(exportDialog.findViewById(R.id.exportAllOption));
+        assertNotNull(exportDialog.findViewById(R.id.exportAllCountTv));
+        assertNotNull(exportDialog.findViewById(R.id.exportFilteredOption));
+        assertNotNull(exportDialog.findViewById(R.id.exportFilteredCountTv));
+        assertNotNull(exportDialog.findViewById(R.id.exportFilterDescTv));
+        assertNotNull(exportDialog.findViewById(R.id.exportCancelBtn));
+
         View typeChip = inflater.inflate(R.layout.view_asset_type_chip, null, false);
         assertTrue(typeChip instanceof Chip);
 

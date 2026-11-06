@@ -8,4 +8,8 @@
         android:id="@+id/menu_action_import"
         android:title="@string/menu_action_import"
         android:icon="@drawable/ic_import" />
+    <item
+        android:id="@+id/menu_action_export_assets"
+        android:title="@string/menu_action_export_assets"
+        android:icon="@drawable/ic_export_menu" />
 </menu>
