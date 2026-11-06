@@ -23,6 +23,7 @@ import com.huaxia.inventory.util.DateUtil;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 资产台账导出弹窗：全部资产 / 当前筛选结果 → SAF 另存为 .xlsx.
@@ -130,7 +131,7 @@ public class AssetExportDialogFragment extends DialogFragment {
             if (!isAdded()) return;
             if (result.success) {
                 Toast.makeText(requireContext(),
-                        getString(R.string.asset_export_saved_fmt, result.count),
+                        getString(R.string.asset_export_saved_fmt, formatCount(result.count)),
                         Toast.LENGTH_SHORT).show();
                 // onSaveInstanceState 之后仍可能收到异步结果，用 state-loss 版本避免崩溃。
                 dismissAllowingStateLoss();
@@ -177,7 +178,7 @@ public class AssetExportDialogFragment extends DialogFragment {
             return;
         }
 
-        allCountTv.setText(getString(R.string.asset_export_count_fmt, s.totalAll));
+        allCountTv.setText(getString(R.string.asset_export_count_fmt, formatCount(s.totalAll)));
         boolean hasFilter = !s.keyword.isEmpty() || s.deptBucket != null || s.typeBucket != null;
         filterDescTv.setText(buildFilterDesc(s));
 
@@ -185,7 +186,7 @@ public class AssetExportDialogFragment extends DialogFragment {
         boolean showFiltered = hasFilter && s.filteredTotal != s.totalAll;
         filteredOption.setVisibility(showFiltered ? View.VISIBLE : View.GONE);
         if (showFiltered) {
-            filteredCountTv.setText(getString(R.string.asset_export_count_fmt, s.filteredTotal));
+            filteredCountTv.setText(getString(R.string.asset_export_count_fmt, formatCount(s.filteredTotal)));
         }
         if (!exporting) {
             setOptionsEnabled(true);
@@ -287,5 +288,10 @@ public class AssetExportDialogFragment extends DialogFragment {
             filteredOption.setEnabled(enabled);
             filteredOption.setAlpha(enabled ? 1f : 0.5f);
         }
+    }
+
+    /** 与 HTML 弹窗一致：数量按千分位展示（如 12,345）. */
+    private static String formatCount(int count) {
+        return String.format(Locale.CHINA, "%,d", count);
     }
 }

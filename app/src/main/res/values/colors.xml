@@ -61,4 +61,5 @@
     <color name="assetArrow">#D0D0D0</color>
     <color name="assetExportOptionBg">#F7FBFF</color>
     <color name="assetExportOptionStroke">#D6E9FB</color>
+    <color name="assetExportGoPressed">#1259A8</color>
 </resources>

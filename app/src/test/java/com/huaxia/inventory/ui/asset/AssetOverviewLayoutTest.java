@@ -2,6 +2,7 @@ package com.huaxia.inventory.ui.asset;
 
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -16,6 +17,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -72,6 +74,14 @@ public class AssetOverviewLayoutTest {
         assertNotNull(exportDialog.findViewById(R.id.exportFilteredCountTv));
         assertNotNull(exportDialog.findViewById(R.id.exportFilterDescTv));
         assertNotNull(exportDialog.findViewById(R.id.exportCancelBtn));
+
+        // 与 HTML mockup 一致：右侧为蓝色「导出」按钮，不再是 ›
+        TextView allGo = exportDialog.findViewById(R.id.exportAllGoTv);
+        TextView filteredGo = exportDialog.findViewById(R.id.exportFilteredGoTv);
+        assertNotNull(allGo);
+        assertNotNull(filteredGo);
+        assertEquals("导出", allGo.getText().toString());
+        assertEquals("导出", filteredGo.getText().toString());
 
         View typeChip = inflater.inflate(R.layout.view_asset_type_chip, null, false);
         assertTrue(typeChip instanceof Chip);
