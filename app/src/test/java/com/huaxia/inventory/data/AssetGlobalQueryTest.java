@@ -77,6 +77,16 @@ public class AssetGlobalQueryTest {
     }
 
     @Test
+    public void countRealDepts_trimsAndExcludesBlank() {
+        seed();
+        assertEquals(2, dao.countRealDepts());
+
+        // 只差首尾空格仍算同一个部门
+        insert(0, "000000003500310014100205", "打印机", "HP", "SN003", " 财务部 ", "赵六");
+        assertEquals(2, dao.countRealDepts());
+    }
+
+    @Test
     public void keyword_matches16DigitSuffixAndAllSixFields() {
         seed();
         assertEquals(1, dao.countFiltered("%3500310014100167%", null, null));

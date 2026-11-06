@@ -1308,16 +1308,77 @@
             color: #1976d2;
             margin-top: 3px;
         }
-        .as-export-opt .chev {
-            font-size: 20px;
-            color: #b0d4f1;
+        .as-export-opt .go {
+            flex-shrink: 0;
+            padding: 7px 18px;
+            background: #1976d2;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
             line-height: 1;
+            cursor: pointer;
+        }
+        .as-export-opt .go:active {
+            background: #1259a8;
         }
         .as-export-cur {
             font-size: 12px;
             color: #1976d2;
             line-height: 1.6;
             margin: 2px 0 10px;
+        }
+        /* 结果统计页 */
+        .rs-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .rs-table th {
+            text-align: left;
+            color: #888;
+            font-weight: 500;
+            padding: 6px 8px;
+            border-bottom: 1px solid #f0f0f0;
+            white-space: nowrap;
+        }
+        .rs-table td {
+            padding: 9px 8px;
+            border-bottom: 1px solid #f5f5f5;
+            white-space: nowrap;
+        }
+        .rs-table tr:last-child td {
+            border-bottom: none;
+        }
+        .rs-table td.name {
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .rs-rate {
+            color: #1976d2;
+            font-weight: 600;
+        }
+        .rs-more {
+            display: block;
+            width: 100%;
+            padding: 10px 8px;
+            background: #f7fbff;
+            border: none;
+            font-family: inherit;
+            font-size: 13px;
+            color: #1976d2;
+            text-align: center;
+            cursor: pointer;
+        }
+        .rs-more:active {
+            background: #e6f2fd;
+        }
+        .rs-dialog-body {
+            max-height: 55vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
         /* 修改资产：现场新增类型 / 部门时的内联输入 */
         .as-new-field {
@@ -1408,7 +1469,7 @@
 
     <!-- 顶部状态栏 -->
     <div class="status-bar">
-        <span>📦 华夏资产管家</span>
+        <span>📦 资产管家</span>
         <div style="display:flex; align-items:center; gap:12px; position:relative;">
             <span id="currentTime">09:41</span>
             <button class="settings-btn" onclick="toggleSettingsDropdown(event)">
@@ -1616,6 +1677,35 @@
             </div>
 
             <button class="btn-export" onclick="exportResults()" style="margin-top:14px;">📤 导出结果</button>
+            <button class="btn-export" onclick="openResultStats()" style="background:#1976d2; margin-top:10px;">📈 结果统计</button>
+        </div>
+
+        <!-- ===== 结果统计页面 ===== -->
+        <div class="page" id="pageResultStats">
+            <h2 style="font-size:20px; margin-bottom:12px;">📈 结果统计</h2>
+
+            <div class="stat-row" id="rsStatRow"></div>
+
+            <div class="card">
+                <h3>📊 盘点进度</h3>
+                <div id="rsProgressText" style="font-size:13px; color:#666;"></div>
+                <div style="height:10px; background:#e8f0fe; border-radius:999px; overflow:hidden; margin-top:10px;">
+                    <div id="rsProgressFill" style="height:100%; width:0%; background:linear-gradient(90deg, #42a5f5, #1976d2); border-radius:999px; transition:width .3s;"></div>
+                </div>
+                <div id="rsCaliber" style="font-size:12px; color:#999; line-height:1.6; margin-top:10px;"></div>
+            </div>
+
+            <div class="card">
+                <h3>🏢 部门盘点统计</h3>
+                <div id="rsDeptTable"></div>
+            </div>
+
+            <div class="card">
+                <h3>🖥 设备类型统计</h3>
+                <div id="rsTypeTable"></div>
+            </div>
+
+            <button class="btn-back" onclick="backToResultPage()">⬅️ 返回结果页</button>
         </div>
     </div>
 
@@ -1881,20 +1971,41 @@
                         <div class="n">全部资产</div>
                         <div class="m" id="exportAllCount">共 0 台</div>
                     </div>
-                    <span class="chev">›</span>
+                    <span class="go">导出</span>
                 </button>
                 <button class="as-export-opt" id="exportOptFiltered" onclick="doExportAssets('filtered')">
                     <div>
                         <div class="n">当前筛选结果</div>
                         <div class="m" id="exportFilteredCount">共 0 台</div>
                     </div>
-                    <span class="chev">›</span>
+                    <span class="go">导出</span>
                 </button>
                 <div class="as-export-cur" id="exportFilterDesc"></div>
-                <div class="as-edit-note">导出为 Excel 文件（.xlsx），列顺序与导入模板一致：序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期，可直接用 Excel 或 WPS 打开。</div>
+                <div class="as-edit-note">点击对应范围即可立即导出。导出为 Excel 文件（.xlsx），列顺序与导入模板一致：序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期，可直接用 Excel 或 WPS 打开。</div>
             </div>
             <div class="dialog-footer">
                 <button class="dialog-btn cancel" onclick="closeExportDialog()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计详情弹窗（部门 / 设备类型 全量列表） -->
+    <div class="dialog-overlay" id="rsDialogOverlay" onclick="closeRsDetailDialog()">
+        <div class="dialog dialog-wide" onclick="event.stopPropagation()">
+            <div class="dialog-header">
+                <h3 id="rsDialogTitle">统计详情</h3>
+                <button class="dialog-close" onclick="closeRsDetailDialog()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="dialog-body rs-dialog-body" style="padding:6px 16px 16px;">
+                <div id="rsDialogTable"></div>
+            </div>
+            <div class="dialog-footer">
+                <button class="dialog-btn confirm" onclick="closeRsDetailDialog()">知道了</button>
             </div>
         </div>
     </div>
@@ -1932,7 +2043,8 @@
             task: document.getElementById('pageTask'),
             scan: document.getElementById('pageScan'),
             result: document.getElementById('pageResult'),
-            manual: document.getElementById('pageManual')
+            manual: document.getElementById('pageManual'),
+            resultStats: document.getElementById('pageResultStats')
         };
 
         navItems.forEach(item => {
@@ -6177,6 +6289,119 @@
             document.getElementById('mainContent').scrollTop = 0;
         }
 
+        // ========== 结果统计页 ==========
+        function rsEsc(v) {
+            return String(v == null ? '' : v)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function openResultStats() {
+            Object.values(pages).forEach(p => p.classList.remove('active'));
+            pages.resultStats.classList.add('active');
+            renderResultStats();
+            document.getElementById('mainContent').scrollTop = 0;
+        }
+
+        function backToResultPage() {
+            Object.values(pages).forEach(p => p.classList.remove('active'));
+            pages.result.classList.add('active');
+            renderResultList();
+            document.getElementById('mainContent').scrollTop = 0;
+        }
+
+        // 按 keyFn 分组统计：应盘 / 已盘 / 未盘
+        function rsGroupStats(keyFn) {
+            const map = {};
+            assetDatabase.forEach(a => {
+                const k = keyFn(a);
+                if (!k) return;
+                if (!map[k]) map[k] = { name: k, total: 0, checked: 0 };
+                map[k].total++;
+                if (getCheckState(a) === 'checked') map[k].checked++;
+            });
+            return Object.values(map).sort((x, y) => y.total - x.total);
+        }
+
+        // 统计表最多显示 Top N，其余通过弹窗查看
+        const RS_TOP_N = 10;
+        const rsAllRows = {};   // 缓存全量分组数据：rsAllRows.dept / rsAllRows.type
+
+        function rsTableHtml(rows, firstName, key) {
+            if (!rows.length) {
+                return '<div style="text-align:center; color:#999; font-size:13px; padding:20px 0;">暂无台账数据，请先通过齿轮菜单导入资产</div>';
+            }
+            rsAllRows[key] = rows;
+            const shown = rows.slice(0, RS_TOP_N);
+            let html = '<table class="rs-table"><thead><tr><th>' + firstName + '</th><th>应盘</th><th>已盘</th><th>未盘</th><th>盘点率</th></tr></thead><tbody>';
+            shown.forEach(r => {
+                html += rsRowHtml(r, firstName);
+            });
+            if (rows.length > RS_TOP_N) {
+                html += '<tr><td colspan="5" style="padding:0;">'
+                    + '<button class="rs-more" onclick="openRsDetailDialog(\'' + key + '\')">'
+                    + '展开全部 ' + rows.length + ' 个' + firstName + '（当前显示前 ' + RS_TOP_N + '） ›'
+                    + '</button></td></tr>';
+            }
+            return html + '</tbody></table>';
+        }
+
+        function rsRowHtml(r) {
+            const unchecked = r.total - r.checked;
+            const rate = r.total > 0 ? ((r.checked / r.total) * 100).toFixed(1) : '0.0';
+            return '<tr>'
+                + '<td class="name" title="' + rsEsc(r.name) + '">' + rsEsc(r.name) + '</td>'
+                + '<td>' + r.total.toLocaleString('zh-CN') + '</td>'
+                + '<td style="color:#2e7d32;">' + r.checked.toLocaleString('zh-CN') + '</td>'
+                + '<td style="color:#757575;">' + unchecked.toLocaleString('zh-CN') + '</td>'
+                + '<td class="rs-rate">' + rate + '%</td>'
+                + '</tr>';
+        }
+
+        function openRsDetailDialog(key) {
+            const rows = rsAllRows[key] || [];
+            const firstName = key === 'dept' ? '部门' : '设备类型';
+            document.getElementById('rsDialogTitle').textContent = firstName + '盘点统计（全部 ' + rows.length + ' 个）';
+            let html = '<table class="rs-table"><thead><tr><th>' + firstName + '</th><th>应盘</th><th>已盘</th><th>未盘</th><th>盘点率</th></tr></thead><tbody>';
+            rows.forEach(r => { html += rsRowHtml(r); });
+            document.getElementById('rsDialogTable').innerHTML = html + '</tbody></table>';
+            document.getElementById('rsDialogOverlay').classList.add('show');
+        }
+
+        function closeRsDetailDialog() {
+            document.getElementById('rsDialogOverlay').classList.remove('show');
+        }
+
+        function renderResultStats() {
+            const s = getCheckSummary();
+            const cards = [
+                { key: 'all', label: '应盘设备', num: s.total, color: '#2e7d32', sub: '资产台账全量' },
+                { key: 'checked', label: '已盘点', num: s.checked, color: '#1565c0', sub: s.percent + '%' },
+                { key: 'unchecked', label: '未盘点', num: s.unchecked, color: '#757575', sub: '待扫码确认' },
+                { key: 'surplus', label: '盘盈', num: s.surplus, color: '#ef6c00', sub: '台账外编号' }
+            ];
+            document.getElementById('rsStatRow').innerHTML = cards.map(c => `
+                <div class="stat-item" onclick="goToResult('${c.key}')">
+                    <div class="label">${c.label}</div>
+                    <div class="num" style="color:${c.color};">${c.num.toLocaleString('zh-CN')}</div>
+                    <div class="sub">${c.sub}</div>
+                </div>`).join('');
+
+            document.getElementById('rsProgressText').innerHTML =
+                '已盘点 <strong style="color:#1565c0;">' + s.checked.toLocaleString('zh-CN') + '</strong> / ' + s.total.toLocaleString('zh-CN') + ' 台，完成率 <strong style="color:#1565c0;">' + s.percent + '%</strong>';
+            document.getElementById('rsProgressFill').style.width = Math.min(100, parseFloat(s.percent) || 0) + '%';
+
+            const last = ledgerLastDate();
+            document.getElementById('rsCaliber').innerHTML =
+                '统计口径：台账已登记盘点日期 <strong>' + s.ledgerChecked.toLocaleString('zh-CN') + '</strong> 台 + 本次会话新盘 <strong>' + s.sessionNew + '</strong> 台'
+                + (last ? '；台账最近盘点日期：' + rsEsc(last) : '');
+
+            document.getElementById('rsDeptTable').innerHTML = rsTableHtml(rsGroupStats(a => a.dept || NO_DEPT), '部门', 'dept');
+            document.getElementById('rsTypeTable').innerHTML = rsTableHtml(rsGroupStats(a => a.type || '未分类'), '设备类型', 'type');
+        }
+
         // 页面卸载时停止扫码
         window.addEventListener('beforeunload', stopScan);
 
@@ -6292,7 +6517,6 @@
 
         function renderAssetStats() {
             const total = assetDatabase.length;
-            const hasFilter = !!(assetFilter.keyword.trim() || assetFilter.dept || assetFilter.type);
 
             // 1. 总数卡片（全量口径，不受筛选影响）
             document.getElementById('asHero').innerHTML = `
@@ -6301,7 +6525,9 @@
             `;
 
             // 2. 领用部门分布（Top 8 概览 + 全部部门弹窗）
-            document.getElementById('asDeptHint').textContent = hasFilter ? '已按当前筛选联动' : '点击可筛选';
+            // 真实领用部门数：全量台账中不重复的非空部门（不含「未填写部门」占位）
+            const realDeptCount = new Set(assetDatabase.filter(a => a.dept && a.dept.trim()).map(a => a.dept.trim())).size;
+            document.getElementById('asDeptHint').textContent = '共 ' + realDeptCount + ' 个领用部门';
             const deptBasis = filterAssetsForDim('dept');
             const deptTotal = deptBasis.length;
             const deptMap = {};
@@ -6325,7 +6551,8 @@
             }
             deptHtml += deptTop.map(d => deptRowHtml(d, deptTotal, maxDept, false)).join('');
             if (deptList.length > 8) {
-                deptHtml += `<button class="dept-more" onclick="openDeptDialog()">查看全部 ${deptList.length} 个部门 ›</button>`;
+                const hasNoneDept = deptList.some(d => d.name === '');
+                deptHtml += `<button class="dept-more" onclick="openDeptDialog()">查看全部 ${deptList.length} 个部门${hasNoneDept ? '（含未填写）' : ''}</button>`;
             }
             document.getElementById('asDeptBars').innerHTML = deptHtml || '<div class="as-empty">暂无部门数据</div>';
 
@@ -6473,7 +6700,7 @@
             if (assetFilter.type) desc.push('类型「' + assetFilter.type + '」');
             document.getElementById('exportFilterDesc').textContent = desc.length
                 ? '当前筛选：' + desc.join(' + ')
-                : '当前未设置筛选条件，两种范围导出的内容相同。';
+                : '当前未设置筛选条件，将导出全部资产。';
 
             document.getElementById('exportDialogOverlay').classList.add('show');
         }

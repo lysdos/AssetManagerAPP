@@ -127,9 +127,7 @@ public class AssetOverviewFragment extends Fragment {
 
     private void render(@NonNull AssetOverviewViewModel.OverviewState s) {
         heroNumTv.setText(NumberFormat.getIntegerInstance(Locale.CHINA).format(s.totalAll));
-        boolean hasFilter = !s.keyword.isEmpty() || s.deptBucket != null || s.typeBucket != null;
-        deptHintTv.setText(hasFilter
-                ? R.string.asset_dept_hint_filtered : R.string.asset_dept_hint_default);
+        deptHintTv.setText(getString(R.string.asset_dept_hint_count_fmt, s.realDeptCount));
 
         renderDeptBars(s);
         renderTypeChips(s);
@@ -176,7 +174,10 @@ public class AssetOverviewFragment extends Fragment {
 
         if (s.deptBuckets.size() > 8) {
             deptMoreBtn.setVisibility(View.VISIBLE);
-            deptMoreBtn.setText(getString(R.string.asset_dept_more_fmt, s.deptBuckets.size()));
+            String noneSuffix = containsBucket(s.deptBuckets, "")
+                    ? getString(R.string.asset_dept_more_none_suffix) : "";
+            deptMoreBtn.setText(getString(R.string.asset_dept_more_fmt,
+                    s.deptBuckets.size(), noneSuffix));
         } else {
             deptMoreBtn.setVisibility(View.GONE);
         }

@@ -61,6 +61,8 @@ public class AssetOverviewViewModel extends AndroidViewModel {
     /** 一次刷新的完整快照. 列表/分布/页码都来自同一次查询. */
     public static final class OverviewState {
         public final int totalAll;
+        /** 全量台账中去重后的非空领用部门数，不受筛选影响. */
+        public final int realDeptCount;
         public final int filteredTotal;
         public final int page;          // 0-based
         public final int pageCount;     // 0 when empty
@@ -72,12 +74,14 @@ public class AssetOverviewViewModel extends AndroidViewModel {
         @Nullable public final String typeBucket; // null = all; "" = 未分类
         public final boolean typeExpanded;
 
-        public OverviewState(int totalAll, int filteredTotal, int page, int pageCount,
+        public OverviewState(int totalAll, int realDeptCount, int filteredTotal,
+                             int page, int pageCount,
                              List<Asset> assets, List<CategoryCount> deptBuckets,
                              List<CategoryCount> typeBuckets, String keyword,
                              @Nullable String deptBucket, @Nullable String typeBucket,
                              boolean typeExpanded) {
             this.totalAll = totalAll;
+            this.realDeptCount = realDeptCount;
             this.filteredTotal = filteredTotal;
             this.page = page;
             this.pageCount = pageCount;
@@ -91,8 +95,8 @@ public class AssetOverviewViewModel extends AndroidViewModel {
         }
 
         public OverviewState withTypeExpanded(boolean expanded) {
-            return new OverviewState(totalAll, filteredTotal, page, pageCount, assets,
-                    deptBuckets, typeBuckets, keyword, deptBucket, typeBucket, expanded);
+            return new OverviewState(totalAll, realDeptCount, filteredTotal, page, pageCount,
+                    assets, deptBuckets, typeBuckets, keyword, deptBucket, typeBucket, expanded);
         }
     }
 
@@ -283,6 +287,7 @@ public class AssetOverviewViewModel extends AndroidViewModel {
             try {
                 db.runInTransaction(() -> {
                     int totalAll = dao.countAll();
+                    int realDeptCount = dao.countRealDepts();
                     int filtered = dao.countFiltered(pattern, dept, type);
                     int pageCount = filtered == 0 ? 0 : (filtered - 1) / PAGE_SIZE + 1;
                     int page = pageCount == 0 ? 0 : Math.min(pageReq, pageCount - 1);
@@ -291,7 +296,7 @@ public class AssetOverviewViewModel extends AndroidViewModel {
                             : dao.pageFiltered(pattern, dept, type, PAGE_SIZE, page * PAGE_SIZE);
                     List<CategoryCount> depts = dao.deptDistribution(pattern, type);
                     List<CategoryCount> types = dao.typeDistribution(pattern, dept);
-                    out[0] = new OverviewState(totalAll, filtered, page, pageCount,
+                    out[0] = new OverviewState(totalAll, realDeptCount, filtered, page, pageCount,
                             assets, depts, types, kw, dept, type, typeExpanded);
                 });
             } catch (RuntimeException e) {

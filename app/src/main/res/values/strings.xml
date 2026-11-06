@@ -239,10 +239,11 @@
     <string name="asset_hero_label">资产总数</string>
     <string name="asset_hero_unit">台</string>
     <string name="asset_dept_title">🏢 领用部门分布</string>
-    <string name="asset_dept_hint_default">点击可筛选</string>
-    <string name="asset_dept_hint_filtered">已按当前筛选联动</string>
+    <string name="asset_dept_hint_loading">统计中…</string>
+    <string name="asset_dept_hint_count_fmt">共 %1$d 个领用部门</string>
     <string name="asset_dept_empty">暂无部门数据</string>
-    <string name="asset_dept_more_fmt">查看全部 %1$d 个部门 ›</string>
+    <string name="asset_dept_more_fmt">查看全部 %1$d 个部门%2$s</string>
+    <string name="asset_dept_more_none_suffix">（含未填写）</string>
     <string name="asset_dept_unassigned">未填写部门</string>
     <string name="asset_current_filter_marker">（当前筛选）</string>
     <string name="asset_type_title">🧩 设备类型分布</string>
@@ -286,7 +287,7 @@
     <string name="asset_export_filtered">当前筛选结果</string>
     <string name="asset_export_count_fmt">共 %1$s 台</string>
     <string name="asset_export_count_loading">统计中…</string>
-    <string name="asset_export_filter_none">当前未设置筛选条件，两种范围导出的内容相同。</string>
+    <string name="asset_export_filter_none">当前未设置筛选条件，将导出全部资产。</string>
     <string name="asset_export_filter_prefix_fmt">当前筛选：%1$s</string>
     <string name="asset_export_filter_keyword_fmt">关键词「%1$s」</string>
     <string name="asset_export_filter_dept_fmt">部门「%1$s」</string>

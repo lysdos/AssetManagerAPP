@@ -96,9 +96,8 @@
                         android:orientation="horizontal">
 
                         <TextView
-                            android:layout_width="0dp"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1"
                             android:text="@string/asset_dept_title"
                             android:textColor="#333333"
                             android:textSize="16sp"
@@ -106,9 +105,13 @@
 
                         <TextView
                             android:id="@+id/assetDeptHintTv"
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:text="@string/asset_dept_hint_default"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:gravity="end"
+                            android:maxLines="2"
+                            android:text="@string/asset_dept_hint_loading"
                             android:textColor="@color/textHint"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -144,7 +147,7 @@
                         android:textColor="@color/colorPrimary"
                         android:textSize="12sp"
                         android:visibility="gone"
-                        tools:text="查看全部 12 个部门 ›" />
+                        tools:text="查看全部 12 个部门" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

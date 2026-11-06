@@ -89,6 +89,7 @@ public class AssetOverviewViewModelTest {
         newVm();
         AssetOverviewViewModel.OverviewState s = state();
         assertEquals(45, s.totalAll);
+        assertEquals(2, s.realDeptCount);
         assertEquals(45, s.filteredTotal);
         assertEquals(3, s.pageCount);
         assertEquals(0, s.page);

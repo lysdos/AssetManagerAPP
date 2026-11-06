@@ -383,6 +383,14 @@ public interface AssetDao {
     int countAll();
 
     /**
+     * 全量台账中真实领用部门的数量：去重、去首尾空格，且不含未填写部门.
+     * 用于资产 tab 部门分布标题右侧的统计提示，不受当前筛选影响.
+     */
+    @Query("SELECT COUNT(DISTINCT TRIM(dept)) FROM Asset " +
+           "WHERE TRIM(COALESCE(dept, '')) <> ''")
+    int countRealDepts();
+
+    /**
      * Asset 表变更失效信号: Room 在任意 INSERT/UPDATE/DELETE 后重新查询并派发,
      * 用于导入、编辑、任务划拨/释放后让资产 tab 自动刷新 (ViewModel 侧再防抖).
      */
