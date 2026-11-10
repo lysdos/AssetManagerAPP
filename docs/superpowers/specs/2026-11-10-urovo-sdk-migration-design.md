@@ -2,7 +2,7 @@
 
 - **日期**: 2026-11-10
 - **作者**: brainstorm 输出
-- **状态**: 待实现
+- **状态**: 已实现 (2026-11-10, 分支 `feat/urovo-sdk`)
 - **范围**: `app/build.gradle` / `app/libs/` / `rfid/SdkRfidAdapter` / `barcode/BarcodeHardwareController` / `InventoryApp` 诊断探针 / `proguard-rules.pro` / 相关单测 / `README.md`
 
 ---
