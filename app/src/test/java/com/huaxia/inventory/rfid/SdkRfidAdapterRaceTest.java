@@ -74,6 +74,25 @@ public class SdkRfidAdapterRaceTest {
     }
 
     @Test
+    public void init_hasTimeoutFallback() throws Exception {
+        // 优博讯 RFIDSDKManager.init 在内部 catch(Throwable)/DeclaredMethodUtils 反射
+        // 失败路径下会静默返回、永不回调. 没有超时兜底时 RfidController 会永远停在
+        // INITIALIZING (旧 rscja 实现同步返回 false 会进 ERROR).
+        String text = readSource();
+        String body = extractMethodBody(text, "public void init(Context appCtx, Callback cb)");
+        assertTrue("init body not found.\nSource:\n" + text, body.length() > 0);
+        assertTrue("init() must guard the InitListener callback against a never-firing SDK "
+                        + "via INIT_TIMEOUT_MS. Body:\n" + body,
+                body.contains("INIT_TIMEOUT_MS"));
+        assertTrue("init() must settle exactly once via compareAndSet(false, true). Body:\n"
+                        + body,
+                body.contains("compareAndSet(false, true)"));
+        assertTrue("init() must report failure via cb.onStatus(false) when the SDK never "
+                        + "calls back. Body:\n" + body,
+                body.contains("onStatus(false)"));
+    }
+
+    @Test
     public void release_unregistersCallbackBeforeClearingReader() throws Exception {
         String text = readSource();
         String body = extractMethodBody(text, "public void release()");

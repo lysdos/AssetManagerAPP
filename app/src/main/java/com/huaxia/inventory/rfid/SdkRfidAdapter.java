@@ -33,6 +33,15 @@ public class SdkRfidAdapter {
     private static final String TAG = "SdkRfidAdapter";
 
     /**
+     * init 超时兜底 (ms). 优博讯 {@code RFIDSDKManager.init} 在内部
+     * {@code catch (Throwable)} 与 {@code DeclaredMethodUtils} 反射失败路径下会
+     * 静默返回、<b>永不回调</b> {@code InitListener}; 没有这个超时, 上层
+     * {@link RfidController} 会永远停在 INITIALIZING (旧 rscja 实现同步返回 false
+     * 会进 ERROR). 10s 足够覆盖正常初始化, 又不会让用户面对无限等待.
+     */
+    private static final long INIT_TIMEOUT_MS = 10_000L;
+
+    /**
      * SDK 读写器句柄. {@code volatile}: init 回调通常落在 SDK 自己的线程, 而
      * start/stop/setPower 由主线程或 diskIO 线程调用 — 用 volatile 保证
      * "init 写入 reader" 对下游调用方可见; {@link #release()} 把它置 null 后,
@@ -108,8 +117,35 @@ public class SdkRfidAdapter {
      */
     public void init(Context appCtx, Callback cb) {
         Log.i("UHFInit", "[SdkRfidAdapter] init() entered");
+        // 单次结算守卫: SDK 回调、同步异常、超时 watchdog 三条路径最多只有一条
+        // 能调用 cb.onStatus(...), 避免上层状态机被重复推进.
+        final AtomicBoolean settled = new AtomicBoolean(false);
         try {
+            // SDK init 可能静默返回、永不回调 (见 INIT_TIMEOUT_MS 注释) — 用 daemon
+            // 线程兜底, 不依赖 Handler (init 不保证在主线程).
+            Thread watchdog = new Thread(() -> {
+                try {
+                    Thread.sleep(INIT_TIMEOUT_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                if (settled.compareAndSet(false, true)) {
+                    Log.w(TAG, "init() timed out after " + INIT_TIMEOUT_MS
+                            + "ms — Urovo SDK never called back");
+                    powered.set(false);
+                    if (cb != null) cb.onStatus(false);
+                }
+            }, "rfid-init-watchdog");
+            watchdog.setDaemon(true);
+            watchdog.start();
+
             RFIDSDKManager.getInstance().init(appCtx, status -> {
+                if (!settled.compareAndSet(false, true)) {
+                    // 已由超时 watchdog 结算 — 迟到的 SDK 回调不再重复通知上层.
+                    Log.w(TAG, "init() SDK callback arrived after settle, ignored");
+                    return;
+                }
                 boolean ok = status;
                 if (ok) {
                     RfidManager rm = null;
@@ -138,8 +174,10 @@ public class SdkRfidAdapter {
         } catch (Throwable t) {
             Log.e("UHFInit", "[SdkRfidAdapter] init() threw " + t.getClass().getName()
                     + ": " + t.getMessage(), t);
-            powered.set(false);
-            if (cb != null) cb.onStatus(false);
+            if (settled.compareAndSet(false, true)) {
+                powered.set(false);
+                if (cb != null) cb.onStatus(false);
+            }
         }
     }
 
