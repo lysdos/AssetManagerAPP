@@ -3,66 +3,74 @@ package com.huaxia.inventory.rfid;
 import android.content.Context;
 import android.util.Log;
 
-import com.rscja.deviceapi.RFIDWithUHFUART;
-import com.rscja.deviceapi.entity.UHFTAGInfo;
+import com.ubx.usdk.RFIDSDKManager;
+import com.ubx.usdk.rfid.RfidManager;
+import com.ubx.usdk.rfid.aidl.IRfidCallback;
 
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Thin adapter over the rscja DeviceAPI UHF SDK
- * ({@code DeviceAPI_ver20230301_release.aar}).
+ * 优博讯 (UROVO) UHF RFID SDK 封装
+ * ({@code URFIDLibrary-v2.5.0718.aar}, 包名 {@code com.ubx.usdk}).
  *
- * <p>The underlying SDK is a <b>polling</b> model — call
- * {@code startInventoryTag()} once, then drain results with
- * {@code readTagFromBuffer()} in a loop. This adapter bridges that to the
- * fan-out {@link TagListener} shape the rest of the app uses, by running
- * exactly one polling worker thread while inventory is active.</p>
- *
- * <p>Notes on the SDK (verified against
- * {@code uhf-uart-demo/uhf-uart-demo/app/src/main/}):</p>
+ * <p>与旧 rscja SDK 的差异:</p>
  * <ul>
- *   <li>{@code RFIDWithUHFUART.getInstance()} returns a process-wide singleton;
- *       it may throw on non-UHF hardware.</li>
- *   <li>{@code init()} is <b>synchronous</b> and returns {@code boolean}.</li>
- *   <li>{@code startInventoryTag()} returns {@code boolean} (not an int code).</li>
- *   <li>{@code readTagFromBuffer()} returns a {@link UHFTAGInfo} or {@code null}
- *       when the internal buffer is empty — must be polled in a loop.</li>
- *   <li>{@code free()} is the teardown counterpart of {@code init()}.</li>
- *   <li>The SDK does not expose {@code power()} or {@code disConnect()}; this
- *       adapter maintains a logical "powered" flag for the call sites that
- *       still need to query it.</li>
+ *   <li>旧 SDK 是<b>轮询</b>模型, 适配器里要养一条 {@code rfid-poll} 守护线程
+ *       定期拉取标签; 新 SDK 是<b>回调</b>模型
+ *       ({@link IRfidCallback#onInventoryTag}), 一条线程都不用起.</li>
+ *   <li>{@code init} 由同步 (返回 boolean) 变成异步
+ *       ({@code InitListener.onStatus}).</li>
+ *   <li>功率 API 换成 {@code setOutputPower/getOutputPower}, 语义不变: 整数
+ *       dBm, 0-30, 返回码 0 = 成功.</li>
  * </ul>
+ *
+ * <p>对外 API 与旧实现完全一致, {@link RfidController} / UI 层无需改动.</p>
  */
 public class SdkRfidAdapter {
 
     private static final String TAG = "SdkRfidAdapter";
-    private static final long POLL_IDLE_SLEEP_MS = 20L;
 
     /**
-     * SDK 单例. {@code volatile} 是必须的: rfid-poll 守护线程在
-     * {@link #pollLoop()} 每次循环重新读这个字段, 一旦 {@link #release()}
-     * 把 reader 置 null, 守护线程下次 {@code readTagFromBuffer()} 之前
-     * 会拿到 null 并立即退出, 避免对已 free 的 SDK 实例调用引发的 Native 崩溃.
-     * 同样在 init 阶段, main 线程先写, 守护线程后读, 也靠 volatile 拿到最新指针.
+     * SDK 读写器句柄. {@code volatile}: init 回调通常落在 SDK 自己的线程, 而
+     * start/stop/setPower 由主线程或 diskIO 线程调用 — 用 volatile 保证
+     * "init 写入 reader" 对下游调用方可见; {@link #release()} 把它置 null 后,
+     * 其它线程下一次 {@link #requireReader()} 会重新抛 IllegalStateException,
+     * 而不是继续用已释放的实例.
      */
-    private volatile RFIDWithUHFUART reader;
+    private volatile RfidManager reader;
     private final AtomicBoolean powered = new AtomicBoolean(false);
     private final AtomicBoolean scanning = new AtomicBoolean(false);
     private final Set<TagListener> listeners = new CopyOnWriteArraySet<>();
-    private volatile Thread pollThread;
-    /** 串行化 start/stop — 防止并发调用各自拉起 poll 线程 / 互相清 pollThread 引用. */
+    /** 串行化 start/stop/release — 防止并发调用互相覆盖 scanning 状态. */
     private final Object lifecycleLock = new Object();
 
-    /** Default constructor — obtains the SDK singleton on first use. */
+    /**
+     * SDK 回调. 在 binder 线程触发, 只做 fan-out, 不碰 UI.
+     * init 成功时注册一次, {@link #release()} 时注销.
+     */
+    private final IRfidCallback sdkCallback = new IRfidCallback() {
+        @Override
+        public void onInventoryTag(String epc, String data, int rssi) {
+            dispatch(epc, data, rssi);
+        }
+
+        @Override
+        public void onInventoryTagEnd() {
+            // 一轮盘存结束. 连续盘存模式下 SDK 会自己开下一轮, 这里不需要做事 —
+            // scanning 只由 startInventory()/stopInventory() 驱动.
+        }
+    };
+
+    /** Default constructor — 真正的 SDK 句柄在 {@link #init} 里拿. */
     public SdkRfidAdapter() {
     }
 
-    private RFIDWithUHFUART requireReader() {
+    private RfidManager requireReader() {
         if (reader == null) {
             try {
-                reader = RFIDWithUHFUART.getInstance();
+                reader = RFIDSDKManager.getInstance().getRfidManager();
             } catch (Throwable t) {
                 throw new IllegalStateException("UHF reader unavailable", t);
             }
@@ -82,7 +90,7 @@ public class SdkRfidAdapter {
         void onStatus(boolean ready);
     }
 
-    /** Per-tag callback fired by the polling worker for each tag observed. */
+    /** Per-tag callback fired by the SDK for each tag observed. */
     public interface TagListener {
         void onTag(String epc, String tid, String rssi);
     }
@@ -93,31 +101,58 @@ public class SdkRfidAdapter {
     }
 
     /**
-     * Initialize the RFID SDK. The {@code Callback} is invoked exactly once,
-     * on the calling thread, after {@code init()} returns.
+     * Initialize the UHF SDK. The {@code Callback} is invoked exactly once.
+     *
+     * <p>注意: 优博讯 SDK 的 init 是<b>异步</b>的 — 回调可能落在 SDK 自己的线程.
+     * 调用方 (RfidController / InventoryApp) 本来就是"等回调再判 ready", 无需另做切线程.</p>
      */
     public void init(Context appCtx, Callback cb) {
         Log.i("UHFInit", "[SdkRfidAdapter] init() entered");
-        boolean ok = false;
         try {
-            RFIDWithUHFUART r = requireReader();
-            Log.i("UHFInit", "[SdkRfidAdapter] reader class = " + r.getClass().getName());
-            Log.i("UHFInit", "[SdkRfidAdapter] calling reader.init()...");
-            ok = r.init();
-            Log.i("UHFInit", "[SdkRfidAdapter] reader.init() returned " + ok);
+            RFIDSDKManager.getInstance().init(appCtx, status -> {
+                boolean ok = status;
+                if (ok) {
+                    RfidManager rm = null;
+                    try {
+                        rm = RFIDSDKManager.getInstance().getRfidManager();
+                    } catch (Throwable t) {
+                        Log.w(TAG, "getRfidManager() failed", t);
+                    }
+                    if (rm != null) {
+                        try {
+                            rm.registerCallback(sdkCallback);
+                            reader = rm;
+                        } catch (Throwable t) {
+                            Log.w(TAG, "registerCallback() failed", t);
+                            ok = false;
+                        }
+                    } else {
+                        Log.w(TAG, "init() reported ready but getRfidManager() returned null");
+                        ok = false;
+                    }
+                }
+                powered.set(ok);
+                if (cb != null) cb.onStatus(ok);
+                Log.i("UHFInit", "[SdkRfidAdapter] init() done, ok=" + ok);
+            });
         } catch (Throwable t) {
             Log.e("UHFInit", "[SdkRfidAdapter] init() threw " + t.getClass().getName()
                     + ": " + t.getMessage(), t);
-            Log.w(TAG, "init() failed", t);
+            powered.set(false);
+            if (cb != null) cb.onStatus(false);
         }
-        powered.set(ok);
-        if (cb != null) cb.onStatus(ok);
-        Log.i("UHFInit", "[SdkRfidAdapter] init() done, ok=" + ok);
     }
 
     /** Whether the underlying RFID module is currently connected. */
     public boolean isConnected() {
-        return reader != null && powered.get();
+        RfidManager r = reader;
+        if (r == null) return false;
+        try {
+            return r.isConnected();
+        } catch (Throwable t) {
+            Log.w(TAG, "isConnected() failed", t);
+            return false;
+        }
     }
 
     /**
@@ -132,10 +167,9 @@ public class SdkRfidAdapter {
             return false;
         }
         try {
-            RFIDWithUHFUART r = requireReader();
-            boolean result = r.setPower(power);
-            Log.i(TAG, "setPower(" + power + ") returned " + result);
-            return result;
+            int rc = requireReader().setOutputPower(power);
+            Log.i(TAG, "setOutputPower(" + power + ") returned " + rc);
+            return rc == 0;
         } catch (Throwable t) {
             Log.w(TAG, "setPower() failed", t);
             return false;
@@ -149,10 +183,9 @@ public class SdkRfidAdapter {
      */
     public int getPower() {
         try {
-            RFIDWithUHFUART r = requireReader();
-            int power = r.getPower();
-            Log.i(TAG, "getPower() returned " + power);
-            return power;
+            int power = requireReader().getOutputPower();
+            Log.i(TAG, "getOutputPower() returned " + power);
+            return power < 0 ? -1 : power;
         } catch (Throwable t) {
             Log.w(TAG, "getPower() failed", t);
             return -1;
@@ -170,7 +203,7 @@ public class SdkRfidAdapter {
     }
 
     /**
-     * Begin continuous EPC inventory and start the polling worker.
+     * Begin continuous EPC inventory.
      *
      * @return {@code 0} on success, non-zero on failure.
      */
@@ -179,69 +212,53 @@ public class SdkRfidAdapter {
             if (scanning.get()) {
                 return 0;
             }
-            boolean started;
+            int rc;
             try {
-                started = requireReader().startInventoryTag();
+                rc = requireReader().startInventory();
             } catch (Throwable t) {
-                Log.w(TAG, "startInventoryTag() failed", t);
+                Log.w(TAG, "startInventory() failed", t);
                 return -1;
             }
-            if (!started) {
+            if (rc != 0) {
+                Log.w(TAG, "startInventory() returned " + rc);
                 return -1;
             }
             scanning.set(true);
-            Thread t = new Thread(this::pollLoop, "rfid-poll");
-            t.setDaemon(true);
-            pollThread = t;
-            t.start();
             return 0;
         }
     }
 
     /**
-     * Stop continuous EPC inventory and join the polling worker.
-     *
-     * <p>顺序固定: 1) {@code scanning.compareAndSet(true, false)} 把
-     * {@link #pollLoop()} 退出门打开; 2) 调 SDK {@code stopInventory()};
-     * 3) 等待守护线程 join 500ms; <b>4) join 之后才把
-     * {@link #pollThread} 置 null</b> — 否则守护线程仍可能在 join 期间
-     * 读到非 null 的 {@code pollThread} 被另一个 startInventory() 复用.</p>
+     * Stop continuous EPC inventory. 幂等: 没在扫描时直接返回 0.
      */
     public int stopInventory() {
         synchronized (lifecycleLock) {
             if (!scanning.compareAndSet(true, false)) {
                 return 0;
             }
-            Thread t = pollThread;
             try {
                 requireReader().stopInventory();
             } catch (Throwable ex) {
                 Log.w(TAG, "stopInventory() failed", ex);
             }
-            if (t != null) {
-                try {
-                    t.join(500);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                }
-                // join 后才清 pollThread — 否则 join 期间下一个 startInventory()
-                // 可能拿到尚未 stop 的旧 Thread 引用, 与新拉的守护线程并存.
-                pollThread = null;
-            }
             return 0;
         }
     }
 
-    /** Disconnect the RFID module (no-op on the new SDK — kept for API parity). */
+    /** Disconnect the RFID module. */
     public void disConnect() {
-        // The rscja DeviceAPI does not expose a disconnect primitive; the
-        // power/free pair covers teardown.
+        RfidManager r = reader;
+        if (r == null) return;
+        try {
+            r.disConnect();
+        } catch (Throwable t) {
+            Log.w(TAG, "disConnect() failed", t);
+        }
     }
 
     /**
-     * Power the RFID module on/off. The new SDK has no explicit power
-     * primitive, so this adapter tracks the desired state in {@link #powered}
-     * and stops the polling worker on power-off.
+     * Power the RFID module on/off. 新 SDK 没有独立的"上电"原语, 这里保持旧实现
+     * 的语义: 记录期望状态, 关电时先停盘点.
      */
     public void power(boolean on) {
         try {
@@ -257,63 +274,42 @@ public class SdkRfidAdapter {
     /**
      * Release SDK resources. Call from {@code onDestroy()} of the owning component.
      *
-     * <p>顺序固定: stopInventory → free → 把 {@link #reader} 置 null → 清
-     * {@link #powered}. 后两步让守护线程 (若未及时 join) 通过 volatile 读到
-     * null reader 后退出, 避免对已 free 的 SDK 单例调用.</p>
+     * <p>顺序固定: stopInventory → unregisterCallback → SDK release → 把
+     * {@link #reader} 置 null → 清 {@link #powered}.</p>
      */
     public void release() {
         stopInventory();
+        RfidManager r = reader;
+        if (r != null) {
+            try {
+                r.unregisterCallback(sdkCallback);
+            } catch (Throwable t) {
+                Log.w(TAG, "unregisterCallback() failed", t);
+            }
+        }
         try {
-            requireReader().free();
+            RFIDSDKManager.getInstance().release();
         } catch (Throwable t) {
-            Log.w(TAG, "free() failed", t);
+            Log.w(TAG, "RFIDSDKManager.release() failed", t);
         }
         powered.set(false);
         // 留作幂等: 第二次 release 不抛异常.
         reader = null;
     }
 
-    private void pollLoop() {
-        // 每次循环重新读 volatile reader — release() 把 reader 置 null 时,
-        // 守护线程下一轮 (POLL_IDLE_SLEEP_MS <= 500ms 内) 立刻看到并退出,
-        // 不会对已 free 的 SDK 单例调用 readTagFromBuffer().
-        //
-        // 循环条件还要求"自己仍是当前 pollThread": stop 把 scanning 置 false 后,
-        // 若 join 超时(旧线程卡在 native readTagFromBuffer), 随后的 start 会把
-        // scanning 置回 true 并换上新的 pollThread — 旧线程凭此条件 (pollThread
-        // 已指向新线程 != self) 退出, 不会重新进入循环与新的 poll 线程并发调用
-        // SDK. 没有这一条, 旧线程会因 scanning 被重置为 true 而"复活".
-        while (scanning.get() && pollThread == Thread.currentThread()) {
-            RFIDWithUHFUART r = reader;
-            if (r == null) {
-                return;
-            }
-            UHFTAGInfo info = null;
-            try {
-                info = r.readTagFromBuffer();
-            } catch (Throwable t) {
-                Log.w(TAG, "readTagFromBuffer() failed", t);
-            }
-            if (info != null) {
-                dispatch(info);
-            } else {
-                try {
-                    Thread.sleep(POLL_IDLE_SLEEP_MS);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
-        }
-    }
-
-    private void dispatch(UHFTAGInfo info) {
-        String epc = info.getEPC();
-        String tid = info.getTid();
-        String rssi = info.getRssi();
+    /**
+     * Fan-out 到订阅者. 每个 listener 单独 try/catch — 一个订阅者抛异常不能让
+     * 其余订阅者漏掉这条标签.
+     */
+    private void dispatch(String epc, String data, int rssi) {
+        if (epc == null || epc.isEmpty()) return;
+        // 旧 SDK 未读 TID 时 getTid() 为空; 新 SDK 用 data (memory bank) 表达同一信息,
+        // 空串统一归一成 null, 保持 ScanRecord.tid 的取值域不变.
+        String tid = (data == null || data.isEmpty()) ? null : data;
+        String rssiStr = String.valueOf(rssi);
         for (TagListener l : listeners) {
             try {
-                l.onTag(epc, tid, rssi);
+                l.onTag(epc, tid, rssiStr);
             } catch (Throwable t) {
                 Log.w(TAG, "TagListener threw", t);
             }

@@ -6,93 +6,82 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 防回归: SdkRfidAdapter 的 rfid-poll 守护线程与 init/release 必须正确处理竞态:
+ * 防回归: SdkRfidAdapter 在换成优博讯 UHF SDK 后是<b>回调式</b>, 下面几条不变量
+ * 任一被破坏都会重新引入旧实现的坑:
  * <ol>
- *   <li>{@code reader} 字段必须声明为 {@code volatile}, 让守护线程每次循环重新
- *       读到最新指针 — release 把它置 null 后, 守护线程下一轮立即退出,
- *       不会对已 free 的 SDK 单例调用 readTagFromBuffer().</li>
- *   <li>{@link SdkRfidAdapter#pollLoop} 不能把 reader 缓存到栈上 — 必须
- *       在循环体内重新读 volatile 字段.</li>
- *   <li>{@link SdkRfidAdapter#release} 末尾必须把 reader 置 null.</li>
- *   <li>{@link SdkRfidAdapter#stopInventory} 必须先 join 守护线程, 再清
- *       {@code pollThread} 引用 — 否则 join 期间 startInventory 可能复用旧引用.</li>
+ *   <li>不允许再出现轮询线程 ({@code pollLoop} / {@code readTagFromBuffer} /
+ *       {@code RFIDWithUHFUART}) — 新 SDK 通过 {@code IRfidCallback} 推标签.</li>
+ *   <li>订阅者集合必须是 {@link java.util.concurrent.CopyOnWriteArraySet} —
+ *       register/unregister 与 binder 线程上的分发并发.</li>
+ *   <li>start/stop 必须串行化并且幂等 (compareAndSet), 否则重复点击扫描按钮会
+ *       让 scanning 状态与 SDK 实际状态错位.</li>
+ *   <li>release() 必须先 unregisterCallback 再置空 reader — 否则 SDK 仍持有可能
+ *       已被释放的适配器回调.</li>
  * </ol>
  */
 public class SdkRfidAdapterRaceTest {
 
     @Test
-    public void reader_fieldIsVolatile() throws Exception {
+    public void source_hasNoPollingThread() throws Exception {
         String text = readSource();
-        // "private volatile RFIDWithUHFUART reader" 必须出现一次, 不允许被改回非 volatile.
-        assertTrue("SdkRfidAdapter.reader must be declared volatile. Source:\n" + text,
-                text.contains("private volatile RFIDWithUHFUART reader")
-                        || text.contains("private volatile  RFIDWithUHFUART reader"));
-        assertTrue("Must not have a non-volatile reader declaration. Source:\n" + text,
-                !text.contains("private RFIDWithUHFUART reader;")
-                        || text.contains("private volatile RFIDWithUHFUART reader"));
+        assertFalse("SdkRfidAdapter must NOT keep the old polling design. Source:\n" + text,
+                text.contains("RFIDWithUHFUART"));
+        assertFalse("SdkRfidAdapter must NOT keep pollLoop(). Source:\n" + text,
+                text.contains("pollLoop"));
+        assertFalse("SdkRfidAdapter must NOT call readTagFromBuffer(). Source:\n" + text,
+                text.contains("readTagFromBuffer"));
     }
 
     @Test
-    public void pollLoop_reReadsReaderOnEveryLoop() throws Exception {
+    public void listeners_isCopyOnWriteArraySet() throws Exception {
         String text = readSource();
-        // pollLoop 内必须出现 "RFIDWithUHFUART r = reader;" (每次循环重新读 volatile)
-        // 或者同等语义, 不允许把 reader 缓存到 loop 外.
-        String body = extractMethodBody(text, "private void pollLoop()");
-        assertTrue("pollLoop body not found.\nSource:\n" + text, body.length() > 0);
-        assertTrue("pollLoop must re-read volatile reader on every iteration. Body:\n" + body,
-                body.contains("RFIDWithUHFUART r = reader")
-                        || body.contains("RFIDWithUHFUART r=reader"));
-        // 必须有 null 检查, 否则 release 之后 reader=null 仍会被缓存进栈上.
-        assertTrue("pollLoop must check reader==null each iteration. Body:\n" + body,
-                body.contains("r == null"));
+        assertTrue("listeners must stay a CopyOnWriteArraySet — binder 线程分发与 "
+                        + "register/unregister 并发. Source:\n" + text,
+                text.contains("new CopyOnWriteArraySet<>()"));
     }
 
     @Test
-    public void pollLoop_gatesOnStillBeingThePollThread() throws Exception {
+    public void init_registersSdkCallback() throws Exception {
         String text = readSource();
-        String body = extractMethodBody(text, "private void pollLoop()");
-        assertTrue("pollLoop body not found.\nSource:\n" + text, body.length() > 0);
-        // stop 把 scanning 置 false 后, 若 join 超时, 随后的 start 会把 scanning 置回
-        // true — 旧线程必须还能凭"自身已不是 pollThread"退出, 否则会复活并与新线程
-        // 并发调用 readTagFromBuffer. 循环条件必须含 pollThread == currentThread().
-        assertTrue("pollLoop must gate on pollThread == Thread.currentThread() so a "
-                + "stop/start race does not revive the old poll thread. Body:\n" + body,
-                body.contains("pollThread == Thread.currentThread()"));
+        String body = extractMethodBody(text, "public void init(Context appCtx, Callback cb)");
+        assertTrue("init body not found.\nSource:\n" + text, body.length() > 0);
+        assertTrue("init() must register the IRfidCallback with the Urovo SDK. Body:\n" + body,
+                body.contains("registerCallback(sdkCallback)"));
+        assertTrue("init() must obtain the reader from RFIDSDKManager. Body:\n" + body,
+                body.contains("getRfidManager()"));
     }
 
     @Test
-    public void release_nullsReaderAfterFree() throws Exception {
+    public void startStop_areSerializedAndIdempotent() throws Exception {
+        String text = readSource();
+        String start = extractMethodBody(text, "public int startInventory()");
+        assertTrue("startInventory body not found.\nSource:\n" + text, start.length() > 0);
+        assertTrue("startInventory must serialize on lifecycleLock. Body:\n" + start,
+                start.contains("synchronized (lifecycleLock)"));
+        assertTrue("startInventory must be idempotent via scanning.get(). Body:\n" + start,
+                start.contains("scanning.get()"));
+
+        String stop = extractMethodBody(text, "public int stopInventory()");
+        assertTrue("stopInventory body not found.\nSource:\n" + text, stop.length() > 0);
+        assertTrue("stopInventory must serialize on lifecycleLock. Body:\n" + stop,
+                stop.contains("synchronized (lifecycleLock)"));
+        assertTrue("stopInventory must be idempotent via compareAndSet. Body:\n" + stop,
+                stop.contains("compareAndSet(true, false)"));
+    }
+
+    @Test
+    public void release_unregistersCallbackBeforeClearingReader() throws Exception {
         String text = readSource();
         String body = extractMethodBody(text, "public void release()");
         assertTrue("release body not found.\nSource:\n" + text, body.length() > 0);
-        // 必须包含 reader = null (在 free 之后)
-        assertTrue("release() must null out reader after free() — so polling thread "
-                + "sees null and exits before next readTagFromBuffer() on freed SDK. Body:\n"
-                + body,
-                body.contains("reader = null"));
-        // 必须先 free 然后 null, 否则守护线程可能 free 之后、reader=null 之前
-        // 调用到 free 之后的 SDK 单例.
-        int freeIdx = body.indexOf(".free()");
+        int unregisterIdx = body.indexOf("unregisterCallback(sdkCallback)");
         int nullIdx = body.indexOf("reader = null");
-        assertTrue("free() must appear before reader = null. Body:\n" + body,
-                freeIdx >= 0 && nullIdx > freeIdx);
-    }
-
-    @Test
-    public void stopInventory_clearsPollThreadAfterJoin() throws Exception {
-        String text = readSource();
-        String body = extractMethodBody(text, "public int stopInventory()");
-        assertTrue("stopInventory body not found.\nSource:\n" + text, body.length() > 0);
-        // join 之后才允许 pollThread = null. 检查 "pollThread = null" 必须出现在
-        // t.join( 之后, 否则 join 期间 startInventory 可能复用旧引用.
-        int joinIdx = body.indexOf(".join(");
-        int nullIdx = body.indexOf("pollThread = null");
-        assertTrue("stopInventory must call pollThread.join(...) before clearing "
-                + "pollThread = null. Body:\n" + body,
-                joinIdx >= 0 && nullIdx > joinIdx);
+        assertTrue("release() must unregisterCallback(sdkCallback) before reader = null. "
+                + "Body:\n" + body, unregisterIdx >= 0 && nullIdx > unregisterIdx);
     }
 
     private static String readSource() throws Exception {
