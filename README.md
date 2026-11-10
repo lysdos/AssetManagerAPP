@@ -26,7 +26,8 @@
 - Apache POI 5.2.5（Excel 解析 / 流式写出）
 - Jackson 2.17（JSON）
 - CameraX 1.3 + ML Kit Barcode（手动盘点页的摄像头扫码兜底）
-- UROVO RFID SDK (rscja `DeviceAPI_ver20230301_release.aar`，见 `app/libs/`)
+- UROVO 平台 SDK (`android.device.ScanManager`，`platform_sdk_v4.1.0326.jar`，见 `app/libs/`)
+- UROVO UHF SDK (`com.ubx.usdk.RFIDSDKManager`，`URFIDLibrary-v2.5.0718.aar`，见 `app/libs/`)
 - JUnit 4 + Robolectric + Mockito + Room-testing（单元测试）
 
 ## 项目结构
