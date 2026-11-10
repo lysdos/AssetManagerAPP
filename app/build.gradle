@@ -130,6 +130,11 @@ dependencies {
     implementation 'org.apache.logging.log4j:log4j-core:2.21.1'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
 
+    // 优博讯平台 SDK — 条码 ScanManager / DeviceManager 等平台能力 (android.device.*)
+    implementation files('libs/platform_sdk_v4.1.0326.jar')
+    // 优博讯 UHF 读写器 SDK — com.ubx.usdk.*, 自带 arm64-v8a / armeabi-v7a / armeabi 的 .so
+    implementation files('libs/URFIDLibrary-v2.5.0718.aar')
+    // 旧「成为」(rscja) SDK — Task 5 摘除
     implementation files('libs/DeviceAPI_ver20230301_release.aar')
 
     // 手动盘点页的降级扫码方案：摄像头预览 + ML Kit 条码识别
