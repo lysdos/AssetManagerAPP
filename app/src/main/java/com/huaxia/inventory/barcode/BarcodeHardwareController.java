@@ -143,7 +143,11 @@ public class BarcodeHardwareController {
             return;
         }
         this.activeCallback = callback;
-        registerDecodeReceiver();
+        // 注册失败不能继续 startDecode: 否则解码广播没人收, 用户按扳机毫无反应.
+        if (!registerDecodeReceiver()) {
+            callback.onStartFailed("register receiver failed");
+            return;
+        }
         boolean ok;
         try {
             ok = sScanManager.startDecode();
@@ -189,14 +193,14 @@ public class BarcodeHardwareController {
         stopScan();
     }
 
-    private void registerDecodeReceiver() {
-        if (receiver != null) return;
+    private boolean registerDecodeReceiver() {
+        if (receiver != null) return true;
         final Context ctx = sAppCtx;
         if (ctx == null) {
             Log.w(TAG, "registerDecodeReceiver: app context missing");
-            return;
+            return false;
         }
-        receiver = new BroadcastReceiver() {
+        BroadcastReceiver r = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String raw = extractBarcode(intent);
@@ -206,13 +210,24 @@ public class BarcodeHardwareController {
             }
         };
         IntentFilter filter = new IntentFilter(sDecodeAction);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // targetSdk 34: 动态注册非系统广播必须显式声明导出性.
-            // RECEIVER_EXPORTED — 解码广播来自扫码服务 (另一个应用).
-            ctx.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
-        } else {
-            ctx.registerReceiver(receiver, filter);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // targetSdk 34: 动态注册非系统广播必须显式声明导出性.
+                // RECEIVER_EXPORTED — 解码广播来自扫码服务 (另一个应用).
+                ctx.registerReceiver(r, filter, Context.RECEIVER_EXPORTED);
+            } else {
+                ctx.registerReceiver(r, filter);
+            }
+        } catch (Throwable t) {
+            // OEM 实现可能抛 SecurityException 等: 不能让主线程崩溃, 也不能把
+            // 未注册成功的 receiver 留在字段里 (否则下一次 startScan 会误以为已注册).
+            Log.w(TAG, "registerReceiver() failed", t);
+            receiver = null;
+            return false;
         }
+        // 只有注册成功后才发布到字段, 保证 receiver != null ⇔ 已注册.
+        this.receiver = r;
+        return true;
     }
 
     private void unregisterDecodeReceiver() {
@@ -228,7 +243,8 @@ public class BarcodeHardwareController {
     }
 
     /** 从广播里取条码字符串: 优先 string extra, 回退 byte[] extra (按 length 截断). */
-    private static String extractBarcode(Intent intent) {
+    // package-private: 供同包单元测试直接调用, 不属于对外 API
+    static String extractBarcode(Intent intent) {
         if (intent == null) return null;
         String s = intent.getStringExtra(ScanManager.BARCODE_STRING_TAG);
         if (s != null && !s.isEmpty()) return s;
@@ -245,7 +261,8 @@ public class BarcodeHardwareController {
     }
 
     /** 2 秒同码去重 (用户长按扳机会多次触发). */
-    private boolean isDuplicate(String raw) {
+    // package-private: 供同包单元测试直接调用, 不属于对外 API
+    boolean isDuplicate(String raw) {
         long now = System.currentTimeMillis();
         synchronized (this) {
             if (raw.equals(lastEmitCode) && now - lastEmitMs < DEBOUNCE_MS) {

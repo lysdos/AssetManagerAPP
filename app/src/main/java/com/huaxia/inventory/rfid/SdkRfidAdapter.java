@@ -339,7 +339,8 @@ public class SdkRfidAdapter {
      * Fan-out 到订阅者. 每个 listener 单独 try/catch — 一个订阅者抛异常不能让
      * 其余订阅者漏掉这条标签.
      */
-    private void dispatch(String epc, String data, int rssi) {
+    // package-private: 供同包单元测试直接调用, 不属于对外 API
+    void dispatch(String epc, String data, int rssi) {
         if (epc == null || epc.isEmpty()) return;
         // 旧 SDK 未读 TID 时 getTid() 为空; 新 SDK 用 data (memory bank) 表达同一信息,
         // 空串统一归一成 null, 保持 ScanRecord.tid 的取值域不变.
