@@ -98,13 +98,13 @@ public class InventoryApp extends Application {
             }
         });
 
-        // 预热硬件扫码 SDK (rscja BarcodeDecoder).
+        // 预热硬件扫码 SDK (Urovo ScanManager).
         // 跟 RFID init 同模式: 后台线程 open, 不阻塞 app 启动.
         // 失败不致命, ManualScanFragment 会静默降级到 CameraX + ML Kit.
         executors.diskIO.execute(() -> BarcodeHardwareController.prewarm(this));
 
-        // 诊断: R8 minify 在 release 开启 (debug 已关), com.rscja.team.mtk.* 等
-        // 平台实现类会被 R8 误判为"不可达"剥掉 — proguard-rules.pro 已 keep 但偶尔
+        // 诊断: R8 minify 只在 release 开启 (debug 已关), com.ubx.usdk.* 等
+        // SDK 内部类会被 R8 误判为"不可达"剥掉 — proguard-rules.pro 已 keep 但偶尔
         // 会因 SDK 升级引入未覆盖的类. 用 Class.forName(false, classLoader) 探一下,
         // 找出哪些类丢了. 仅 release 才有意义, debug 是 no-op 但仍跑消耗 ≈100ms.
         checkRfidClasses();
@@ -133,24 +133,23 @@ public class InventoryApp extends Application {
     }
 
     private void checkRfidClasses() {
-        // 这些是 rscja SDK 内可能被 R8 误剥的类 — release build R8 minify 后的诊断,
-        // debug build 是 no-op (R8 disabled). C72_6765 是 MTK 设备, 重点看 mtk 子包.
+        // 这些是 Urovo SDK 内可能被 R8 误剥的类 — release build R8 minify 后的诊断,
+        // debug build 是 no-op (R8 disabled).
         //
         // 验证流程 (release APK):
         //   1. ./gradlew assembleRelease 安装到测试机
         //   2. adb logcat -s InventoryApp | grep ClassCheck
-        //   3. 期望 8 行 "[ClassCheck] OK    com.rscja.*" — 任一 MISS 证明
+        //   3. 期望 7 行 "[ClassCheck] OK    ..." — 任一 MISS 证明
         //      proguard-rules.pro 缺对应 -keep, 补一行重打 release.
-        // 完整 keep 列表见 app/proguard-rules.pro 的 "rscja UHF/Barcode SDK" 块.
+        // 完整 keep 列表见 app/proguard-rules.pro 的 "Urovo UHF/Barcode SDK" 块.
         String[] classes = {
-            "com.rscja.deviceapi.RFIDWithUHFUART",
-            "com.rscja.deviceapi.UhfBase",
-            "com.rscja.deviceapi.entity.UHFTAGInfo",
-            "com.rscja.team.mtk.deviceapi.FingerprintWithMorpho_mtk",
-            "com.rscja.team.mtk.custom.UHFTemperatureTagsAPI_mtk",
-            "com.rscja.utility.StringUtility",
-            "com.rscja.CWDeviceInfo",
-            "com.rscja.system.SystemInterfacesFactory",
+            "com.ubx.usdk.RFIDSDKManager",
+            "com.ubx.usdk.rfid.RfidManager",
+            "com.ubx.usdk.rfid.aidl.IRfidCallback",
+            "com.ubx.usdk.bean.Tag6C",
+            "android.device.ScanManager",
+            "android.device.DeviceManager",
+            "android.device.scanner.configuration.PropertyID",
         };
         ClassLoader cl = getClassLoader();
         for (String name : classes) {

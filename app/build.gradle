@@ -71,8 +71,8 @@ android {
         }
         release {
             // release 开 R8: 默认 proguard-android-optimize + proguard-rules.pro.
-            // proguard-rules.pro 中保留了 rscja team.* 等可能被 R8 误剥的类,
-            // 兜底 rscja 反射调用与 setRfidPower 等反射入口.
+            // proguard-rules.pro 中保留了 android.device.* / com.ubx.usdk.* 等
+            // 可能被 R8 误剥的 SDK 类，兜底 ScanManager 与 RFID 的反射调用入口。
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (hasSigningProps(rootDir)) {

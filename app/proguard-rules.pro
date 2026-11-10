@@ -6,48 +6,33 @@
 # commons-compress zip (POI transitive) — ExtraFieldUtils 用 Class.newInstance() 注册 AsiExtraField 等, R8 看不到反射会剥无参构造
 -keep class org.apache.commons.compress.archivers.zip.** { *; }
 # ============================================================================
-# rscja UHF/Barcode SDK (libs/DeviceAPI_ver20230301_release.aar)
+# Urovo UHF/Barcode SDK
+#   libs/platform_sdk_v4.1.0326.jar    → android.device.*
+#   libs/URFIDLibrary-v2.5.0718.aar    → com.ubx.usdk.*
 # ============================================================================
 # Release-only keep — debug build 不走 R8 (build.gradle debug { minifyEnabled false }),
-# 但 release 必须 keep 这些类, 漏一个 = 启动期 Class.forName 抛
+# 但 release build 必须 keep 这些类, 漏一个 = 启动期 Class.forName 抛
 # ClassNotFoundException, 现场只看到"SDK 初始化失败"无具体堆栈.
 #
 # 验证流程 (release APK):
 #   1. ./gradlew assembleRelease 安装到测试机
 #   2. 启动 App, adb logcat | grep 'ClassCheck'
-#   3. 期望 8 行 "[ClassCheck] OK    com.rscja.*" — 任一 MISS 证明
-#      本文件缺对应 -keep, 需补 (例如 release 加新平台实现类时).
+#   3. 期望 7 行 "[ClassCheck] OK    ..." — 任一 MISS 证明本文件缺对应 -keep
 #
 # 错误信息格式约定 (InventoryApp.checkRfidClasses):
-#   [ClassCheck] MISS  com.rscja.team.mtk.xxx : ClassNotFoundException ...
-#   → 加 -keep class com.rscja.team.mtk.xxx { *; } 重打 release
+#   [ClassCheck] MISS  com.ubx.usdk.xxx : ClassNotFoundException ...
+#   → 补 -keep class com.ubx.usdk.xxx { *; } 重打 release
 # ============================================================================
 
-# rscja UHF SDK (DeviceAPI) — RfidController + SdkRfidAdapter 直接依赖
--keep class com.rscja.deviceapi.** { *; }
+# Urovo 平台 SDK — ScanManager / DeviceManager 等平台能力
+-keep class android.device.** { *; }
+-dontwarn android.device.**
 
-# rscja SDK 平台实现层 — 反射 + ServiceLoader 加载, R8 看不到直接引用,
-# 漏 keep 会让 mtk 设备运行时 ClassNotFoundException.
+# Urovo UHF SDK — RFIDSDKManager / RfidManager 用 DeclaredMethodUtils 反射调方法,
+# R8 看不到直接引用; 漏 keep 会让 release 包运行时 ClassNotFoundException.
 # InventoryApp.checkRfidClasses() 启动时用 Class.forName 探针验证这些类都在.
--keep class com.rscja.team.** { *; }
--keep class com.rscja.utility.** { *; }
--keep class com.rscja.CWDeviceInfo { *; }
--keep class com.rscja.system.** { *; }
-
-# rscja 硬件扫码 SDK (BarcodeDecoder / BarcodeFactory / BarcodeUtility).
-# ManualScanFragment 用 BarcodeFactory.getInstance().getBarcodeDecoder() + setDecodeCallback,
-# 反射加载, 必须 keep.
--keep class com.rscja.barcode.** { *; }
-
-# rscja DeviceAPI AAR 把多平台条码引擎适配打进 SDK (Datalogic / imagealgorithmlab
-# / rscja cwq / MTK Zebra), com.rscja.team.mtk.barcode.f.* 通过反射加载, 设备上
-# 只跑其中一套, 其它三套是死引用. 这些类不在 classpath — 反射加载本来就 try/catch
-# ClassNotFoundException, -dontwarn 让 R8 跳过 missing-class 检查, 不影响运行时.
-# 不加 -keep: keep 一个不在 classpath 的类等于无效规则, R8 仍会抱怨.
--dontwarn com.datalogic.iptech.evl.**
--dontwarn com.imagealgorithmlab.barcode.**
--dontwarn com.rscja.cwq.decodeapi.**
--dontwarn vendor.mediatek.hardware.zebra.**
+-keep class com.ubx.usdk.** { *; }
+-dontwarn com.ubx.usdk.**
 
 # POI OOXML schema — XmlBeans 反射加载, R8 看不到引用, 必须 keep
 # 只 keep xlsx 用的 namespace (spreadsheetml + drawingml + sharedtypes +
