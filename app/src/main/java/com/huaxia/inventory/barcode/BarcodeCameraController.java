@@ -33,7 +33,7 @@ import java.util.concurrent.Executors;
 /**
  * CameraX + ML Kit barcode scanner for the manual-inventory page.
  *
- * <p>Drop-in replacement for the rscja barcode SDK path. Lifecycle is bound
+ * <p>Fallback when the Urovo hardware scanner is unavailable. Lifecycle is bound
  * to a {@link LifecycleOwner} (the hosting Activity) so CameraX handles
  * start/stop on resume/pause automatically once bound.</p>
  *

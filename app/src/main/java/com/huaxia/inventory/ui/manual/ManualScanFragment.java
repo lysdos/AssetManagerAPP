@@ -206,7 +206,7 @@ public class ManualScanFragment extends Fragment {
     private void startScan() {
         Log.i(TAG, "[ManualScanFragment] startScan() pressed");
         if (BarcodeHardwareController.isReady()) {
-            Log.i(TAG, "[ManualScanFragment] using hardware barcode decoder (rscja)");
+            Log.i(TAG, "[ManualScanFragment] using hardware barcode decoder (urovo ScanManager)");
             startHardwareScan();
         } else {
             Log.i(TAG, "[ManualScanFragment] hardware not ready, falling back to CameraX");

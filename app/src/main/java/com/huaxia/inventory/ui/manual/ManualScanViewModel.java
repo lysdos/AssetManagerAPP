@@ -217,9 +217,10 @@ public class ManualScanViewModel extends AndroidViewModel {
      * confirmation. Posts a {@link ScanEvent} so the UI can toast the result and
      * refresh history.
      *
-     * <p>SDK callback (rscja DeviceAPI barcode module, TBD) is expected to call
-     * this directly. For now nothing in the app invokes it — the manual-input path
-     * still goes through {@link #queryByEpc(String)} + {@link #confirmCheck}.</p>
+     * <p>Called by {@code ManualScanFragment} for both sources — the Urovo
+     * hardware scanner ({@code ScanManager} broadcast) and the CameraX + ML Kit
+     * fallback. The manual-input path still goes through
+     * {@link #queryByEpc(String)} + {@link #confirmCheck}.</p>
      */
     public void onBarcodeScanned(@Nullable String rawCode) {
         Long taskId = app.getSession().getCurrentTaskId();
