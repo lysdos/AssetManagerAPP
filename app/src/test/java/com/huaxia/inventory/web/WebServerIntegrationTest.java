@@ -99,4 +99,65 @@ public class WebServerIntegrationTest {
         assertThat(res).as("POST /api/tasks response").startsWith("200");
         assertThat(db.inventoryTaskDao().findAll()).hasSize(1);
     }
+
+    /**
+     * 把所有已注册的接口真跑一遍，断言都不是 404。
+     *
+     * <p>路由模板写错（例如带后缀的 {@code {id}.xlsx}）不会编译报错，只会在运行期
+     * 静默 404。逐个接口打一遍是最省事的兜底。
+     */
+    @Test
+    public void allRegisteredEndpoints_areReachable() throws Exception {
+        com.huaxia.inventory.data.entity.InventoryTask t =
+                new com.huaxia.inventory.data.entity.InventoryTask();
+        t.sourceFileName = "路由探测";
+        t.status = "IN_PROGRESS";
+        t.expectedCount = 0;
+        long id = db.inventoryTaskDao().insert(t);
+
+        String[][] getRoutes = {
+                {"/api/ping", "GET"},
+                {"/api/dashboard", "GET"},
+                {"/api/tasks", "GET"},
+                {"/api/tasks/depts", "GET"},
+                {"/api/tasks/" + id, "GET"},
+                {"/api/tasks/" + id + "/results", "GET"},
+                {"/api/assets", "GET"},
+                {"/api/assets/filters", "GET"},
+                {"/api/export/task/" + id + ".xlsx", "GET"},
+                {"/api/export/ledger.xlsx", "GET"},
+                {"/api/template.xlsx", "GET"},
+                {"/api/tasks/" + id + "/pause", "POST"},
+                {"/api/tasks/" + id + "/resume", "POST"},
+                {"/api/tasks/" + id + "/complete", "POST"},
+        };
+
+        for (String[] route : getRoutes) {
+            HttpURLConnection c = open(route[1], route[0]);
+            if ("POST".equals(route[1])) {
+                c.setDoOutput(true);
+                c.setRequestProperty("Content-Type", "application/json");
+                c.setFixedLengthStreamingMode(2);
+                try (OutputStream os = c.getOutputStream()) {
+                    os.write("{}".getBytes(StandardCharsets.UTF_8));
+                }
+            }
+            int code = c.getResponseCode();
+            assertThat(code).as("route " + route[1] + " " + route[0]).isNotEqualTo(404);
+            if (code >= 400) {
+                readAll(c.getErrorStream());
+            } else {
+                readAll(c.getInputStream());
+            }
+        }
+
+        // DELETE 单独跑，放在最后以免影响上面的任务路由
+        HttpURLConnection del = open("DELETE", "/api/tasks/" + id);
+        assertThat(del.getResponseCode()).as("DELETE /api/tasks/{id}").isNotEqualTo(404);
+        readAll(del.getInputStream());
+
+        HttpURLConnection clear = open("DELETE", "/api/tasks/completed");
+        assertThat(clear.getResponseCode()).as("DELETE /api/tasks/completed").isNotEqualTo(404);
+        readAll(clear.getInputStream());
+    }
 }

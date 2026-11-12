@@ -66,4 +66,24 @@ public class WebRouterTest {
 
         assertThat(new String(res.bytes, "UTF-8")).contains("笔记本");
     }
+
+    @Test
+    public void dispatch_matchesParamWithSuffix() throws Exception {
+        WebRouter router = new WebRouter();
+        router.get("/api/export/task/{id}.xlsx", r -> WebResponse.ok(r.pathParam("id")));
+
+        WebResponse res = router.dispatch(req("GET", "/api/export/task/42.xlsx"));
+
+        assertThat(res.status).isEqualTo(200);
+        assertThat(new String(res.bytes, "UTF-8")).isEqualTo("\"42\"");
+    }
+
+    @Test
+    public void dispatch_requiresSuffixToMatch() {
+        WebRouter router = new WebRouter();
+        router.get("/api/export/task/{id}.xlsx", r -> WebResponse.ok("x"));
+
+        assertThat(router.dispatch(req("GET", "/api/export/task/42")).status).isEqualTo(404);
+        assertThat(router.dispatch(req("GET", "/api/export/task/.xlsx")).status).isEqualTo(404);
+    }
 }

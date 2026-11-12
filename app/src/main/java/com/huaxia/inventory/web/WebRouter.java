@@ -55,17 +55,44 @@ public final class WebRouter {
         return WebResponse.error(404, "NOT_FOUND", "接口不存在");
     }
 
+    /**
+     * 段匹配。支持三种形态：
+     * <ul>
+     *   <li>字面量 —— {@code "tasks"} 必须完全相等</li>
+     *   <li>整段参数 —— {@code "{id}"}</li>
+     *   <li>带前后缀的参数 —— {@code "{id}.xlsx"}、{@code "v{id}"}</li>
+     * </ul>
+     *
+     * <p><b>后缀形态必须支持</b>：导出路由注册的是 {@code /api/export/task/{id}.xlsx}，
+     * 早期实现只判断 {@code startsWith("{") && endsWith("}")}，这种带后缀的段会退化
+     * 成字面比较而永远匹配不上，表现为导出接口一律 404「接口不存在」。
+     */
     @Nullable
     private static Map<String, String> match(String[] pattern, String[] actual) {
         if (pattern.length != actual.length) return null;
         Map<String, String> params = new HashMap<>();
         for (int i = 0; i < pattern.length; i++) {
             String p = pattern[i];
-            if (p.startsWith("{") && p.endsWith("}")) {
-                params.put(p.substring(1, p.length() - 1), actual[i]);
-            } else if (!p.equals(actual[i])) {
-                return null;
+            String a = actual[i];
+
+            int open = p.indexOf('{');
+            if (open < 0) {
+                if (!p.equals(a)) return null;
+                continue;
             }
+            int close = p.indexOf('}', open);
+            if (close < 0) return null;   // 模板写错，按不匹配处理
+
+            String prefix = p.substring(0, open);
+            String name = p.substring(open + 1, close);
+            String suffix = p.substring(close + 1);
+
+            if (!a.startsWith(prefix) || !a.endsWith(suffix)) return null;
+            if (a.length() < prefix.length() + suffix.length()) return null;
+
+            String value = a.substring(prefix.length(), a.length() - suffix.length());
+            if (value.isEmpty()) return null;
+            params.put(name, value);
         }
         return params;
     }
