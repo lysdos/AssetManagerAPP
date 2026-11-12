@@ -134,6 +134,27 @@ public class EpcNormalizerTest {
         assertNull(EpcNormalizer.toDisplayForm(null));
     }
 
+    /**
+     * 现场标签规则：{@code 300833B2000000} + 两位序号（当前 01..96）。
+     * 整批共 96 张，前缀固定含 "B"，所以永远走 hex 分支、不会被当成十进制。
+     */
+    @Test
+    public void siteTagScheme_sequence01To96() {
+        for (int i = 1; i <= 96; i++) {
+            String tag = String.format("300833B2000000%02d", i);
+            assertEquals(tag, EpcNormalizer.normalize(tag));
+            assertEquals(tag, EpcNormalizer.toDisplayForm(EpcNormalizer.normalize(tag)));
+        }
+        assertEquals("300833B200000001", EpcNormalizer.normalize("300833B200000001"));
+        assertEquals("300833B200000096", EpcNormalizer.normalize("300833B200000096"));
+    }
+
+    @Test
+    public void siteTagScheme_isCaseInsensitive() {
+        assertEquals("300833B200000042", EpcNormalizer.normalize("300833b200000042"));
+        assertEquals("300833B200000042", EpcNormalizer.normalize(" 300833B200000042 "));
+    }
+
     // ---- 十六进制标签 EPC ----
 
     @Test
