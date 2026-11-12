@@ -1,0 +1,15 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--color-bg-grad);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-size: 15px;
+  display: flex;
+  flex-direction: column;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; }
+h2 { font-size: 20px; margin-bottom: 4px; }
+.subtitle { color: var(--color-text-sub); font-size: 13px; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
