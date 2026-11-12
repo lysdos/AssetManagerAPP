@@ -19,10 +19,20 @@ import java.util.Objects;
 /** 盘点任务读写接口 —— 全部委托 {@link TaskService}，不复制事务逻辑。 */
 public class TaskApi {
 
-    /** 请求体 DTO。字段均可为 null。 */
+    /**
+     * 请求体 DTO。字段均可为 null。
+     *
+     * <p><b>必须保留 {@code @JsonProperty}</b>：Jackson 默认按字段名反射映射，
+     * release 构建 R8 会把字段重命名（例如 name → a），届时
+     * {@code {"name":"..."}} 映射不到任何字段，网页「新建任务」会静默变成
+     * 「任务名称不能为空」。debug 构建不混淆，这个坑只有 release 才会暴露。
+     */
     public static class CreateTaskBody {
+        @com.fasterxml.jackson.annotation.JsonProperty("name")
         public String name;
+        @com.fasterxml.jackson.annotation.JsonProperty("dept")
         public String dept;
+        @com.fasterxml.jackson.annotation.JsonProperty("remark")
         public String remark;
     }
 

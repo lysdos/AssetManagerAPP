@@ -83,7 +83,7 @@ adb shell am start -n com.assetmanager.inventory/com.huaxia.inventory.MainActivi
 ./gradlew :app:testDebugUnitTest
 ```
 
-当前全量单测 **325 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
+当前全量单测 **326 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
 - **源码文本守卫**：反射式提取方法体 + 断言，钉住事务边界、生命周期守卫、迁移链完整性、索引声明等不变量；
 - **Robolectric 行为测试**：验证 detach 后回调、旋转时弹窗关闭等运行时行为。
 
@@ -152,7 +152,7 @@ adb shell am start -n com.assetmanager.inventory/com.huaxia.inventory.MainActivi
 
 ## 验证
 
-单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，325 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删 / Web 服务等主流程做一次回归。
+单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，326 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删 / Web 服务等主流程做一次回归。
 
 ## 开发者注意事项
 
