@@ -19,23 +19,6 @@ import java.util.Objects;
 /** 盘点任务读写接口 —— 全部委托 {@link TaskService}，不复制事务逻辑。 */
 public class TaskApi {
 
-    /**
-     * 请求体 DTO。字段均可为 null。
-     *
-     * <p><b>必须保留 {@code @JsonProperty}</b>：Jackson 默认按字段名反射映射，
-     * release 构建 R8 会把字段重命名（例如 name → a），届时
-     * {@code {"name":"..."}} 映射不到任何字段，网页「新建任务」会静默变成
-     * 「任务名称不能为空」。debug 构建不混淆，这个坑只有 release 才会暴露。
-     */
-    public static class CreateTaskBody {
-        @com.fasterxml.jackson.annotation.JsonProperty("name")
-        public String name;
-        @com.fasterxml.jackson.annotation.JsonProperty("dept")
-        public String dept;
-        @com.fasterxml.jackson.annotation.JsonProperty("remark")
-        public String remark;
-    }
-
     private final AppDatabase db;
     private final TaskService taskService;
     private final InventorySession session;
@@ -69,12 +52,14 @@ public class TaskApi {
     }
 
     public WebResponse create(WebRequest req) throws ApiException {
-        CreateTaskBody body = parseBody(req);
-        if (body.name == null || body.name.trim().isEmpty()) {
+        Map<?, ?> body = parseBody(req);
+        String name = asString(body.get("name"));
+        if (name == null || name.trim().isEmpty()) {
             throw ApiException.badRequest("任务名称不能为空");
         }
         Long previous = session.getCurrentTaskId();
-        long id = taskService.createTask(body.name.trim(), body.dept, body.remark);
+        long id = taskService.createTask(name.trim(), asString(body.get("dept")),
+                asString(body.get("remark")));
         InventoryTask created = db.inventoryTaskDao().findById(id);
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -159,15 +144,33 @@ public class TaskApi {
         return m;
     }
 
-    private static CreateTaskBody parseBody(WebRequest req) throws ApiException {
+    /**
+     * 解析 JSON 请求体。
+     *
+     * <p><b>刻意读成 {@code Map} 而不是自定义 DTO</b>：Jackson 反序列化自定义类要靠
+     * 字段名反射，release 构建 R8 会重命名字段，即使加 {@code @JsonProperty} 也可能
+     * 在混淆后失效（真机实测：JVM 集成测试通过、release 包报「请求体不是合法 JSON」）。
+     * {@code Map} 走 Jackson 内置反序列化器，不依赖任何自定义类的反射。
+     * 仓库里读 {@code rawRowJson} 也是这个写法。
+     */
+    private static Map<?, ?> parseBody(WebRequest req) throws ApiException {
         String raw = req.bodyAsString();
         if (raw == null || raw.trim().isEmpty()) {
             throw ApiException.badRequest("请求体不能为空");
         }
         try {
-            return WebJson.read(raw, CreateTaskBody.class);
+            return WebJson.read(raw, Map.class);
         } catch (Exception e) {
-            throw ApiException.badRequest("请求体不是合法 JSON");
+            // 把原因带出去 —— 混淆后的失败原因不可猜，排障时需要原文
+            throw ApiException.badRequest("请求体不是合法 JSON："
+                    + e.getClass().getSimpleName()
+                    + (e.getMessage() == null ? "" : " " + e.getMessage()));
         }
+    }
+
+    private static String asString(Object v) {
+        if (v == null) return null;
+        String s = String.valueOf(v);
+        return s.isEmpty() ? null : s;
     }
 }
