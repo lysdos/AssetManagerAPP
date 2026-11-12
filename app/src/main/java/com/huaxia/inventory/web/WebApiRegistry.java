@@ -4,6 +4,7 @@ import android.content.Context;
 
 import com.huaxia.inventory.data.AppDatabase;
 import com.huaxia.inventory.session.InventorySession;
+import com.huaxia.inventory.web.api.DashboardApi;
 
 import java.util.Collections;
 
@@ -15,5 +16,8 @@ final class WebApiRegistry {
     static void register(WebRouter router, Context ctx, AppDatabase db,
                          InventorySession session) {
         router.get("/api/ping", r -> WebResponse.ok(Collections.singletonMap("ok", true)));
+
+        DashboardApi dashboard = new DashboardApi(db, session);
+        router.get("/api/dashboard", dashboard::handle);
     }
 }

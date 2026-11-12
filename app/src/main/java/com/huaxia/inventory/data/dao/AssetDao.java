@@ -175,6 +175,19 @@ public interface AssetDao {
            "GROUP BY assetType ORDER BY count DESC")
     java.util.List<CategoryCount> countByCategory(long taskId);
 
+    /**
+     * 全量台账的部门分布（含库存池 + 已划拨），供 Web 大屏使用。
+     * 复用 {@link #DEPT_BUCKET} 让空值归入 '' 桶，UI 再映射成「未填写」。
+     */
+    @Query("SELECT " + DEPT_BUCKET + " AS category, COUNT(*) AS count FROM Asset " +
+           "GROUP BY " + DEPT_BUCKET + " ORDER BY count DESC")
+    java.util.List<CategoryCount> countByDeptGrouped();
+
+    /** 全量台账的设备类型分布（含库存池 + 已划拨），供 Web 大屏使用。 */
+    @Query("SELECT " + TYPE_BUCKET + " AS category, COUNT(*) AS count FROM Asset " +
+           "GROUP BY " + TYPE_BUCKET + " ORDER BY count DESC")
+    java.util.List<CategoryCount> countByCategoryAll();
+
     @Query("SELECT COUNT(*) FROM Asset WHERE taskId = :taskId AND id IN " +
            "(SELECT matchedAssetId FROM ScanRecord WHERE taskId = :taskId AND matchedAssetId IS NOT NULL)")
     int countFound(long taskId);

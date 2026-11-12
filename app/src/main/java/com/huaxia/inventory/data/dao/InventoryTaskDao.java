@@ -23,6 +23,10 @@ public interface InventoryTaskDao {
     @Query("SELECT * FROM InventoryTask ORDER BY importedAt DESC")
     LiveData<List<InventoryTask>> findAllLive();
 
+    /** 同步版任务列表（Web 层用；UI 走 {@link #findAllLive()}）。 */
+    @Query("SELECT * FROM InventoryTask ORDER BY importedAt DESC")
+    List<InventoryTask> findAll();
+
     @Query("SELECT * FROM InventoryTask WHERE status = 'COMPLETED' ORDER BY importedAt DESC")
     List<InventoryTask> findAllCompleted();
 
