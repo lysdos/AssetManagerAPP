@@ -71,4 +71,14 @@ public class WebAssetsTest {
         assertThat(js).contains("export async function renderList");
         assertThat(js).contains("export async function renderDetail");
     }
+
+    @Test
+    public void appJs_registersAllRoutes() throws Exception {
+        String js = readAsset("web/js/app.js");
+        assertThat(js).contains("'/tasks'");
+        assertThat(js).contains("'/tasks/:id'");
+        assertThat(js).contains("'/assets'");
+        assertThat(js).contains("'/import'");
+        assertThat(js).contains("'/report/:id'");
+    }
 }

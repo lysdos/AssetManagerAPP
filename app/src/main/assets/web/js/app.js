@@ -3,6 +3,7 @@ import * as dashboard from './dashboard.js';
 import * as tasks from './tasks.js';
 import * as assets from './assets.js';
 import * as importer from './import.js';
+import * as report from './report.js';
 
 const THEME_KEY = 'asset-theme';
 
@@ -26,5 +27,6 @@ register('/tasks', tasks.renderList);
 register('/tasks/:id', tasks.renderDetail);
 register('/assets', assets.render);
 register('/import', importer.render);
+register('/report/:id', report.render);
 
 start(document.getElementById('view'));
