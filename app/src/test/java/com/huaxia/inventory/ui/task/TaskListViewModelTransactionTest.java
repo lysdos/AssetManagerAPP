@@ -26,17 +26,17 @@ public class TaskListViewModelTransactionTest {
     public void createTask_insertAndAssignRunInsideRunInTransaction() throws Exception {
         File moduleDir = new File(System.getProperty("user.dir"));
         File source = new File(moduleDir,
-                "src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
+                "src/main/java/com/huaxia/inventory/service/TaskService.java");
         if (!source.exists()) {
             source = new File(moduleDir,
-                    "app/src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
+                    "app/src/main/java/com/huaxia/inventory/service/TaskService.java");
         }
 
-        assertTrue("TaskListViewModel.java not found: " + source.getAbsolutePath(), source.exists());
+        assertTrue("TaskService.java not found: " + source.getAbsolutePath(), source.exists());
         String text = new String(Files.readAllBytes(source.toPath()), StandardCharsets.UTF_8);
 
         // 提取 createTask 方法体 (花括号配对, 不依赖缩进格式).
-        String body = extractMethodBody(text, "public void createTask(");
+        String body = extractMethodBody(text, "public long createTask(");
         assertTrue("createTask method body not found", body.length() > 0);
 
         // 提取 runInTransaction 的第一个 lambda 体 (花括号配对).

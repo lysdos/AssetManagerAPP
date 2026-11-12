@@ -17,15 +17,21 @@ public class TaskCompleteEntryTest {
 
     @Test
     public void completeTask_setsCompleted_andClearsSession() throws Exception {
-        String text = readFile("src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
+        // 事务体已抽到 TaskService —— 状态翻转与 session 清理在这里断言.
+        String text = readFile("src/main/java/com/huaxia/inventory/service/TaskService.java");
         String body = extractMethodBody(text, "public void completeTask(");
         assertTrue("completeTask body not found. Source:\n" + text, body.length() > 0);
         assertTrue("completeTask must set status to COMPLETED. Body:\n" + body,
                 body.contains("t.status = \"COMPLETED\""));
         assertTrue("completeTask must clear the session when the task is current. Body:\n" + body,
-                body.contains("getSession().clear()"));
-        assertTrue("completeTask must wrap the diskIO lambda in try/catch. Body:\n" + body,
-                body.contains("try {") && body.contains("catch (Exception"));
+                body.contains("session.clear()"));
+
+        // try/catch 仍在 ViewModel 的 diskIO lambda 内 —— 异常不得静默吞掉.
+        String vm = readFile("src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
+        String vmBody = extractMethodBody(vm, "public void completeTask(");
+        assertTrue("TaskListViewModel.completeTask body not found", vmBody.length() > 0);
+        assertTrue("completeTask must wrap the diskIO lambda in try/catch. Body:\n" + vmBody,
+                vmBody.contains("try {") && vmBody.contains("catch (Exception"));
     }
 
     @Test

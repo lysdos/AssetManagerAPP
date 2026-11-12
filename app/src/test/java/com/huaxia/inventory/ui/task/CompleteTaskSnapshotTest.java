@@ -19,7 +19,7 @@ public class CompleteTaskSnapshotTest {
 
     @Test
     public void completeTask_clearsSnapshotInsideTransaction_preservingStatusFlip() throws Exception {
-        String text = read("src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
+        String text = read("src/main/java/com/huaxia/inventory/service/TaskService.java");
         String body = extractMethodBody(text, "public void completeTask(");
         assertTrue("completeTask body not found. Source:\n" + text, body.length() > 0);
 

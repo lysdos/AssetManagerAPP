@@ -23,15 +23,15 @@ public class CreateTaskUsesFreshRowTest {
     public void createTask_usesFindByIdBeforeUpdate_notRawT() throws Exception {
         File moduleDir = new File(System.getProperty("user.dir"));
         File source = new File(moduleDir,
-                "src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
+                "src/main/java/com/huaxia/inventory/service/TaskService.java");
         if (!source.exists()) {
             source = new File(moduleDir,
-                    "app/src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
+                    "app/src/main/java/com/huaxia/inventory/service/TaskService.java");
         }
         assertTrue("source not found", source.exists());
         String text = new String(Files.readAllBytes(source.toPath()), StandardCharsets.UTF_8);
 
-        String body = extractMethodBody(text, "public void createTask(");
+        String body = extractMethodBody(text, "public long createTask(");
         assertTrue("createTask body not found", body.length() > 0);
 
         // 必须有 findById(idHolder[0]) — 在 update 之前

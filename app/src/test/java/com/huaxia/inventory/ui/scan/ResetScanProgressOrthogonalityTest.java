@@ -37,7 +37,7 @@ public class ResetScanProgressOrthogonalityTest {
 
     @Test
     public void pauseResume_touchOnlyStatusAndSession_notScans() throws Exception {
-        String text = readFile("src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
+        String text = readFile("src/main/java/com/huaxia/inventory/service/TaskService.java");
         for (String sig : new String[]{"public void pauseTask(", "public void resumeTask("}) {
             String body = extractMethodBody(text, sig);
             assertTrue(sig + " body not found. Source:\n" + text, body.length() > 0);

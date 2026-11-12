@@ -19,8 +19,8 @@ public class DeleteTaskRollbackOrderGuardTest {
 
     @Test
     public void deleteTask_rollsBackUncommitted_thenClearsSnapshotBeforeRelease() throws Exception {
-        String text = read("src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
-        String body = extractMethodBody(text, "public void deleteTask(");
+        String text = read("src/main/java/com/huaxia/inventory/service/TaskService.java");
+        String body = extractMethodBody(text, "public int deleteTask(");
         assertTrue("deleteTask body not found. Source:\n" + text, body.length() > 0);
 
         assertTrue("deleteTask must revert edited fields. Body:\n" + body,

@@ -25,8 +25,8 @@ public class InventoryTaskRemarkTest {
 
     @Test
     public void createTask_persistsRemark() throws Exception {
-        String text = read("src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
-        String body = extractMethodBody(text, "public void createTask(");
+        String text = read("src/main/java/com/huaxia/inventory/service/TaskService.java");
+        String body = extractMethodBody(text, "public long createTask(");
         assertTrue("createTask body not found. Source:\n" + text, body.length() > 0);
         assertTrue("createTask must persist remark (t.remark = ...). Body:\n" + body,
                 body.contains("t.remark ="));

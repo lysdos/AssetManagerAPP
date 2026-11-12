@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.data.entity.InventoryTask;
+import com.huaxia.inventory.service.TaskService;
 import java.util.List;
 import java.util.concurrent.Executor;
 
@@ -16,12 +17,14 @@ public class TaskListViewModel extends AndroidViewModel {
 
     private final InventoryApp app;
     private final Executor diskIO;
+    private final TaskService taskService;
     private final LiveData<List<InventoryTask>> tasks;
 
     public TaskListViewModel(@NonNull Application application) {
         super(application);
         this.app = (InventoryApp) application;
         this.diskIO = app.getExecutors().diskIO;
+        this.taskService = new TaskService(app.getDb(), app.getSession());
         this.tasks = app.getDb().inventoryTaskDao().findAllLive();
     }
 
@@ -30,45 +33,10 @@ public class TaskListViewModel extends AndroidViewModel {
     public void createTask(String name, String dept, String remark, CreateCallback cb) {
         diskIO.execute(() -> {
             try {
-                String effectiveDept = (dept == null || dept.isEmpty()) ? null : dept;
-                InventoryTask t = new InventoryTask();
-                t.sourceFileName = name;
-                t.importedAt = System.currentTimeMillis();
-                t.status = "IN_PROGRESS";
-                t.dept = effectiveDept;
-                // 备注可选: 空白归一化成 null, 卡片据此决定是否显示该行。
-                t.remark = (remark == null || remark.isEmpty()) ? null : remark;
-                t.expectedCount = countPoolAssetsForDept(effectiveDept);
-                // 单事务: 插入任务 + 划拨库存池资产 + 修正 expectedCount —
-                // 任一步失败整体回滚, 防止进程被杀留下"任务壳 + 0 划拨"孤儿.
-                // 与 deleteTask / clearCompleted 风格一致.
-                //
-                // ⚠ t.id 不能用作 update 主键: Room @Insert 返回 autoincrement rowid
-                // 但不会回写到 POJO 字段 — 若调 app.getDb().inventoryTaskDao().update(t),
-                // WHERE id=0 命中 0 行, expectedCount 修正丢失. 必须从 holder id 重新
-                // findById 拿 fresh row 再 update.
-                final long[] idHolder = {0L};
-                final int[] assignedHolder = {0};
-                app.getDb().runInTransaction(() -> {
-                    idHolder[0] = app.getDb().inventoryTaskDao().insert(t);
-                    assignedHolder[0] = app.getDb().assetDao().assignPoolToTask(
-                            idHolder[0], effectiveDept);
-                });
-                if (assignedHolder[0] != t.expectedCount) {
-                    // 不在事务内 update 是有意的: 让 assignPoolToTask 的写先 commit,
-                    // 再独立 UPDATE 让 task.expectedCount 与实际划拨一致; 万一 update
-                    // 失败也不影响划拨已落地的事实. 用 fresh row 而非 t —
-                    // t.id 还停在 0, update WHERE id=0 命中 0 行.
-                    InventoryTask fresh = app.getDb().inventoryTaskDao().findById(idHolder[0]);
-                    if (fresh != null) {
-                        fresh.expectedCount = assignedHolder[0];
-                        app.getDb().inventoryTaskDao().update(fresh);
-                    }
-                }
-                if (cb != null) cb.onCreated(idHolder[0]);
+                long taskId = taskService.createTask(name, dept, remark);
+                if (cb != null) cb.onCreated(taskId);
             } catch (Exception e) {
-                // P2#21: 异常路径 callback 永不触发, UI 黑屏.
-                // catch 兜底 + onError 通道让 dialog 能给用户提示.
+                // 异常路径必须走 onError, 否则 dialog 黑屏无提示.
                 Log.e(TAG, "createTask failed", e);
                 if (cb != null) cb.onError(e.getMessage() == null
                         ? e.getClass().getSimpleName() : e.getMessage());
@@ -81,9 +49,7 @@ public class TaskListViewModel extends AndroidViewModel {
      * 创建任务前先预览，匹配实际可划拨的资产数。
      */
     public int countPoolAssetsForDept(String dept) {
-        if (dept == null || dept.isEmpty()) return app.getDb().assetDao().countPool();
-        // 库存池 + 部门过滤 — 用一个专门的 SQL 走索引, 不再用全表扫描.
-        return app.getDb().assetDao().countPoolByDept(dept);
+        return taskService.countPoolAssetsForDept(dept);
     }
 
     /**
@@ -105,7 +71,7 @@ public class TaskListViewModel extends AndroidViewModel {
      * 不查整张 Asset 表 (可能含有历史任务的资产), 只看"待划拨"的库存池.
      */
     public void loadDistinctDeptAll(LoadDeptCallback cb) {
-        diskIO.execute(() -> cb.onLoaded(app.getDb().assetDao().distinctDeptPool()));
+        diskIO.execute(() -> cb.onLoaded(taskService.distinctPoolDepts()));
     }
 
     /**
@@ -122,31 +88,9 @@ public class TaskListViewModel extends AndroidViewModel {
     public void deleteTask(long taskId, DeleteCallback cb) {
         diskIO.execute(() -> {
             try {
-                final int[] releasedHolder = {0};
-                app.getDb().runInTransaction(() -> {
-                    InventoryTask t = app.getDb().inventoryTaskDao().findById(taskId);
-                    boolean completed = t != null && "COMPLETED".equals(t.status);
-                    if (!completed) {
-                        // 未提交(进行中/暂停) = 放弃 → 回滚编辑过的字段.
-                        // 已完成(提交过) → 保留编辑值, 不回滚.
-                        app.getDb().assetDao().revertEditedFields(taskId);
-                    }
-                    // 资产离开任务回池, 盘点时间即失效 → 一律清 (含删已完成), 否则泄漏到下一任务.
-                    app.getDb().assetDao().clearInventoryTimeForTask(taskId);
-                    // 丢弃快照, 必须在 release 之前 (release 把 taskId 归零后本按 taskId 过滤会匹配 0 行).
-                    app.getDb().assetDao().clearSnapshotForTask(taskId);
-                    releasedHolder[0] = app.getDb().assetDao().releaseTaskToPool(taskId);
-                    app.getDb().extraClaimDao().deleteByTask(taskId);
-                    app.getDb().scanRecordDao().deleteByTask(taskId);
-                    app.getDb().inventoryTaskDao().deleteById(taskId);
-                });
-                Long cur = app.getSession().getCurrentTaskId();
-                if (cur != null && cur == taskId) {
-                    app.getSession().clear();
-                }
-                if (cb != null) cb.onDeleted(taskId, releasedHolder[0]);
+                int released = taskService.deleteTask(taskId);
+                if (cb != null) cb.onDeleted(taskId, released);
             } catch (Exception e) {
-                // P2#21: 异常路径 UI 黑屏.
                 Log.e(TAG, "deleteTask failed", e);
                 if (cb != null) cb.onError(taskId, e.getMessage() == null
                         ? e.getClass().getSimpleName() : e.getMessage());
@@ -157,21 +101,9 @@ public class TaskListViewModel extends AndroidViewModel {
     public void clearCompleted() {
         diskIO.execute(() -> {
             try {
-                // 已完成任务: 资产退回库存池 (保留提交后的值) + 清盘点时间 + 清扫描/补全 + 删任务壳。
-                // 与 deleteTask 口径一致 —— 库存池是资产主表, 清完成不应销毁主数据;
-                // 盘点时间是"本次盘点"的数据, 离开任务即失效, 必须清 (否则泄漏到下一任务)。
-                app.getDb().runInTransaction(() -> {
-                    List<InventoryTask> done = app.getDb().inventoryTaskDao().findAllCompleted();
-                    for (InventoryTask t : done) {
-                        app.getDb().extraClaimDao().deleteByTask(t.id);
-                        app.getDb().scanRecordDao().deleteByTask(t.id);
-                        app.getDb().assetDao().clearInventoryTimeForTask(t.id);
-                        app.getDb().assetDao().releaseTaskToPool(t.id);
-                    }
-                    app.getDb().inventoryTaskDao().deleteAllCompleted();
-                });
+                taskService.clearCompleted();
             } catch (Exception e) {
-                // P2#21: clearCompleted 没有 callback, 异常时只能 Log.e —
+                // clearCompleted 没有 callback, 异常时只能 Log.e —
                 // 若需要 UI 反馈 (例如提示用户重试) 应加 ClearCallback 接口.
                 Log.e(TAG, "clearCompleted failed", e);
             }
@@ -181,11 +113,8 @@ public class TaskListViewModel extends AndroidViewModel {
     public void switchToTask(long taskId, SwitchCallback cb) {
         diskIO.execute(() -> {
             try {
-                InventoryTask t = app.getDb().inventoryTaskDao().findById(taskId);
-                if (t != null) {
-                    app.getSession().setCurrentTaskId(taskId);
-                }
-                if (cb != null) cb.onSwitched(taskId, t != null);
+                boolean ok = taskService.switchToTask(taskId);
+                if (cb != null) cb.onSwitched(taskId, ok);
             } catch (Exception e) {
                 Log.e(TAG, "switchToTask failed", e);
                 if (cb != null) cb.onError(e.getMessage() == null
@@ -201,18 +130,10 @@ public class TaskListViewModel extends AndroidViewModel {
     public void pauseTask(long taskId, Runnable cb) {
         diskIO.execute(() -> {
             try {
-                InventoryTask t = app.getDb().inventoryTaskDao().findById(taskId);
-                if (t != null && "IN_PROGRESS".equals(t.status)) {
-                    t.status = "PAUSED";
-                    app.getDb().inventoryTaskDao().update(t);
-                    Long cur = app.getSession().getCurrentTaskId();
-                    if (cur != null && cur == taskId) {
-                        app.getSession().clear();
-                    }
-                }
-                if (cb != null) cb.run();
+                taskService.pauseTask(taskId);
             } catch (Exception e) {
                 Log.e(TAG, "pauseTask failed", e);
+            } finally {
                 if (cb != null) cb.run();
             }
         });
@@ -227,22 +148,10 @@ public class TaskListViewModel extends AndroidViewModel {
     public void completeTask(long taskId, Runnable cb) {
         diskIO.execute(() -> {
             try {
-                // 完成任务 = 提交: status 翻转 + 丢弃快照 (编辑值从此成为主数据), 单事务原子。
-                app.getDb().runInTransaction(() -> {
-                    InventoryTask t = app.getDb().inventoryTaskDao().findById(taskId);
-                    if (t != null && !"COMPLETED".equals(t.status)) {
-                        t.status = "COMPLETED";
-                        app.getDb().inventoryTaskDao().update(t);
-                        app.getDb().assetDao().clearSnapshotForTask(taskId);
-                    }
-                });
-                Long cur = app.getSession().getCurrentTaskId();
-                if (cur != null && cur == taskId) {
-                    app.getSession().clear();
-                }
-                if (cb != null) cb.run();
+                taskService.completeTask(taskId);
             } catch (Exception e) {
                 Log.e(TAG, "completeTask failed", e);
+            } finally {
                 if (cb != null) cb.run();
             }
         });
@@ -254,15 +163,10 @@ public class TaskListViewModel extends AndroidViewModel {
     public void resumeTask(long taskId, Runnable cb) {
         diskIO.execute(() -> {
             try {
-                InventoryTask t = app.getDb().inventoryTaskDao().findById(taskId);
-                if (t != null && "PAUSED".equals(t.status)) {
-                    t.status = "IN_PROGRESS";
-                    app.getDb().inventoryTaskDao().update(t);
-                    app.getSession().setCurrentTaskId(taskId);
-                }
-                if (cb != null) cb.run();
+                taskService.resumeTask(taskId);
             } catch (Exception e) {
                 Log.e(TAG, "resumeTask failed", e);
+            } finally {
                 if (cb != null) cb.run();
             }
         });

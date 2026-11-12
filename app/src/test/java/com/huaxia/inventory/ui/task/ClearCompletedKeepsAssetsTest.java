@@ -19,7 +19,7 @@ public class ClearCompletedKeepsAssetsTest {
 
     @Test
     public void clearCompleted_releasesAssetsToPool_notDelete() throws Exception {
-        String text = readFile("src/main/java/com/huaxia/inventory/ui/task/TaskListViewModel.java");
+        String text = readFile("src/main/java/com/huaxia/inventory/service/TaskService.java");
         String body = extractMethodBody(text, "public void clearCompleted()");
         assertTrue("clearCompleted body not found. Source:\n" + text, body.length() > 0);
         assertTrue("clearCompleted must release assets back to the pool (口径与 deleteTask 一致). "
