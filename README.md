@@ -25,6 +25,7 @@
 - Room 2.6（本地数据库，当前 schema **v1** = 首次发布基线，交付前已收敛掉开发期 v2..v11 的迁移链）
 - Apache POI 5.2.5（Excel 解析 / 流式写出）
 - Jackson 2.17（JSON）
+- NanoHTTPD 2.3.1（内嵌 HTTP 服务，见「Web 服务」章节）
 - CameraX 1.3 + ML Kit Barcode（手动盘点页的摄像头扫码兜底）
 - UROVO 平台 SDK (`android.device.ScanManager`，`platform_sdk_v4.1.0326.jar`，见 `app/libs/`)
 - UROVO UHF SDK (`com.ubx.usdk.RFIDSDKManager`，`URFIDLibrary-v2.5.0718.aar`，见 `app/libs/`)
@@ -41,7 +42,10 @@ app/src/main/java/com/huaxia/inventory/
 ├── rfid/              # RFID SDK 封装
 ├── barcode/           # 条码：摄像头(CameraX+ML Kit) / 硬件解码
 ├── excel/             # Excel 导入/导出
+├── service/           # 任务事务（App 与 Web 共用）
 ├── session/           # 任务状态共享
+├── web/               # 内嵌 HTTP 服务：服务器 / 路由 / API
+│   └── api/           #   dashboard / tasks / assets / import / export
 ├── ui/
 │   ├── asset/         #   资产总览（全量台账 / 筛选 / 分页 / 编辑）
 │   ├── task/          #   任务列表
@@ -79,7 +83,7 @@ adb shell am start -n com.assetmanager.inventory/com.huaxia.inventory.MainActivi
 ./gradlew :app:testDebugUnitTest
 ```
 
-当前全量单测 **257 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
+当前全量单测 **325 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
 - **源码文本守卫**：反射式提取方法体 + 断言，钉住事务边界、生命周期守卫、迁移链完整性、索引声明等不变量；
 - **Robolectric 行为测试**：验证 detach 后回调、旋转时弹窗关闭等运行时行为。
 
@@ -148,7 +152,7 @@ adb shell am start -n com.assetmanager.inventory/com.huaxia.inventory.MainActivi
 
 ## 验证
 
-单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，257 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删等主流程做一次回归。
+单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，325 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删 / Web 服务等主流程做一次回归。
 
 ## 开发者注意事项
 
@@ -157,3 +161,33 @@ adb shell am start -n com.assetmanager.inventory/com.huaxia.inventory.MainActivi
 - EPC 去重使用 `HashSet` + DB 唯一索引双重保护
 - 导出 Excel 时从首个 asset 的 `rawRowJson` 重建 8 个必需列表头顺序 (序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期)，并丢弃"盘点日期"列；尾部追加两列 `RESULT_COLUMNS = ["盘点状态", "盘点时间"]`
 - `Asset` 有 7 个 `orig_*` "快照列"：建任务划拨时保存业务字段原值，删除/重置任务回滚（`revertEditedFields`）、完成任务丢弃（`clearSnapshotForTask`）。结果页保存走整行 `@Update`（`AssetDetailDialog.copyAsset`），**新增 Asset 持久化字段时必须同步复制 `orig_*`**，否则每次保存会静默清空快照
+
+## Web 服务（内嵌 HTTP）
+
+App 内置一个 HTTP 服务，PDA 连上 WiFi 或自己开热点后，同网段任何设备用浏览器打开
+`http://<PDA-IP>:8080` 即可使用，**不需要任何后端服务器**，数据仍然只在本机。
+
+### 开启
+
+齿轮菜单 → 「Web 服务」→ 打开开关。对话框与通知栏都会显示当前地址，端口从 8080 起
+（被占用则顺延到 8089）。关闭开关或点通知栏「停止」即关停。
+
+### 能做什么
+
+| 页面 | 能力 |
+|---|---|
+| 看板 `#/dashboard` | 资产总数 / 部门 / 类型 / 任务状态 KPI；当前任务环形进度；部门与设备类型分布条形图。每 5 秒自动刷新，右上角可切深色主题 |
+| 任务 `#/tasks` | 列表、新建（可按部门限定）、暂停、恢复、完成、删除、清除已完成；任务详情含全部/已盘/盘亏/盘盈四个结果 tab 与分页 |
+| 资产 `#/assets` | 全量台账搜索、部门/类型筛选、分页、导出台账 Excel |
+| 导入 `#/import` | 上传 `.xlsx` 导入库存池（与 App 端导入等价），回显成功/覆盖/新增/失败与错误行 |
+| 报表 `#/report/{id}` | A4 横向报表预览，浏览器「打印 / 另存为 PDF」出 PDF |
+
+### 已知限制
+
+- **无认证** —— 同网段任何人都能访问并修改任务、上传 Excel。仅建议在可信局域网内开启。
+  网页端删除类操作有二次确认，但那只是误操作防护，不是安全边界。
+- 部分国产 ROM 的后台清理会杀掉前台服务，需要把 App 加入自启动/后台白名单。
+- 修改前端静态资源需重新打包 APK。debug 构建下可把改好的文件
+  `adb push` 到 `/sdcard/Android/data/com.assetmanager.inventory/files/web/` 临时验证。
+- 网页端资产字段只读，编辑仍在 PDA 上完成。
+- 一台 PDA 一个服务，多台 PDA 之间不共享数据。
