@@ -26,4 +26,14 @@ public class StaticAssetsTest {
         assertThat(StaticAssets.isSafe("/js/../../etc/passwd")).isFalse();
         assertThat(StaticAssets.isSafe("/js/..%2Fapp.js")).isFalse();
     }
+
+    @Test
+    public void assetResponses_forbidCaching() {
+        // 前端资源打进 APK，升级后必须立刻生效 —— 允许缓存会让浏览器跑旧 JS，
+        // 表现为新路由点了没反应。
+        assertThat(WebResponse.asset(new byte[]{1}, "text/css")
+                .headers.get("Cache-Control")).isEqualTo("no-store");
+        assertThat(WebResponse.asset(new java.io.ByteArrayInputStream(new byte[]{1}), 1,
+                "application/javascript").headers.get("Cache-Control")).isEqualTo("no-store");
+    }
 }

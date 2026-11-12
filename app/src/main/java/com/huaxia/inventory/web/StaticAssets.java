@@ -62,7 +62,7 @@ public final class StaticAssets {
         }
 
         try (InputStream in = ctx.getAssets().open(ASSET_ROOT + "/" + rel)) {
-            return WebResponse.bytes(readAll(in), mimeOf(rel));
+            return WebResponse.asset(readAll(in), mimeOf(rel));
         } catch (IOException notFound) {
             return null;
         }

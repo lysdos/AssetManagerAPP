@@ -53,10 +53,22 @@ public final class WebResponse {
         return new WebResponse(200, mime, null, in, length, h);
     }
 
-    /** 静态资源：带 1 小时缓存头。 */
+    /**
+     * 静态资源（字节）。<b>必须 no-store</b>：前端资源是打进 APK 的，每次安装新包都可能变化。
+     * 若允许缓存，用户升级 APK 后浏览器仍跑旧 JS —— 表现为新增的路由点了没反应、
+     * 只有旧页面能用，且极难排查（服务端明明返回的是新文件）。
+     * 局域网内重新拉几十 KB 的成本可以忽略。
+     */
+    public static WebResponse asset(byte[] data, String mime) {
+        Map<String, String> h = new HashMap<>();
+        h.put("Cache-Control", "no-store");
+        return new WebResponse(200, mime, data, null, -1, h);
+    }
+
+    /** 静态资源（文件流，debug 外部目录覆盖用）。同样禁止缓存。 */
     public static WebResponse asset(InputStream in, long length, String mime) {
         Map<String, String> h = new HashMap<>();
-        h.put("Cache-Control", "public, max-age=3600");
+        h.put("Cache-Control", "no-store");
         return new WebResponse(200, mime, null, in, length, h);
     }
 
