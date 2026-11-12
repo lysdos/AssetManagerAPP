@@ -137,7 +137,7 @@ public final class ExcelImporter {
                     if (code == null) {
                         handler.onError("Row " + excelRow + ": invalid 固资编号 '"
                                 + (rawCode == null ? "" : rawCode)
-                                + "' (需 16、17 或 24 位十进制, 请将单元格设为文本格式), skipped");
+                                + "' (需 16、17 或 24 位十进制, 或 16/24 位十六进制标签, 请将单元格设为文本格式), skipped");
                         excelRow++;
                         continue;
                     }

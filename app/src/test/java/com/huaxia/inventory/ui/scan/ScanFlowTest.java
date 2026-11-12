@@ -39,10 +39,13 @@ public class ScanFlowTest {
     }
 
     @Test
-    public void sdkHexString_returnsNull() {
-        // SDK 万一返回 hex 风格 (E280...), 含字母 → normalize 拒掉
-        // 这条 case 是用户旧固件返回错误格式时的兜底, 不应该把脏数据当合法 EPC
-        assertNull(EpcNormalizer.normalize("E280699500005003B9D2A1B0"));
+    public void sdkHexString_normalizedToUpper() {
+        // 2026-11 新合约: SDK 返回 24 位 hex（96 bit EPC）是合法标签, 统一转大写。
+        // 旧合约会拒掉这条, 导致真机上的 hex 标签全部扫不上。
+        assertEquals("E280699500005003B9D2A1B0",
+                EpcNormalizer.normalize("E280699500005003B9D2A1B0"));
+        assertEquals("E280699500005003B9D2A1B0",
+                EpcNormalizer.normalize("e280699500005003b9d2a1b0"));
     }
 
     @Test

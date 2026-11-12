@@ -63,13 +63,14 @@ public class ExcelImporterTest {
                 {"1", "X", "X", "X", "3500309099027210", "X", "X", "X"},
                 {"2", "X", "X", "X", "350030909902721", "X", "X", "X"},         // 15 位
                 {"3", "X", "X", "X", "3500309099027210A", "X", "X", "X"},       // 17 字符含字母
-                {"4", "X", "X", "X", "3500309099ABC210", "X", "X", "X"},        // 含字母
+                {"4", "X", "X", "X", "3500309099ABC210", "X", "X", "X"},        // 16 位 hex 标签, 合法
                 {"5", "X", "X", "X", "", "X", "X", "X"}                          // 空
         };
         try (java.io.InputStream in = buildXlsx(headers, rows)) {
             ExcelImporter.Result r = ExcelImporter.parse(in, 1L);
-            assertEquals(1, r.success);
-            assertEquals(4, r.errors.size());
+            // 2026-11 起 16 位十六进制标签合法 → 第 4 行也成功
+            assertEquals(2, r.success);
+            assertEquals(3, r.errors.size());
         }
     }
 
