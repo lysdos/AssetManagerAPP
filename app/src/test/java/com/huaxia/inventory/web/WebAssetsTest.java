@@ -81,4 +81,20 @@ public class WebAssetsTest {
         assertThat(js).contains("'/import'");
         assertThat(js).contains("'/report/:id'");
     }
+
+    /**
+     * 防回归: 路由切段必须同时剥掉可选的 "#" 和可选的 "/"。
+     *
+     * <p>注册时传 "/tasks"，location.hash 是 "#/tasks"。若正则只写 {@code ^#\/?}，
+     * "/tasks" 会切出 ["", "tasks"]（多一个空段），与 ["tasks"] 长度不等，
+     * 所有路由永远匹配不上 —— 表现为点导航链接没反应、页面空白。
+     */
+    @Test
+    public void routerJs_stripsOptionalHashAndSlash() throws Exception {
+        String js = readAsset("web/js/router.js");
+        assertThat(js)
+                .as("router split() must use /^#?\\/?/ so both '/tasks' and '#/tasks' "
+                        + "produce [\"tasks\"]")
+                .contains("/^#?\\/?/");
+    }
 }

@@ -4,8 +4,15 @@ export function register(pattern, render) {
   routes.push({ segments: split(pattern), render });
 }
 
+/**
+ * 把 pattern / location.hash 切成段数组。
+ *
+ * <p>必须同时剥掉可选的 "#" 和可选的 "/"：注册时传的是 "/tasks"，而
+ * location.hash 是 "#/tasks"。只剥 "#/" 的话，"/tasks" 会切出
+ * ["", "tasks"]（多一个空段），与 ["tasks"] 长度不等，路由永远匹配不上。
+ */
 function split(hash) {
-  const clean = (hash || '').replace(/^#\/?/, '').replace(/\/$/, '');
+  const clean = (hash || '').replace(/^#?\/?/, '').replace(/\/$/, '');
   return clean ? clean.split('/') : [];
 }
 
