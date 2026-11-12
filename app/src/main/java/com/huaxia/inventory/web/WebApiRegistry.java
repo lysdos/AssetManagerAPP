@@ -7,6 +7,7 @@ import com.huaxia.inventory.service.TaskService;
 import com.huaxia.inventory.session.InventorySession;
 import com.huaxia.inventory.web.api.AssetApi;
 import com.huaxia.inventory.web.api.DashboardApi;
+import com.huaxia.inventory.web.api.ExportApi;
 import com.huaxia.inventory.web.api.ImportApi;
 import com.huaxia.inventory.web.api.TaskApi;
 
@@ -43,5 +44,11 @@ final class WebApiRegistry {
 
         ImportApi importer = new ImportApi(db, new java.io.File(ctx.getCacheDir(), "web-upload"));
         router.post("/api/import", importer::upload);
+
+        ExportApi exporter = new ExportApi(db, ctx,
+                new java.io.File(ctx.getCacheDir(), "web-export"));
+        router.get("/api/export/task/{id}.xlsx", exporter::taskReport);
+        router.get("/api/export/ledger.xlsx", exporter::ledger);
+        router.get("/api/template.xlsx", exporter::template);
     }
 }
