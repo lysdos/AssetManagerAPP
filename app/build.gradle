@@ -130,6 +130,10 @@ dependencies {
     implementation 'org.apache.logging.log4j:log4j-core:2.21.1'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
 
+    // 内嵌 HTTP 服务：单 jar、零反射、R8 安全。仅用其 socket + 请求解析，
+    // 路由/JSON/静态资源全部自实现（见 web/ 包）。
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+
     // 优博讯平台 SDK — 条码 ScanManager / DeviceManager 等平台能力 (android.device.*)
     implementation files('libs/platform_sdk_v4.1.0326.jar')
     // 优博讯 UHF 读写器 SDK — com.ubx.usdk.*, 自带 arm64-v8a / armeabi-v7a / armeabi 的 .so
