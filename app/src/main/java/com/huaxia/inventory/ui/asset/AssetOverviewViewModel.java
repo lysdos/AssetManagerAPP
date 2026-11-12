@@ -435,11 +435,7 @@ public class AssetOverviewViewModel extends AndroidViewModel {
     }
 
     private static String likePattern(@Nullable String keyword) {
-        if (keyword == null || keyword.isEmpty()) return "%";
-        String escaped = keyword.replace("!", "!!")
-                .replace("%", "!%")
-                .replace("_", "!_");
-        return "%" + escaped + "%";
+        return com.huaxia.inventory.util.SqlLikeEscaper.likePattern(keyword);
     }
 
     @Override

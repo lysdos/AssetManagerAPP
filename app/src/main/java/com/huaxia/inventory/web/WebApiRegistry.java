@@ -5,6 +5,7 @@ import android.content.Context;
 import com.huaxia.inventory.data.AppDatabase;
 import com.huaxia.inventory.service.TaskService;
 import com.huaxia.inventory.session.InventorySession;
+import com.huaxia.inventory.web.api.AssetApi;
 import com.huaxia.inventory.web.api.DashboardApi;
 import com.huaxia.inventory.web.api.TaskApi;
 
@@ -33,5 +34,10 @@ final class WebApiRegistry {
         router.post("/api/tasks/{id}/resume", tasks::resume);
         router.post("/api/tasks/{id}/complete", tasks::complete);
         router.delete("/api/tasks/{id}", tasks::delete);
+
+        AssetApi assets = new AssetApi(db);
+        router.get("/api/assets", assets::list);
+        router.get("/api/assets/filters", assets::filters);
+        router.get("/api/tasks/{id}/results", assets::results);
     }
 }
