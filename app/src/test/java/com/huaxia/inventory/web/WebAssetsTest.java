@@ -64,4 +64,11 @@ public class WebAssetsTest {
         assertThat(css).contains("[data-theme=\"dark\"]");
         assertThat(css).contains("--color-accent");
     }
+
+    @Test
+    public void tasksJs_definesListAndDetail() throws Exception {
+        String js = readAsset("web/js/tasks.js");
+        assertThat(js).contains("export async function renderList");
+        assertThat(js).contains("export async function renderDetail");
+    }
 }

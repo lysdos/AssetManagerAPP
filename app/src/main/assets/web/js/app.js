@@ -1,5 +1,6 @@
 import { register, start } from './router.js';
 import * as dashboard from './dashboard.js';
+import * as tasks from './tasks.js';
 
 const THEME_KEY = 'asset-theme';
 
@@ -19,5 +20,7 @@ document.getElementById('themeToggle').addEventListener('click', () => {
 
 register('/dashboard', dashboard.render);
 register('/', dashboard.render);
+register('/tasks', tasks.renderList);
+register('/tasks/:id', tasks.renderDetail);
 
 start(document.getElementById('view'));
