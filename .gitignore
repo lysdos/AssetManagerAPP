@@ -9,3 +9,6 @@ captures/
 app/release/
 *.apk
 *.aab
+
+# brainstorming 可视化草稿（不随仓库交付）
+.superpowers/
