@@ -130,6 +130,11 @@ public class MainActivity extends AppCompatActivity {
                 openExportAssetsDialog();
                 return true;
             }
+            if (id == R.id.menu_action_web_server) {
+                com.huaxia.inventory.ui.setting.WebServerDialog.newInstance()
+                        .show(getSupportFragmentManager(), "web_server");
+                return true;
+            }
             return false;
         });
         popup.show();

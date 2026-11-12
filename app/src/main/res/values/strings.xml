@@ -301,4 +301,16 @@
     <string name="asset_export_no_assets">没有可导出的资产</string>
     <string name="asset_export_file_all_fmt">资产台账_全部_%1$s.xlsx</string>
     <string name="asset_export_file_filtered_fmt">资产台账_筛选结果_%1$s.xlsx</string>
+
+    <!-- Web 服务 -->
+    <string name="menu_action_web_server">Web 服务</string>
+    <string name="web_server_channel_name">Web 服务</string>
+    <string name="web_server_notification_title">资产管家 Web 服务运行中</string>
+    <string name="web_server_stop">停止</string>
+    <string name="web_server_dialog_title">Web 服务</string>
+    <string name="web_server_toggle_on">开启</string>
+    <string name="web_server_toggle_off">关闭</string>
+    <string name="web_server_address_fmt">http://%1$s</string>
+    <string name="web_server_hint">同一 WiFi 或连接本机热点后，在浏览器打开上面的地址。数据仅保存在本机，不经过任何服务器。</string>
+    <string name="web_server_no_network">未连接网络，请先连接 WiFi 或开启热点</string>
 </resources>

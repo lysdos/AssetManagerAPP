@@ -12,4 +12,8 @@
         android:id="@+id/menu_action_export_assets"
         android:title="@string/menu_action_export_assets"
         android:icon="@drawable/ic_export_menu" />
+    <item
+        android:id="@+id/menu_action_web_server"
+        android:title="@string/menu_action_web_server"
+        android:icon="@drawable/ic_settings" />
 </menu>
