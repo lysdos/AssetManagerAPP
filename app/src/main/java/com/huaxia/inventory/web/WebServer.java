@@ -26,6 +26,20 @@ public class WebServer extends NanoHTTPD {
     /** 上传体积上限 20MB —— 千级数据 xlsx 通常 200KB~2MB，留足余量。 */
     private static final int MAX_BODY = 20 * 1024 * 1024;
 
+    /**
+     * 工作线程数。
+     *
+     * <p><b>不能设小</b>：NanoHTTPD 的 {@code ClientHandler.run()} 是 keep-alive 循环 ——
+     * 它 {@code execute()} 一次后 {@code goto} 回去继续读同一个 socket，直到连接关闭。
+     * 也就是<b>一条浏览器连接独占一个线程</b>。浏览器同源默认开 6 条并行连接，
+     * 两台设备就是 12 条，再加上 5 秒轮询的常连接。
+     *
+     * <p>早期版本用 {@code core=2 / max=4 / ArrayBlockingQueue(32)}：有界队列让线程
+     * 永远涨不到 max，实际只有 2 个并发 —— 页面 6 个静态资源请求里 4 个永久排队，
+     * 表现为浏览器里 css/js 一直 pending、页面空白。
+     */
+    private static final int WORKER_THREADS = 16;
+
     private final Context ctx;
     private final WebRouter router;
     private final ThreadPoolExecutor executor;
@@ -34,9 +48,9 @@ public class WebServer extends NanoHTTPD {
         super(port);
         this.ctx = ctx.getApplicationContext();
         this.router = new WebRouter();
-        // NanoHTTPD 默认每个请求新开一个线程；换成有界线程池，防止多个 Excel 导出把 PDA 打满。
-        this.executor = new ThreadPoolExecutor(2, 4, 60, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<>(32), new ThreadPoolExecutor.AbortPolicy());
+        this.executor = new ThreadPoolExecutor(WORKER_THREADS, WORKER_THREADS,
+                60L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(256),
+                new ThreadPoolExecutor.AbortPolicy());
         setAsyncRunner(new PooledRunner(executor));
         WebApiRegistry.register(router, this.ctx, db, session);
     }
@@ -51,7 +65,16 @@ public class WebServer extends NanoHTTPD {
 
         @Override public void closed(NanoHTTPD.ClientHandler clientHandler) { /* 无需回收 */ }
 
-        @Override public void exec(NanoHTTPD.ClientHandler code) { pool.execute(code); }
+        @Override public void exec(NanoHTTPD.ClientHandler code) {
+            try {
+                pool.execute(code);
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                // 池与队列同时打满（远超正常局域网并发）。此处若让异常冒泡，
+                // 会打断 ServerRunnable 的 accept 循环、整个服务停止接受新连接，
+                // 所以吞掉并记日志：只丢这一个连接。
+                Log.w(TAG, "request rejected: worker pool saturated");
+            }
+        }
     }
 
     @Override

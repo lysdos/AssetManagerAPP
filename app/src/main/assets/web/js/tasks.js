@@ -12,7 +12,10 @@ function notifySessionChange(res) {
 }
 
 export async function renderList(root) {
+  // 先给占位再 await —— 否则数据回来前整页空白，慢网下像卡死
+  root.appendChild(el('div', 'empty', '加载中…'));
   const data = await get('/tasks');
+  root.innerHTML = '';
   const wrap = el('div');
 
   const head = el('div', 'row');
@@ -195,7 +198,9 @@ async function openCreateDialog(root) {
 
 export async function renderDetail(root, params) {
   const id = params.id;
+  root.appendChild(el('div', 'empty', '加载中…'));
   const task = await get(`/tasks/${id}`);
+  root.innerHTML = '';
 
   const wrap = el('div');
   const head = el('div', 'row');

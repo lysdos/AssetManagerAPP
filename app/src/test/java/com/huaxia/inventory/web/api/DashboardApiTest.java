@@ -112,4 +112,26 @@ public class DashboardApiTest {
         // 1 秒内两次请求返回同一份快照 —— 多标签轮询不会放大 PDA 负载
         assertThat(second).isEqualTo(first);
     }
+
+    @Test
+    public void tasks_listsOnlyOpenTasks() throws Exception {
+        com.huaxia.inventory.data.entity.InventoryTask running =
+                new com.huaxia.inventory.data.entity.InventoryTask();
+        running.sourceFileName = "进行中";
+        running.status = "IN_PROGRESS";
+        running.expectedCount = 10;
+        db.inventoryTaskDao().insert(running);
+
+        com.huaxia.inventory.data.entity.InventoryTask done =
+                new com.huaxia.inventory.data.entity.InventoryTask();
+        done.sourceFileName = "已完成";
+        done.status = "COMPLETED";
+        done.expectedCount = 5;
+        db.inventoryTaskDao().insert(done);
+
+        JsonNode tasks = get().get("tasks");
+
+        assertThat(tasks.size()).isEqualTo(1);
+        assertThat(tasks.get(0).get("name").asText()).isEqualTo("进行中");
+    }
 }

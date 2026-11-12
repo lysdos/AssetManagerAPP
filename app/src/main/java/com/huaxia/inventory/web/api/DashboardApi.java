@@ -70,10 +70,36 @@ public class DashboardApi {
         result.put("ledger", ledger);
         result.put("taskCounts", taskCounts);
         result.put("activeTask", activeTask(tasks));
+        result.put("tasks", openTasks(tasks));
         result.put("deptDistribution", topN(deptGroups, "未填写"));
         result.put("typeDistribution", topN(typeGroups, "未分类"));
         result.put("updatedAt", System.currentTimeMillis());
         return result;
+    }
+
+    /**
+     * 未完成的任务（进行中 / 已暂停），最多 8 条。
+     *
+     * <p>大屏左栏要能同时看到多个在跑的任务，否则「进行中 2」的标题下只有一行，
+     * 面板会留出大片空白。已完成任务不进这个列表 —— 它们在 KPI 里单独计数。
+     */
+    private List<Map<String, Object>> openTasks(List<InventoryTask> tasks) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (InventoryTask t : tasks) {
+            if ("COMPLETED".equals(t.status)) continue;
+            if (out.size() >= 8) break;
+            ScanAggregate agg = db.scanRecordDao().aggregateStats(t.id);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", t.id);
+            m.put("name", t.sourceFileName);
+            m.put("status", t.status);
+            m.put("expected", t.expectedCount);
+            m.put("scanned", agg.matchedCount);
+            m.put("progress", t.expectedCount == 0 ? 0.0
+                    : Math.min(1.0, (double) agg.matchedCount / t.expectedCount));
+            out.add(m);
+        }
+        return out;
     }
 
     private Map<String, Object> activeTask(List<InventoryTask> tasks) {

@@ -2,7 +2,9 @@ import { get, download } from './api.js';
 import { empty, paginator, el, fmtTime } from './ui.js';
 
 export async function render(root) {
+  root.appendChild(el('div', 'empty', '加载中…'));
   const filters = await get('/assets/filters');
+  root.innerHTML = '';
   const state = { keyword: '', dept: '', type: '', page: 1, pageSize: 20 };
 
   const wrap = el('div');

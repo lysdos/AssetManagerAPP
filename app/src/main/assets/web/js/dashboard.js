@@ -122,12 +122,21 @@ function paintTaskList(data) {
   list.style.justifyContent = 'space-around';
   box.appendChild(list);
 
-  const active = data.activeTask;
-  if (!active) {
+  const tasks = data.tasks || [];
+  if (!tasks.length) {
     list.appendChild(el('div', 'empty', '暂无进行中的任务'));
     return;
   }
-  list.appendChild(taskLine(active.name, active.progress, 'running'));
+  const activeId = data.activeTask ? data.activeTask.id : null;
+  for (const t of tasks) {
+    const kind = t.status === 'PAUSED' ? 'paused' : 'running';
+    const line = taskLine(t.name, t.progress, kind);
+    if (t.id === activeId) {
+      line.querySelector('.nm').textContent += ' ·当前';
+      line.querySelector('.nm').style.fontWeight = '600';
+    }
+    list.appendChild(line);
+  }
 }
 
 function taskLine(name, progress, kind) {
