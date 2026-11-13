@@ -362,6 +362,24 @@ public class ScanViewModel extends AndroidViewModel {
         long taskId = currentTaskId.get();
         diskIO.execute(() -> {
             if (disposed.get()) return;
+
+            // 已完成任务的资产已回库存池、扫描记录已删 —— 实时查询会全部返回 0，
+            // 必须改读冻结快照（与结果页同一数据源，见 ResultRepository）。
+            com.huaxia.inventory.data.entity.InventoryTask task =
+                    db.inventoryTaskDao().findById(taskId);
+            if (task != null && "COMPLETED".equals(task.status)) {
+                com.huaxia.inventory.data.ResultRepository.Counts c =
+                        new com.huaxia.inventory.data.ResultRepository(db)
+                                .counts(taskId, task.status);
+                // 注意：绝不能调 recomputeScannedCount —— 扫描记录已删，它会把任务行上的
+                // scannedUniqueCount 冲成 0，污染任务列表的进度显示。
+                long lastScanned = db.taskResultDao().maxInventoryTime(taskId);
+                stats.postValue(new Stats(c.expected, c.found, c.missing, 0,
+                        c.found, c.missing, c.extra,
+                        java.util.Collections.emptyList(), lastScanned));
+                return;
+            }
+
             // 300ms 去抖合并: 一次 recomputeStats 同时刷新"已盘去重计数"
             // (SQL UPDATE+COUNT(DISTINCT)) 和"统计聚合 (matched/extra/lastScannedAt)",
             // 避免每个新 EPC 都触发全表子查询.

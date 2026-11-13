@@ -25,7 +25,7 @@ export async function renderList(root) {
 
   const btnClear = el('button', 'btn danger', '清除已完成');
   btnClear.addEventListener('click', async () => {
-    if (!(await confirmDialog('清除全部已完成任务？资产会退回库存池。'))) return;
+    if (!(await confirmDialog('清除全部已完成任务？仅清除冻结的盘点结果与任务记录（资产早已退回库存池）。'))) return;
     try {
       await del('/tasks/completed');
       toast('已清除');
@@ -94,7 +94,7 @@ function taskCard(root, t) {
   actions.appendChild(actionBtn('导出报表', null, root, false,
     () => download(`/api/export/task/${t.id}.xlsx`)));
   actions.appendChild(actionBtn('删除', async () => {
-    if (!(await confirmDialog(`删除任务「${t.name}」？资产会退回库存池。`))) return null;
+    if (!(await confirmDialog(`删除任务「${t.name}」？进行中的任务其资产会退回库存池；已完成任务仅清除盘点结果。`))) return null;
     return del(`/tasks/${t.id}`);
   }, root, true));
 

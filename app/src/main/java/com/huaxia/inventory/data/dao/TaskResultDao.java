@@ -44,6 +44,10 @@ public interface TaskResultDao {
             + "AND status IN ('FOUND', 'MISSING') ORDER BY rowIndex ASC")
     List<TaskResult> findAll(long taskId);
 
+    /** 快照里最晚的盘点时间，作为已完成任务「最后盘点」的代理值。 */
+    @Query("SELECT COALESCE(MAX(inventoryTime), 0) FROM TaskResult WHERE taskId = :taskId")
+    long maxInventoryTime(long taskId);
+
     @Query("DELETE FROM TaskResult WHERE taskId = :taskId")
     int deleteByTask(long taskId);
 }

@@ -114,7 +114,7 @@
     <string name="task_dept_unlimited_fmt">归属：不限部门</string>
     <string name="task_no_dept">不限部门</string>
     <!-- ⋮ → "删除任务" 的二次确认. 行为=资产回 pool + 清扫描 + 删任务壳, 资产不丢. -->
-    <string name="task_msg_confirm_delete">确认删除该任务？\n\n该任务下的资产将返回库存池（供新任务分配），扫描记录与任务本身将被清除。\n\n此操作不可撤销。</string>
+    <string name="task_msg_confirm_delete">确认删除该任务？\n\n进行中的任务：其资产将退回库存池，可被新任务分配。\n已完成的任务：资产早已退回库存池，这里只清除冻结的盘点结果。\n\n扫描记录与任务本身将被清除，此操作不可撤销。</string>
     <string name="task_msg_confirm_clear_done">确认清除所有已完成任务？</string>
     <string name="task_action_complete">完成任务</string>
     <string name="task_msg_confirm_complete">确认将该任务标记为已完成？\n\n标记后不可再继续盘点，且不可撤销。</string>
@@ -270,7 +270,7 @@
     <string name="asset_task_hint_pool">库存池资产 · 修改会直接写入台账主数据</string>
     <string name="asset_task_hint_in_progress_fmt">进行中任务「%1$s」· 修改先作为本次盘点草稿，重置扫描进度或删除任务会回滚</string>
     <string name="asset_task_hint_paused_fmt">已暂停任务「%1$s」· 修改作为草稿保留，删除任务会回滚</string>
-    <string name="asset_task_hint_completed_fmt">已完成任务「%1$s」· 资产已冻结，如需修改请先在任务页清除该任务</string>
+    <string name="asset_task_hint_completed_fmt">已完成任务「%1$s」· 盘点结果已冻结，如需修改请新建任务重新盘点</string>
     <string name="asset_task_hint_orphan">所属任务不存在 · 只读</string>
     <string name="asset_task_name_unknown">未命名任务</string>
     <string name="dialog_asset_edit_title">修改资产</string>
