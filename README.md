@@ -10,7 +10,7 @@
 - 资产总览：全量台账（库存池 + 已划拨）总数 / 领用部门 / 设备类型分布、关键词搜索、交叉筛选、20 条/页分页；点击资产行可编辑业务字段（已完成任务资产只读）
 - 从 Excel 导入资产清单（8 个必需列：序号 / 设备类型 / 设备型号 / 序列号 / 固资编号 / 领用部门 / 领用人 / 盘点日期；重复固资编号按行覆盖更新）
 - 盘点任务管理：创建（可按领用部门限定、可填备注，备注显示在任务卡片）/ 暂停 / 恢复 / 完成任务 / 删除（资产退回库存池）/ 清除已完成；已完成任务「查看详情」→ 扫描页只读查看统计（切换 扫描/结果 tab 保持该任务，可再下钻结果页看列表 / 导出，不可编辑）
-- 编辑的草稿 / 提交语义：进行中或暂停任务的字段编辑为**草稿**（不改主数据）；**完成任务 = 提交**（编辑值成为主数据）；**删除 / 重置任务 = 回滚**到导入原值，并清盘点时间
+- 编辑的草稿 / 提交语义：进行中或暂停任务的字段编辑为**草稿**（不改主数据）；**完成任务 = 提交 + 释放资产**（编辑值成为主数据，同时结果冻结进 `TaskResult`、资产退回库存池，可被新任务重新选择）；**删除 / 重置任务 = 回滚**到导入原值，并清盘点时间
 - RFID 扫描标签，实时匹配固资编号（UHF 读写器）
 - 手动盘点：输入固资编号查询，或摄像头扫条码（无扫码枪设备上的兜底）
 - 统计 已盘 / 盘亏 / 盘盈；盘盈（未匹配标签）可补全资产信息
@@ -22,7 +22,7 @@
 
 - Java 11 / AndroidX (minSdk 26, targetSdk 34, compileSdk 34)
 - Single Activity + BottomNavigationView（📦 资产 / 📋 任务 / 🔍 扫描 / 📊 结果 四 tab）+ 若干 Fragment / Dialog
-- Room 2.6（本地数据库，当前 schema **v1** = 首次发布基线，交付前已收敛掉开发期 v2..v11 的迁移链）
+- Room 2.6（本地数据库，schema **v2**：v1 为首次发布基线；v2 新增 `TaskResult` 冻结快照表）
 - Apache POI 5.2.5（Excel 解析 / 流式写出）
 - Jackson 2.17（JSON）
 - NanoHTTPD 2.3.1（内嵌 HTTP 服务，见「Web 服务」章节）
@@ -83,7 +83,7 @@ adb shell am start -n com.assetmanager.inventory/com.huaxia.inventory.MainActivi
 ./gradlew :app:testDebugUnitTest
 ```
 
-当前全量单测 **326 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
+当前全量单测 **364 个用例全部通过**（改代码后请重跑此命令确认）。除常规行为测试（`EpcNormalizer` / `StatusDerivation` / `ExcelImporter` / `ExcelExporter` / `HeaderSpec` / DAO / `RfidController` 等）外，仓库大量使用两类防回归守卫：
 - **源码文本守卫**：反射式提取方法体 + 断言，钉住事务边界、生命周期守卫、迁移链完整性、索引声明等不变量；
 - **Robolectric 行为测试**：验证 detach 后回调、旋转时弹窗关闭等运行时行为。
 
@@ -152,7 +152,7 @@ adb shell am start -n com.assetmanager.inventory/com.huaxia.inventory.MainActivi
 
 ## 验证
 
-单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，326 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删 / Web 服务等主流程做一次回归。
+单元测试已就位并在本地执行通过（`./gradlew :app:testDebugUnitTest`，364 用例全绿）。真机部署前建议对扫描 / 导入导出 / 任务增删 / Web 服务等主流程做一次回归。
 
 ## 开发者注意事项
 
