@@ -87,6 +87,24 @@ public class TaskServiceCompleteTest {
         assertThat(found.inventoryTime).isEqualTo(1234L);
     }
 
+    /**
+     * 回归：扫完直接点完成、从没进过结果页时，快照里的盘点时间不能是 null。
+     * 以前 inventory_time 只靠「打开结果页」回填；完成时资产回池 + 扫描记录删除后，
+     * 就再也没机会补，导出的「盘点时间」列会永久空白。
+     */
+    @Test
+    public void complete_backfillsInventoryTimeBeforeSnapshot() {
+        Asset a1 = assetOf("E1");
+        assertThat(a1.inventoryTime).isNull();
+        scanFound("E1", a1.id);   // scannedAt = 1000L
+
+        service.completeTask(taskId);
+
+        TaskResult found = db.taskResultDao().pageFound(taskId, 10, 0).get(0);
+        assertThat(found.epc).isEqualTo("E1");
+        assertThat(found.inventoryTime).isEqualTo(1000L);
+    }
+
     @Test
     public void complete_releasesAssetsBackToPool() {
         service.completeTask(taskId);

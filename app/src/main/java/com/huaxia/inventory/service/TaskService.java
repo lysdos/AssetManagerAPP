@@ -175,6 +175,13 @@ public class TaskService {
             InventoryTask t = db.inventoryTaskDao().findById(taskId);
             if (t == null || "COMPLETED".equals(t.status)) return;
 
+            // 写快照前先把"已盘资产"的盘点时间补上。
+            // inventory_time 平时只在打开结果页时才回填（ResultViewModel.bindToTask）；
+            // 若用户扫完直接点完成、没进过结果页，快照会拿到 null —— 而完成后扫描记录
+            // 已删、资产已回池，再也没机会补，导出的「盘点时间」列就永久空白。
+            // 该方法是幂等的（只填 inventory_time IS NULL 的行）。
+            db.assetDao().backfillFoundInventoryTime(taskId);
+
             db.taskResultDao().insertAll(buildSnapshot(taskId));
 
             db.assetDao().clearInventoryTimeForTask(taskId);
