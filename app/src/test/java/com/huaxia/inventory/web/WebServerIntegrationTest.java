@@ -201,4 +201,42 @@ public class WebServerIntegrationTest {
         assertThat(body).contains("\"total\":2");
         assertThat(body).contains("E1");
     }
+
+    /**
+     * 进行中的任务也要有盘点时间：扫描后没进过结果页，Web 结果接口/导出仍应带上时间。
+     */
+    @Test
+    public void inProgressResults_haveInventoryTime() throws Exception {
+        com.huaxia.inventory.data.entity.InventoryTask t =
+                new com.huaxia.inventory.data.entity.InventoryTask();
+        t.sourceFileName = "进行中";
+        t.status = "IN_PROGRESS";
+        t.expectedCount = 1;
+        long id = db.inventoryTaskDao().insert(t);
+
+        com.huaxia.inventory.data.entity.Asset a =
+                new com.huaxia.inventory.data.entity.Asset();
+        a.taskId = id;
+        a.excelRowIndex = 1;
+        a.epc = "E1";
+        db.assetDao().upsertOne(a);
+        long assetId = db.assetDao().findByEpc(id, "E1").id;
+
+        com.huaxia.inventory.data.entity.ScanRecord s =
+                new com.huaxia.inventory.data.entity.ScanRecord();
+        s.taskId = id;
+        s.epc = "E1";
+        s.scannedAt = 1234567L;
+        s.matchedAssetId = assetId;
+        db.scanRecordDao().insert(s);
+
+        // 前提：从未回填
+        assertThat(db.assetDao().findByEpc(id, "E1").inventoryTime).isNull();
+
+        HttpURLConnection results = open("GET",
+                "/api/tasks/" + id + "/results?tab=FOUND&page=1&pageSize=10");
+        assertThat(results.getResponseCode()).isEqualTo(200);
+        String body = readAll(results.getInputStream());
+        assertThat(body).contains("\"inventoryTime\":1234567");
+    }
 }

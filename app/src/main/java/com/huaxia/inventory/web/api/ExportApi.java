@@ -61,6 +61,9 @@ public class ExportApi {
             throw ApiException.conflict("EXPORT_IN_PROGRESS", "该任务正在导出，请稍后重试");
         }
         try {
+            // 导出前补一次盘点时间，否则「盘点时间」列可能整列为空
+            new com.huaxia.inventory.data.ResultRepository(db)
+                    .ensureInventoryTime(taskId, task.status);
             File out = newTempFile();
             try (OutputStream os = new FileOutputStream(out)) {
                 ExcelExporter.exportStreamed(os, task.sourceFileName, task.status,

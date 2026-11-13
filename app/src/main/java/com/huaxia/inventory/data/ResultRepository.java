@@ -74,6 +74,21 @@ public class ResultRepository {
         this.db = db;
     }
 
+    /**
+     * 确保"已盘资产"的盘点时间已回填。
+     *
+     * <p>{@code inventory_time} 平时只在打开结果页时才回填；Web 的导出/结果接口、
+     * 以及"扫完直接完成"的路径都可能绕过它，导致「盘点时间」列空白。
+     * 这里收敛成唯一入口，所有读结果的地方先调一次。</p>
+     *
+     * <p>幂等（DAO 带 {@code inventory_time IS NULL} 守卫）；已完成任务跳过 ——
+     * 资产已回池、扫描记录已删，且值已冻结在 {@code TaskResult} 里。</p>
+     */
+    public void ensureInventoryTime(long taskId, String taskStatus) {
+        if (isCompleted(taskStatus)) return;
+        db.assetDao().backfillFoundInventoryTime(taskId);
+    }
+
     public Counts counts(long taskId, String taskStatus) {
         if (isCompleted(taskStatus)) {
             return new Counts(

@@ -73,6 +73,9 @@ public class AssetApi {
         int page = Math.max(1, req.queryInt("page", 1));
         int size = clampSize(req.queryInt("pageSize", DEFAULT_PAGE_SIZE));
 
+        // 保证「盘点时间」有值（幂等）
+        new ResultRepository(db).ensureInventoryTime(taskId, task.status);
+
         List<Map<String, Object>> items = new ArrayList<>();
         for (ResultRepository.ResultRow r : new ResultRepository(db)
                 .page(taskId, task.status, which, size, (page - 1) * size)) {
