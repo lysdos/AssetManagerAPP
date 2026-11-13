@@ -54,6 +54,9 @@ public class TaskResult {
     /** 盘盈行的 RSSI。 */
     @Nullable public String rssi;
 
+    /** 盘盈行的 TID（导出「电子标签」列用）。 */
+    @Nullable public String tid;
+
     /** 导出时重建原始表头顺序用。 */
     @Nullable public String rawRowJson;
 }

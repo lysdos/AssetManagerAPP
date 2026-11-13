@@ -303,7 +303,10 @@ public class ResultFragment extends Fragment {
                 InventoryTask task = app.getDb().inventoryTaskDao().findById(taskId);
 
                 List<String> originalHeaders = new ArrayList<>();
-                List<Asset> firstPage = app.getDb().assetDao().pageAll(taskId, 1, 0);
+                List<com.huaxia.inventory.data.ResultRepository.ResultRow> firstPage =
+                        new com.huaxia.inventory.data.ResultRepository(app.getDb())
+                                .page(taskId, task.status,
+                                        com.huaxia.inventory.data.ResultRepository.Tab.ALL, 1, 0);
                 if (!firstPage.isEmpty() && firstPage.get(0).rawRowJson != null) {
                     com.fasterxml.jackson.databind.ObjectMapper mapper =
                             new com.fasterxml.jackson.databind.ObjectMapper();
@@ -317,9 +320,10 @@ public class ResultFragment extends Fragment {
                 }
 
                 try (java.io.OutputStream out = resolver.openOutputStream(uri)) {
-                    ExcelExporter.exportStreamed(out, task.sourceFileName, originalHeaders,
-                            app.getDb().assetDao(), app.getDb().scanRecordDao(),
-                            app.getDb().extraClaimDao(), taskId, cacheDir);
+                    ExcelExporter.exportStreamed(out, task.sourceFileName, task.status,
+                            originalHeaders,
+                            new com.huaxia.inventory.data.ResultRepository(app.getDb()),
+                            taskId, cacheDir);
                 }
                 if (isAdded()) {
                     requireActivity().runOnUiThread(() -> {

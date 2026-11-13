@@ -124,9 +124,11 @@ public class TaskApi {
     }
 
     private Map<String, Object> summary(InventoryTask t) {
-        ScanAggregate agg = db.scanRecordDao().aggregateStats(t.id);
-        int scanned = agg.matchedCount;
-        int missing = Math.max(0, t.expectedCount - scanned);
+        com.huaxia.inventory.data.ResultRepository.Counts c =
+                new com.huaxia.inventory.data.ResultRepository(db).counts(t.id, t.status);
+        int scanned = c.found;
+        int missing = c.missing;
+        int extra = c.extra;
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", t.id);
@@ -136,10 +138,10 @@ public class TaskApi {
         m.put("expected", t.expectedCount);
         m.put("scanned", scanned);
         m.put("missing", missing);
-        m.put("extra", agg.extraCount);
+        m.put("extra", extra);
         m.put("progress", t.expectedCount == 0 ? 0.0
                 : Math.min(1.0, (double) scanned / t.expectedCount));
-        m.put("lastScannedAt", agg.lastScannedAt);
+        m.put("lastScannedAt", db.scanRecordDao().aggregateStats(t.id).lastScannedAt);
         m.put("importedAt", t.importedAt);
         return m;
     }

@@ -7,6 +7,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import com.huaxia.inventory.InventoryApp;
 import com.huaxia.inventory.data.AppDatabase;
+import com.huaxia.inventory.data.ResultRepository;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.ExtraClaim;
 import com.huaxia.inventory.data.entity.ScanRecord;
@@ -30,6 +31,7 @@ public class ResultViewModel extends AndroidViewModel {
 
     private final InventoryApp app;
     private final AppDatabase db;
+    private final ResultRepository repo;
     private final Executor diskIO;
     private final MutableLiveData<List<Asset>> assets = new MutableLiveData<>();
     private final MutableLiveData<List<ExtraWithClaim>> extras = new MutableLiveData<>();
@@ -53,6 +55,7 @@ public class ResultViewModel extends AndroidViewModel {
         InventoryApp app = (InventoryApp) application;
         this.app = app;
         this.db = app.getDb();
+        this.repo = new ResultRepository(this.db);
         this.diskIO = app.getExecutors().diskIO;
     }
 
@@ -69,9 +72,16 @@ public class ResultViewModel extends AndroidViewModel {
         // 然后一次性拉 found id 集合到 matchedIds — 不再让 UI 在 observer 内各自调
         // assetDao().findFound(taskId) 全表加载.
         diskIO.execute(() -> {
-            db.assetDao().backfillFoundInventoryTime(taskId);
+            String status = statusOf(taskId);
+            if (!"COMPLETED".equals(status)) {
+                db.assetDao().backfillFoundInventoryTime(taskId);
+            }
+            // 已盘 id 集合：进行中用真实 Asset.id，已完成用快照行的合成负 id
             java.util.Set<Long> foundIds = new java.util.HashSet<>();
-            for (Asset a : db.assetDao().findFound(taskId)) foundIds.add(a.id);
+            for (ResultRepository.ResultRow r : repo.page(taskId, status,
+                    ResultRepository.Tab.FOUND, Integer.MAX_VALUE, 0)) {
+                foundIds.add(r.id);
+            }
             matchedIds.postValue(foundIds);
             refresh();
         });
@@ -103,10 +113,12 @@ public class ResultViewModel extends AndroidViewModel {
         Integer pageObj = currentPage.getValue();
         int page = pageObj == null ? 0 : pageObj;
         diskIO.execute(() -> {
-            int total = db.assetDao().countByTask(taskId);
-            int found = db.assetDao().countFound(taskId);
-            int missing = db.assetDao().countMissing(taskId);
-            int extra = db.scanRecordDao().countExtras(taskId);
+            String status = statusOf(taskId);
+            ResultRepository.Counts c = repo.counts(taskId, status);
+            int total = c.expected;
+            int found = c.found;
+            int missing = c.missing;
+            int extra = c.extra;
             stats.postValue(new Stats(total, found, missing, extra));
 
             // 夹页码: 删除末页最后一条后 currentPage 可能越过最后一页 → 列表会显示
@@ -125,45 +137,85 @@ public class ResultViewModel extends AndroidViewModel {
             if (effectivePage != page) currentPage.postValue(effectivePage);
             int offset = effectivePage * PAGE_SIZE;
 
-            List<Asset> assetResult;
+            ResultRepository.Tab which;
             switch (tab) {
-                case MISSING:
-                    assetResult = db.assetDao().pageMissing(taskId, PAGE_SIZE, offset);
-                    extras.postValue(Collections.emptyList());
-                    break;
-                case EXTRA:
-                    assetResult = Collections.emptyList();
-                    extras.postValue(loadExtrasWithClaim(taskId, PAGE_SIZE, offset));
-                    break;
-                case ALL:
-                    assetResult = db.assetDao().pageAll(taskId, PAGE_SIZE, offset);
-                    extras.postValue(Collections.emptyList());
-                    break;
+                case MISSING: which = ResultRepository.Tab.MISSING; break;
+                case EXTRA:   which = ResultRepository.Tab.EXTRA;   break;
+                case ALL:     which = ResultRepository.Tab.ALL;     break;
                 case FOUND:
-                default:
-                    assetResult = db.assetDao().pageFound(taskId, PAGE_SIZE, offset);
-                    extras.postValue(Collections.emptyList());
-                    break;
+                default:      which = ResultRepository.Tab.FOUND;   break;
             }
-            assets.postValue(assetResult);
+            List<ResultRepository.ResultRow> rows =
+                    repo.page(taskId, status, which, PAGE_SIZE, offset);
+            if (which == ResultRepository.Tab.EXTRA) {
+                assets.postValue(Collections.emptyList());
+                extras.postValue(toExtras(rows));
+            } else {
+                assets.postValue(toAssets(rows));
+                extras.postValue(Collections.emptyList());
+            }
         });
     }
 
+    /** 任务状态；任务不存在时按进行中处理（结果页对未知任务显示空列表）。 */
+    private String statusOf(long taskId) {
+        com.huaxia.inventory.data.entity.InventoryTask t =
+                db.inventoryTaskDao().findById(taskId);
+        return t == null ? "IN_PROGRESS" : t.status;
+    }
+
     /**
-     * 拉一页盘盈 + 对应的 ExtraClaim 补全信息。
-     * 两步查: 先 pageExtra 拿 ScanRecord 列表, 再批量 findByScanRecordIds 拿补全信息。
+     * ResultRow → Asset。
+     *
+     * <p>UI 层（适配器/详情弹窗）沿用 {@code Asset} 类型不变，这里只做字段搬运：
+     * 已完成任务的快照行用 {@code -rowIndex} 作为 id（见 {@code ResultRepository}），
+     * 只用于列表标记，不会再写库。</p>
      */
-    private List<ExtraWithClaim> loadExtrasWithClaim(long taskId, int limit, int offset) {
-        List<ScanRecord> records = db.scanRecordDao().pageExtra(taskId, limit, offset);
-        if (records.isEmpty()) return Collections.emptyList();
-        List<Long> ids = new ArrayList<>(records.size());
-        for (ScanRecord r : records) ids.add(r.id);
-        List<ExtraClaim> claims = db.extraClaimDao().findByScanRecordIds(ids);
-        Map<Long, ExtraClaim> map = new HashMap<>();
-        for (ExtraClaim c : claims) map.put(c.scanRecordId, c);
-        List<ExtraWithClaim> out = new ArrayList<>(records.size());
-        for (ScanRecord r : records) {
-            out.add(new ExtraWithClaim(r, map.get(r.id)));
+    private static List<Asset> toAssets(List<ResultRepository.ResultRow> rows) {
+        List<Asset> out = new ArrayList<>(rows.size());
+        for (ResultRepository.ResultRow r : rows) {
+            Asset a = new Asset();
+            a.id = r.id;
+            a.epc = r.epc;
+            a.assetType = r.assetType;
+            a.assetModel = r.assetModel;
+            a.serialNumber = r.serialNumber;
+            a.custodian = r.custodian;
+            a.dept = r.dept;
+            a.inventoryTime = r.inventoryTime;
+            a.rawRowJson = r.rawRowJson;
+            out.add(a);
+        }
+        return out;
+    }
+
+    /**
+     * ResultRow → ExtraWithClaim。
+     *
+     * <p>只有确实存在补全信息（任一业务字段非空）时才构造 claim，
+     * 否则适配器会把未补全的盘盈误标成「已补全」。</p>
+     */
+    private static List<ExtraWithClaim> toExtras(List<ResultRepository.ResultRow> rows) {
+        List<ExtraWithClaim> out = new ArrayList<>(rows.size());
+        for (ResultRepository.ResultRow r : rows) {
+            ScanRecord s = new ScanRecord();
+            s.epc = r.epc;
+            s.scannedAt = r.scannedAt == null ? 0L : r.scannedAt;
+            s.rssi = r.rssi;
+
+            boolean claimed = r.assetType != null || r.assetModel != null
+                    || r.serialNumber != null || r.custodian != null || r.dept != null;
+            ExtraClaim c = null;
+            if (claimed) {
+                c = new ExtraClaim();
+                c.epc = r.epc;
+                c.assetType = r.assetType;
+                c.assetModel = r.assetModel;
+                c.serialNumber = r.serialNumber;
+                c.custodian = r.custodian;
+                c.dept = r.dept;
+            }
+            out.add(new ExtraWithClaim(s, c));
         }
         return out;
     }

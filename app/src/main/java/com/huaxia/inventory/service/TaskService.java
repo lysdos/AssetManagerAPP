@@ -238,6 +238,7 @@ public class TaskService {
                 r.status = "EXTRA";
                 r.scannedAt = s.scannedAt;
                 r.rssi = s.rssi;
+                r.tid = s.tid;
                 out.add(r);
             }
         }

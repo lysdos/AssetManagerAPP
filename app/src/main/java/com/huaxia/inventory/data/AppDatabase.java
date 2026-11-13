@@ -71,6 +71,7 @@ public abstract class AppDatabase extends RoomDatabase {
                     + "`inventoryTime` INTEGER,"
                     + "`scannedAt` INTEGER,"
                     + "`rssi` TEXT,"
+                    + "`tid` TEXT,"
                     + "`rawRowJson` TEXT)");
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_TaskResult_taskId` "
                     + "ON `TaskResult` (`taskId`)");
@@ -93,10 +94,10 @@ public abstract class AppDatabase extends RoomDatabase {
 
             // 2) 盘盈（业务字段取 ExtraClaim 的补全值）
             db.execSQL("INSERT INTO TaskResult (taskId, rowIndex, assetId, epc, assetType, "
-                    + "assetModel, serialNumber, custodian, dept, status, scannedAt, rssi) "
+                    + "assetModel, serialNumber, custodian, dept, status, scannedAt, rssi, tid) "
                     + "SELECT s.taskId, 0, NULL, COALESCE(c.epc, s.epc), c.assetType, "
                     + "c.assetModel, c.serialNumber, c.custodian, c.dept, 'EXTRA', "
-                    + "s.scannedAt, s.rssi "
+                    + "s.scannedAt, s.rssi, s.tid "
                     + "FROM ScanRecord s JOIN InventoryTask t ON t.id = s.taskId "
                     + "LEFT JOIN ExtraClaim c ON c.scanRecordId = s.id "
                     + "WHERE t.status = 'COMPLETED' AND s.matchedAssetId IS NULL");

@@ -46,6 +46,14 @@ public class ResultRepository {
 
     /** 扁平结果行 —— Asset / ScanRecord / TaskResult 三种来源统一成这一种。 */
     public static class ResultRow {
+        /**
+         * 行标识：进行中任务用真实 {@code Asset.id}；已完成任务用
+         * {@code -rowIndex}（负数，唯一且跨页稳定），供 UI 做"已盘/盘亏"标记与
+         * 点击定位；盘盈行为 0（无对应资产）。
+         */
+        public long id;
+        /** 原表行序；盘盈行为 0。导出兜底列用。 */
+        public int rowIndex;
         public String epc;
         public String assetType;
         public String assetModel;
@@ -56,6 +64,7 @@ public class ResultRepository {
         @Nullable public Long inventoryTime;
         @Nullable public Long scannedAt;
         @Nullable public String rssi;
+        @Nullable public String tid;
         @Nullable public String rawRowJson;
     }
 
@@ -159,6 +168,7 @@ public class ResultRepository {
             row.status = "EXTRA";
             row.scannedAt = s.scannedAt;
             row.rssi = s.rssi;
+            row.tid = s.tid;
             out.add(row);
         }
         return out;
@@ -166,6 +176,8 @@ public class ResultRepository {
 
     private static ResultRow fromAsset(Asset a) {
         ResultRow row = new ResultRow();
+        row.id = a.id;
+        row.rowIndex = a.excelRowIndex;
         row.epc = a.epc;
         row.assetType = a.assetType;
         row.assetModel = a.assetModel;
@@ -179,6 +191,9 @@ public class ResultRepository {
 
     private static ResultRow fromTaskResult(TaskResult r) {
         ResultRow row = new ResultRow();
+        // 快照行没有 Asset.id：用 -rowIndex 造一个跨页稳定的负 id，供 UI 标记已盘/盘亏
+        row.id = -r.rowIndex;
+        row.rowIndex = r.rowIndex;
         row.epc = r.epc;
         row.assetType = r.assetType;
         row.assetModel = r.assetModel;
@@ -189,6 +204,7 @@ public class ResultRepository {
         row.inventoryTime = r.inventoryTime;
         row.scannedAt = r.scannedAt;
         row.rssi = r.rssi;
+        row.tid = r.tid;
         row.rawRowJson = r.rawRowJson;
         return row;
     }

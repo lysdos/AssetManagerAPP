@@ -60,9 +60,9 @@ public class ExcelExporterStreamedTest {
         db.scanRecordDao().insert(scan(taskId, "X2", 3_000L, null, "TIDX2"));
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ExcelExporter.exportStreamed(out, "测试",
+        ExcelExporter.exportStreamed(out, "测试", "IN_PROGRESS",
                 Arrays.asList("设备名称", "固资编号", "电子标签"),
-                db.assetDao(), db.scanRecordDao(), db.extraClaimDao(), taskId,
+                new com.huaxia.inventory.data.ResultRepository(db), taskId,
                 tmp.getRoot());
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {
@@ -95,9 +95,9 @@ public class ExcelExporterStreamedTest {
 
         // 用含 "固资编号" / "电子标签" 的 header, 模拟真实 Excel 文件
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ExcelExporter.exportStreamed(out, "测试",
+        ExcelExporter.exportStreamed(out, "测试", "IN_PROGRESS",
                 Arrays.asList("设备名称", "固资编号", "电子标签"),
-                db.assetDao(), db.scanRecordDao(), db.extraClaimDao(), taskId,
+                new com.huaxia.inventory.data.ResultRepository(db), taskId,
                 tmp.getRoot());
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {
@@ -146,9 +146,9 @@ public class ExcelExporterStreamedTest {
         db.scanRecordDao().insert(scan(taskId, "000000035003090111002222", 3_000L, null, "TID_17"));
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ExcelExporter.exportStreamed(out, "strip",
+        ExcelExporter.exportStreamed(out, "strip", "IN_PROGRESS",
                 Arrays.asList("设备名称", "固资编号", "电子标签"),
-                db.assetDao(), db.scanRecordDao(), db.extraClaimDao(), taskId,
+                new com.huaxia.inventory.data.ResultRepository(db), taskId,
                 tmp.getRoot());
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {

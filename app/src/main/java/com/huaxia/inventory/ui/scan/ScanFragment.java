@@ -251,7 +251,12 @@ public class ScanFragment extends Fragment {
         }
         long tid = taskId;
         app.getExecutors().diskIO.execute(() -> {
-            int scans = app.getDb().scanRecordDao().countByTask(tid);
+            com.huaxia.inventory.data.entity.InventoryTask cur =
+                    app.getDb().inventoryTaskDao().findById(tid);
+            com.huaxia.inventory.data.ResultRepository.Counts cnt =
+                    new com.huaxia.inventory.data.ResultRepository(app.getDb())
+                            .counts(tid, cur == null ? "IN_PROGRESS" : cur.status);
+            int scans = cnt.found + cnt.extra;
             if (!isAdded()) return;
             requireActivity().runOnUiThread(() -> {
                 if (!isAdded()) return;

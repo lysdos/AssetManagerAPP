@@ -63,9 +63,9 @@ public class ExportApi {
         try {
             File out = newTempFile();
             try (OutputStream os = new FileOutputStream(out)) {
-                ExcelExporter.exportStreamed(os, task.sourceFileName, rebuildHeaders(taskId),
-                        db.assetDao(), db.scanRecordDao(), db.extraClaimDao(), taskId,
-                        ctx.getCacheDir());
+                ExcelExporter.exportStreamed(os, task.sourceFileName, task.status,
+                        rebuildHeaders(taskId), new com.huaxia.inventory.data.ResultRepository(db),
+                        taskId, ctx.getCacheDir());
             } catch (IOException e) {
                 deleteQuietly(out);
                 throw new ApiException(500, "INTERNAL", "导出失败：" + e.getMessage());
@@ -124,7 +124,12 @@ public class ExportApi {
      */
     private List<String> rebuildHeaders(long taskId) {
         List<String> headers = new ArrayList<>();
-        List<Asset> firstPage = db.assetDao().pageAll(taskId, 1, 0);
+        com.huaxia.inventory.data.entity.InventoryTask task =
+                db.inventoryTaskDao().findById(taskId);
+        List<com.huaxia.inventory.data.ResultRepository.ResultRow> firstPage =
+                new com.huaxia.inventory.data.ResultRepository(db).page(taskId,
+                        task == null ? "IN_PROGRESS" : task.status,
+                        com.huaxia.inventory.data.ResultRepository.Tab.ALL, 1, 0);
         if (firstPage.isEmpty() || firstPage.get(0).rawRowJson == null) return headers;
         try {
             @SuppressWarnings("unchecked")

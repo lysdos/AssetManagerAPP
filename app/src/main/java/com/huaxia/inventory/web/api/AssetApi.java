@@ -3,6 +3,7 @@ package com.huaxia.inventory.web.api;
 import androidx.annotation.Nullable;
 
 import com.huaxia.inventory.data.AppDatabase;
+import com.huaxia.inventory.data.ResultRepository;
 import com.huaxia.inventory.data.dao.CategoryCount;
 import com.huaxia.inventory.data.entity.Asset;
 import com.huaxia.inventory.data.entity.ScanRecord;
@@ -55,45 +56,56 @@ public class AssetApi {
 
     public WebResponse results(WebRequest req) throws ApiException {
         long taskId = req.pathParamLong("id");
-        if (db.inventoryTaskDao().findById(taskId) == null) {
+        com.huaxia.inventory.data.entity.InventoryTask task =
+                db.inventoryTaskDao().findById(taskId);
+        if (task == null) {
             throw ApiException.notFound("TASK_NOT_FOUND", "任务不存在");
         }
         String tab = req.query("tab") == null
                 ? "ALL" : req.query("tab").toUpperCase(Locale.ROOT);
+        ResultRepository.Tab which;
+        switch (tab) {
+            case "FOUND":   which = ResultRepository.Tab.FOUND;   break;
+            case "MISSING": which = ResultRepository.Tab.MISSING; break;
+            case "EXTRA":   which = ResultRepository.Tab.EXTRA;   break;
+            default:        which = ResultRepository.Tab.ALL;     break;
+        }
         int page = Math.max(1, req.queryInt("page", 1));
         int size = clampSize(req.queryInt("pageSize", DEFAULT_PAGE_SIZE));
-        int offset = (page - 1) * size;
 
         List<Map<String, Object>> items = new ArrayList<>();
-        int total;
-        switch (tab) {
-            case "FOUND":
-                total = db.assetDao().countFound(taskId);
-                for (Asset a : db.assetDao().pageFound(taskId, size, offset)) {
-                    items.add(toDto(a));
-                }
-                break;
-            case "MISSING":
-                total = db.assetDao().countMissing(taskId);
-                for (Asset a : db.assetDao().pageMissing(taskId, size, offset)) {
-                    items.add(toDto(a));
-                }
-                break;
-            case "EXTRA":
-                total = db.scanRecordDao().countExtras(taskId);
-                for (ScanRecord s : db.scanRecordDao().pageExtra(taskId, size, offset)) {
-                    items.add(extraDto(s));
-                }
-                break;
-            case "ALL":
-            default:
-                total = db.assetDao().countByTask(taskId);
-                for (Asset a : db.assetDao().pageAll(taskId, size, offset)) {
-                    items.add(toDto(a));
-                }
-                break;
+        for (ResultRepository.ResultRow r : new ResultRepository(db)
+                .page(taskId, task.status, which, size, (page - 1) * size)) {
+            items.add(toDto(r));
         }
-        return WebResponse.ok(envelope(items, page, size, total));
+        return WebResponse.ok(envelope(items, page, size,
+                totalFor(taskId, task.status, which)));
+    }
+
+    private int totalFor(long taskId, String status, ResultRepository.Tab tab) {
+        ResultRepository.Counts c = new ResultRepository(db).counts(taskId, status);
+        switch (tab) {
+            case FOUND:   return c.found;
+            case MISSING: return c.missing;
+            case EXTRA:   return c.extra;
+            case ALL:
+            default:      return c.expected;
+        }
+    }
+
+    private static Map<String, Object> toDto(ResultRepository.ResultRow r) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("epc", displayEpc(r.epc));
+        m.put("assetType", r.assetType);
+        m.put("assetModel", r.assetModel);
+        m.put("serialNumber", r.serialNumber);
+        m.put("dept", r.dept);
+        m.put("custodian", r.custodian);
+        m.put("status", r.status);
+        m.put("inventoryTime", r.inventoryTime);
+        m.put("scannedAt", r.scannedAt);
+        m.put("rssi", r.rssi);
+        return m;
     }
 
     private static Map<String, Object> envelope(List<Map<String, Object>> items,

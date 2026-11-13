@@ -160,4 +160,45 @@ public class WebServerIntegrationTest {
         assertThat(clear.getResponseCode()).as("DELETE /api/tasks/completed").isNotEqualTo(404);
         readAll(clear.getInputStream());
     }
+
+    /**
+     * 完成任务后资产回池，但结果接口仍必须返回数据 —— 这是本次改动的核心不变量。
+     */
+    @Test
+    public void completedTask_resultsStillAvailable() throws Exception {
+        com.huaxia.inventory.data.entity.InventoryTask t =
+                new com.huaxia.inventory.data.entity.InventoryTask();
+        t.sourceFileName = "完成任务";
+        t.status = "IN_PROGRESS";
+        t.expectedCount = 2;
+        long id = db.inventoryTaskDao().insert(t);
+
+        for (String epc : new String[]{"E1", "E2"}) {
+            com.huaxia.inventory.data.entity.Asset a =
+                    new com.huaxia.inventory.data.entity.Asset();
+            a.taskId = id;
+            a.excelRowIndex = 1;
+            a.epc = epc;
+            db.assetDao().upsertOne(a);
+        }
+
+        HttpURLConnection complete = open("POST", "/api/tasks/" + id + "/complete");
+        complete.setDoOutput(true);
+        complete.setRequestProperty("Content-Type", "application/json");
+        complete.setFixedLengthStreamingMode(2);
+        try (OutputStream os = complete.getOutputStream()) {
+            os.write("{}".getBytes(StandardCharsets.UTF_8));
+        }
+        assertThat(complete.getResponseCode()).isEqualTo(200);
+        readAll(complete.getInputStream());
+
+        assertThat(db.assetDao().countPool()).isEqualTo(2);
+
+        HttpURLConnection results = open("GET",
+                "/api/tasks/" + id + "/results?tab=ALL&page=1&pageSize=10");
+        assertThat(results.getResponseCode()).isEqualTo(200);
+        String body = readAll(results.getInputStream());
+        assertThat(body).contains("\"total\":2");
+        assertThat(body).contains("E1");
+    }
 }

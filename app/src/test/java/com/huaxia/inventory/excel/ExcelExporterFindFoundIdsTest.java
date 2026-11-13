@@ -36,10 +36,20 @@ public class ExcelExporterFindFoundIdsTest {
                 StandardCharsets.UTF_8);
 
         // 必须有 findFoundIds 调用
-        assertTrue("ExcelExporter.exportStreamed must call assetDao.findFoundIds(taskId) "
-                + "— the old assetDao.findFound(taskId) loads full Asset rows including "
-                + "rawRowJson, OOMs at 30w+ assets. Source:\n" + exporterText,
-                exporterText.contains("assetDao.findFoundIds(taskId)"));
+        // 2026-11 起导出改为走 ResultRepository —— findFoundIds 投影的守卫移到了那里
+        File repoFile = new File(moduleDir,
+                "src/main/java/com/huaxia/inventory/data/ResultRepository.java");
+        if (!repoFile.exists()) {
+            repoFile = new File(moduleDir,
+                    "app/src/main/java/com/huaxia/inventory/data/ResultRepository.java");
+        }
+        assertTrue("ResultRepository not found", repoFile.exists());
+        String repoText = new String(Files.readAllBytes(repoFile.toPath()),
+                StandardCharsets.UTF_8);
+        assertTrue("ResultRepository must call assetDao().findFoundIds(taskId) "
+                + "— the old findFound(taskId) loads full Asset rows including "
+                + "rawRowJson, OOMs at 30w+ assets. Source:" + repoText,
+                repoText.contains("findFoundIds(taskId)"));
 
         // 必须不再出现 for-loop over findFound(taskId)
         assertFalse("ExcelExporter must NOT iterate assetDao.findFound(taskId) "

@@ -2,7 +2,7 @@ package com.huaxia.inventory.excel;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
-import com.huaxia.inventory.data.dao.AssetDao;
+import com.huaxia.inventory.data.ResultRepository;
 import com.huaxia.inventory.data.dao.ExtraClaimDao;
 import com.huaxia.inventory.data.dao.ScanRecordDao;
 import com.huaxia.inventory.data.entity.Asset;
@@ -85,7 +85,19 @@ public final class ExcelExporter {
             writer.writeRow(fullHeaders.toArray(new String[0]));
 
             for (Asset a : assets) {
-                writeAssetRow(writer, a, originalHeaders, isFound);
+                ResultRepository.ResultRow r = new ResultRepository.ResultRow();
+                r.id = a.id;
+                r.rowIndex = a.excelRowIndex;
+                r.epc = a.epc;
+                r.assetType = a.assetType;
+                r.assetModel = a.assetModel;
+                r.serialNumber = a.serialNumber;
+                r.custodian = a.custodian;
+                r.dept = a.dept;
+                r.inventoryTime = a.inventoryTime;
+                r.rawRowJson = a.rawRowJson;
+                r.status = isFound.test(a.id) ? "FOUND" : "MISSING";
+                writeAssetRow(writer, r, originalHeaders);
             }
             List<ScanRecord> extras = new ArrayList<>();
             for (ScanRecord s : scans) {
@@ -96,7 +108,13 @@ public final class ExcelExporter {
                 writer.writeRow("【盘盈记录】");
                 writer.writeRow(fullHeaders.toArray(new String[0]));
                 for (ScanRecord s : extras) {
-                    writeExtraRow(writer, originalHeaders, s, null);
+                    ResultRepository.ResultRow r = new ResultRepository.ResultRow();
+                    r.epc = s.epc;
+                    r.status = "EXTRA";
+                    r.scannedAt = s.scannedAt;
+                    r.rssi = s.rssi;
+                    r.tid = s.tid;
+                    writeExtraRow(writer, originalHeaders, r);
                 }
             }
         }
@@ -116,65 +134,42 @@ public final class ExcelExporter {
     public static void exportStreamed(
             OutputStream out,
             String taskName,
+            String taskStatus,
             List<String> originalHeaders,
-            AssetDao assetDao,
-            ScanRecordDao scanRecordDao,
-            ExtraClaimDao extraClaimDao,
+            ResultRepository repo,
             long taskId,
             java.io.File parentTmpDir) throws IOException {
 
         List<String> fullHeaders = new ArrayList<>(originalHeaders);
         fullHeaders.addAll(RESULT_COLUMNS);
 
-        try (XlsxStreamWriter writer = new XlsxStreamWriter(out, fullHeaders, parentTmpDir)) {
-            // 统计先算好 (在写表头之前) — 让"应盘/已盘/盘亏/盘盈"统计行能紧跟"导出时间"
-            // 行; 这批 id 集合与计数同时供后续资产行 / 盘盈段复用.
-            // 1) 仅加载 found id 投影 — 取代旧的 findFound(taskId) 全 Asset 行加载
-            // (含 rawRowJson ~500B-1KB/行, 30w 任务原本 ~150MB 峰值; 现在 ~2.4MB)
-            Set<Long> matchedIds = new HashSet<>(assetDao.findFoundIds(taskId));
-            int totalAssets = assetDao.countByTask(taskId);
-            int totalExtras = scanRecordDao.countExtras(taskId);
-            int found = matchedIds.size();
-            int missing = Math.max(0, totalAssets - found);
+        ResultRepository.Counts counts = repo.counts(taskId, taskStatus);
 
-            // Row 0: 标题
+        try (XlsxStreamWriter writer = new XlsxStreamWriter(out, fullHeaders, parentTmpDir)) {
+            // 统计先算好 (在写表头之前) — 让"应盘/已盘/盘亏/盘盈"统计行能紧跟"导出时间"行
             writer.writeRow("固定资产盘点结果 - " + taskName);
-            // Row 1: 导出时间
             writer.writeRow("导出时间:", DateUtil.formatTimestamp(System.currentTimeMillis()));
-            // Row 2: 统计 (应盘/已盘/盘亏/盘盈, 各占一单元格; 数量为数字单元格)
-            writer.writeRow("应盘", totalAssets, "已盘", found, "盘亏", missing, "盘盈", totalExtras);
-            // Row 3: 表头
+            writer.writeRow("应盘", counts.expected, "已盘", counts.found,
+                    "盘亏", counts.missing, "盘盈", counts.extra);
             writer.writeRow(fullHeaders.toArray(new String[0]));
 
-            // 2) 分页流式写资产
-            for (int offset = 0; offset < totalAssets; offset += STREAM_PAGE_SIZE) {
-                List<Asset> page = assetDao.pageAll(taskId, STREAM_PAGE_SIZE, offset);
-                for (Asset a : page) {
-                    writeAssetRow(writer, a, originalHeaders, matchedIds::contains);
+            // 分页流式写资产（已盘 + 盘亏）
+            for (int offset = 0; offset < counts.expected; offset += STREAM_PAGE_SIZE) {
+                for (ResultRepository.ResultRow r : repo.page(taskId, taskStatus,
+                        ResultRepository.Tab.ALL, STREAM_PAGE_SIZE, offset)) {
+                    writeAssetRow(writer, r, originalHeaders);
                 }
             }
 
-            // 3) 分页流式写盘盈 (含补全信息).
-            // ExtraClaim 按页收集 id 并查 IN (Android SQLite 单次 IN 上限 999),
-            // 避免盘盈 > 999 时崩溃; 同时不再累积所有 ScanRecord 到堆,
-            // 写完一页后清空 pageIds 与 claimMap, 峰值内存仅一页.
-            if (totalExtras > 0) {
-                writer.writeRow("");  // 空行
+            // 分页流式写盘盈（补全信息已合并进 ResultRow，无需再查 ExtraClaim）
+            if (counts.extra > 0) {
+                writer.writeRow("");
                 writer.writeRow("【盘盈记录】");
                 writer.writeRow(fullHeaders.toArray(new String[0]));
-                for (int offset = 0; offset < totalExtras; offset += STREAM_PAGE_SIZE) {
-                    List<ScanRecord> pageRecords = scanRecordDao.pageExtra(
-                            taskId, STREAM_PAGE_SIZE, offset);
-                    List<Long> pageIds = new ArrayList<>(pageRecords.size());
-                    for (ScanRecord r : pageRecords) pageIds.add(r.id);
-                    Map<Long, ExtraClaim> claimMap = new HashMap<>();
-                    if (extraClaimDao != null) {
-                        for (ExtraClaim c : extraClaimDao.findByScanRecordIds(pageIds)) {
-                            claimMap.put(c.scanRecordId, c);
-                        }
-                    }
-                    for (ScanRecord s : pageRecords) {
-                        writeExtraRow(writer, originalHeaders, s, claimMap.get(s.id));
+                for (int offset = 0; offset < counts.extra; offset += STREAM_PAGE_SIZE) {
+                    for (ResultRepository.ResultRow r : repo.page(taskId, taskStatus,
+                            ResultRepository.Tab.EXTRA, STREAM_PAGE_SIZE, offset)) {
+                        writeExtraRow(writer, originalHeaders, r);
                     }
                 }
             }
@@ -183,9 +178,9 @@ public final class ExcelExporter {
 
     // ---------- 内部辅助 ----------
 
-    private static void writeAssetRow(XlsxStreamWriter writer, Asset a,
-                                       List<String> originalHeaders,
-                                       java.util.function.LongPredicate isFound) {
+    private static void writeAssetRow(XlsxStreamWriter writer,
+                                      ResultRepository.ResultRow r,
+                                      List<String> originalHeaders) {
         Object[] cells = new Object[originalHeaders.size() + 2];
         try {
             // 用 RAW_ROW_READER 复用 ObjectReader — 同一 reader 反复 readValue
@@ -193,43 +188,38 @@ public final class ExcelExporter {
             // 反射初始化. 5w 行节省 5w 次反射, CPU 实测 ≈ -40%.
             @SuppressWarnings("unchecked")
             Map<String, String> raw = RAW_ROW_READER.readValue(
-                    a.rawRowJson == null ? "{}" : a.rawRowJson);
+                    r.rawRowJson == null ? "{}" : r.rawRowJson);
             for (int i = 0; i < originalHeaders.size(); i++) {
                 cells[i] = raw.get(originalHeaders.get(i));
             }
         } catch (Exception e) {
-            cells[0] = a.excelRowIndex;
+            cells[0] = r.rowIndex;
             // rawRowJson 不可用时其余列留空，不再兜底具体业务字段
         }
         int base = originalHeaders.size();
-        cells[base] = isFound.test(a.id) ? "已盘" : "盘亏";
-        cells[base + 1] = a.inventoryTime == null
+        cells[base] = "FOUND".equals(r.status) ? "已盘" : "盘亏";
+        cells[base + 1] = r.inventoryTime == null
                 ? ""
-                : DateUtil.formatTimestamp(a.inventoryTime);
+                : DateUtil.formatTimestamp(r.inventoryTime);
         writer.writeRow(cells);
     }
 
     private static void writeExtraRow(XlsxStreamWriter writer,
-                                       List<String> originalHeaders, ScanRecord s,
-                                       ExtraClaim claim) {
+                                       List<String> originalHeaders,
+                                       ResultRepository.ResultRow r) {
         int base = originalHeaders.size();
         Object[] cells = new Object[base + 2];
-        // EPC: 优先用补全的 ExtraClaim.epc (用户可能改过), 否则用 ScanRecord 原始扫描值
-        String epcValue = (claim != null && claim.epc != null) ? claim.epc : s.epc;
         int epcIdx = originalHeaders.indexOf("固资编号");
-        if (epcIdx >= 0) cells[epcIdx] = EpcNormalizer.toDisplayForm(epcValue);
+        if (epcIdx >= 0) cells[epcIdx] = EpcNormalizer.toDisplayForm(r.epc);
         int tidIdx = originalHeaders.indexOf("电子标签");
-        if (tidIdx >= 0) cells[tidIdx] = s.tid == null ? "" : s.tid;
-        // 业务字段从 ExtraClaim 取 (空时跳过, 保留原 cell 默认 null)
-        if (claim != null) {
-            putIfPresent(cells, originalHeaders, "设备类型", claim.assetType);
-            putIfPresent(cells, originalHeaders, "设备型号", claim.assetModel);
-            putIfPresent(cells, originalHeaders, "序列号", claim.serialNumber);
-            putIfPresent(cells, originalHeaders, "领用部门", claim.dept);
-            putIfPresent(cells, originalHeaders, "领用人", claim.custodian);
-        }
+        if (tidIdx >= 0) cells[tidIdx] = r.tid == null ? "" : r.tid;
+        putIfPresent(cells, originalHeaders, "设备类型", r.assetType);
+        putIfPresent(cells, originalHeaders, "设备型号", r.assetModel);
+        putIfPresent(cells, originalHeaders, "序列号", r.serialNumber);
+        putIfPresent(cells, originalHeaders, "领用部门", r.dept);
+        putIfPresent(cells, originalHeaders, "领用人", r.custodian);
         cells[base] = "盘盈";
-        cells[base + 1] = DateUtil.formatTimestamp(s.scannedAt);
+        cells[base + 1] = r.scannedAt == null ? "" : DateUtil.formatTimestamp(r.scannedAt);
         writer.writeRow(cells);
     }
 
