@@ -158,6 +158,28 @@ public class ResultRepositoryTest {
         assertThat(extras.get(0).id).isPositive();
     }
 
+    /** 盘盈补全保存后，该行仍必须出现在 EXTRA 列表里（导出能查到，列表也不能丢）。 */
+    @Test
+    public void extraRowStaysAfterClaimSaved() {
+        seedInProgress();
+        long extraId = repo.page(taskId, "IN_PROGRESS",
+                ResultRepository.Tab.EXTRA, 10, 0).get(0).id;
+
+        com.huaxia.inventory.data.entity.ExtraClaim c =
+                new com.huaxia.inventory.data.entity.ExtraClaim();
+        c.scanRecordId = extraId;
+        c.epc = "X9";
+        c.assetModel = "X1";
+        db.extraClaimDao().insert(c);
+
+        List<ResultRepository.ResultRow> rows =
+                repo.page(taskId, "IN_PROGRESS", ResultRepository.Tab.EXTRA, 10, 0);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).assetModel).isEqualTo("X1");
+        assertThat(rows.get(0).id).isEqualTo(extraId);
+    }
+
     private TaskResult snapshotRow(String epc, int rowIndex, String status) {
         TaskResult r = new TaskResult();
         r.taskId = taskId;
