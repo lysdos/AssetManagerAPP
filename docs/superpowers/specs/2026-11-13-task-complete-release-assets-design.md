@@ -112,6 +112,27 @@ LEFT JOIN ExtraClaim c ON c.scanRecordId = s.id
 WHERE t.status = 'COMPLETED' AND s.matchedAssetId IS NULL;
 ```
 
+**回填之后还要把历史已完成任务的数据整理成新语义**，否则升级后这些任务仍然占着资产 ——
+正是本次要修的那个问题：
+
+```sql
+-- 3. 释放历史已完成任务的资产回库存池，并清掉本次盘点留下的痕迹
+UPDATE Asset SET taskId = 0, inventory_time = NULL,
+       orig_epc = NULL, orig_asset_type = NULL, orig_asset_model = NULL,
+       orig_serial_number = NULL, orig_custodian = NULL, orig_dept = NULL,
+       orig_raw_row_json = NULL
+WHERE taskId IN (SELECT id FROM InventoryTask WHERE status = 'COMPLETED');
+
+-- 4. 历史已完成任务的扫描/补全记录作废（历史已在 TaskResult 里）
+DELETE FROM ExtraClaim WHERE scanRecordId IN (
+    SELECT s.id FROM ScanRecord s JOIN InventoryTask t ON t.id = s.taskId
+    WHERE t.status = 'COMPLETED');
+DELETE FROM ScanRecord WHERE taskId IN (
+    SELECT id FROM InventoryTask WHERE status = 'COMPLETED');
+```
+
+顺序不可调换：**先回填快照，再释放/清记录**，否则快照拿不到数据。
+
 ---
 
 ## 4. 行为变更
