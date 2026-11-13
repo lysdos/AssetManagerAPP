@@ -3,10 +3,19 @@ package com.huaxia.inventory.service;
 import androidx.annotation.Nullable;
 
 import com.huaxia.inventory.data.AppDatabase;
+import com.huaxia.inventory.data.entity.Asset;
+import com.huaxia.inventory.data.entity.ExtraClaim;
 import com.huaxia.inventory.data.entity.InventoryTask;
+import com.huaxia.inventory.data.entity.ScanRecord;
+import com.huaxia.inventory.data.entity.TaskResult;
 import com.huaxia.inventory.session.InventorySession;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 盘点任务的写操作 —— 事务体的唯一实现。
@@ -86,13 +95,16 @@ public class TaskService {
         db.runInTransaction(() -> {
             InventoryTask t = db.inventoryTaskDao().findById(taskId);
             boolean completed = t != null && "COMPLETED".equals(t.status);
-            if (!completed) {
+            if (completed) {
+                // 已完成: 资产在完成时已回池, 这里只需丢弃历史快照
+                db.taskResultDao().deleteByTask(taskId);
+            } else {
                 db.assetDao().revertEditedFields(taskId);
+                db.assetDao().clearInventoryTimeForTask(taskId);
+                // 丢弃快照必须在 release 之前: release 把 taskId 归零后按 taskId 过滤会匹配 0 行。
+                db.assetDao().clearSnapshotForTask(taskId);
+                releasedHolder[0] = db.assetDao().releaseTaskToPool(taskId);
             }
-            db.assetDao().clearInventoryTimeForTask(taskId);
-            // 丢弃快照必须在 release 之前: release 把 taskId 归零后按 taskId 过滤会匹配 0 行。
-            db.assetDao().clearSnapshotForTask(taskId);
-            releasedHolder[0] = db.assetDao().releaseTaskToPool(taskId);
             db.extraClaimDao().deleteByTask(taskId);
             db.scanRecordDao().deleteByTask(taskId);
             db.inventoryTaskDao().deleteById(taskId);
@@ -104,15 +116,18 @@ public class TaskService {
         return releasedHolder[0];
     }
 
-    /** 清除已完成: 资产退回库存池(保留提交值) + 清盘点时间 + 清扫描/补全 + 删任务壳。 */
+    /**
+     * 清除已完成: 删冻结快照 + 删任务壳。
+     *
+     * <p>资产在完成任务时就已经回池了, 这里不再 release。历史任务(v1 时代完成的)
+     * 可能还留着扫描记录, 一并清掉。</p>
+     */
     public void clearCompleted() {
         db.runInTransaction(() -> {
-            List<InventoryTask> done = db.inventoryTaskDao().findAllCompleted();
-            for (InventoryTask t : done) {
+            for (InventoryTask t : db.inventoryTaskDao().findAllCompleted()) {
+                db.taskResultDao().deleteByTask(t.id);
                 db.extraClaimDao().deleteByTask(t.id);
                 db.scanRecordDao().deleteByTask(t.id);
-                db.assetDao().clearInventoryTimeForTask(t.id);
-                db.assetDao().releaseTaskToPool(t.id);
             }
             db.inventoryTaskDao().deleteAllCompleted();
         });
@@ -140,20 +155,93 @@ public class TaskService {
         }
     }
 
-    /** 完成 = 提交: 翻 COMPLETED + 丢弃快照（编辑值从此成为主数据）。 */
+    /**
+     * 完成任务 = 提交 + 释放资产。
+     *
+     * <p>单事务六步，顺序不可调换：</p>
+     * <ol>
+     *   <li>把该次盘点结果冻结进 {@code TaskResult}（必须先于任何清理）</li>
+     *   <li>资产退回库存池</li>
+     *   <li>清盘点时间（资产离开任务，时间即失效）</li>
+     *   <li>丢弃划拨时的快照列（编辑值已成主数据，且已进 TaskResult）</li>
+     *   <li>删扫描/补全记录（历史已在 TaskResult，留着只会让库膨胀）</li>
+     *   <li>状态翻 COMPLETED</li>
+     * </ol>
+     *
+     * <p>幂等：已是 COMPLETED 直接返回，不重复写快照。</p>
+     */
     public void completeTask(long taskId) {
         db.runInTransaction(() -> {
             InventoryTask t = db.inventoryTaskDao().findById(taskId);
-            if (t != null && !"COMPLETED".equals(t.status)) {
-                t.status = "COMPLETED";
-                db.inventoryTaskDao().update(t);
-                db.assetDao().clearSnapshotForTask(taskId);
-            }
+            if (t == null || "COMPLETED".equals(t.status)) return;
+
+            db.taskResultDao().insertAll(buildSnapshot(taskId));
+
+            db.assetDao().clearInventoryTimeForTask(taskId);
+            db.assetDao().clearSnapshotForTask(taskId);
+            db.assetDao().releaseTaskToPool(taskId);
+
+            db.extraClaimDao().deleteByTask(taskId);
+            db.scanRecordDao().deleteByTask(taskId);
+
+            t.status = "COMPLETED";
+            db.inventoryTaskDao().update(t);
         });
         Long cur = session.getCurrentTaskId();
         if (cur != null && cur == taskId) {
             session.clear();
         }
+    }
+
+    /** 把任务当前结果冻结成快照行。调用方必须在事务内、且在清理之前调用。 */
+    private List<TaskResult> buildSnapshot(long taskId) {
+        List<TaskResult> out = new ArrayList<>();
+
+        Set<Long> foundIds = new HashSet<>(db.assetDao().findFoundIds(taskId));
+        for (Asset a : db.assetDao().findAllByTask(taskId)) {
+            TaskResult r = new TaskResult();
+            r.taskId = taskId;
+            r.rowIndex = a.excelRowIndex;
+            r.assetId = a.id;
+            r.epc = a.epc;
+            r.assetType = a.assetType;
+            r.assetModel = a.assetModel;
+            r.serialNumber = a.serialNumber;
+            r.custodian = a.custodian;
+            r.dept = a.dept;
+            r.status = foundIds.contains(a.id) ? "FOUND" : "MISSING";
+            r.inventoryTime = a.inventoryTime;
+            r.rawRowJson = a.rawRowJson;
+            out.add(r);
+        }
+
+        List<ScanRecord> extras = db.scanRecordDao().findExtras(taskId);
+        if (!extras.isEmpty()) {
+            List<Long> ids = new ArrayList<>(extras.size());
+            for (ScanRecord s : extras) ids.add(s.id);
+            Map<Long, ExtraClaim> claims = new HashMap<>();
+            for (ExtraClaim c : db.extraClaimDao().findByScanRecordIds(ids)) {
+                claims.put(c.scanRecordId, c);
+            }
+            for (ScanRecord s : extras) {
+                ExtraClaim c = claims.get(s.id);
+                TaskResult r = new TaskResult();
+                r.taskId = taskId;
+                r.rowIndex = 0;
+                r.assetId = null;
+                r.epc = c != null && c.epc != null ? c.epc : s.epc;
+                r.assetType = c == null ? null : c.assetType;
+                r.assetModel = c == null ? null : c.assetModel;
+                r.serialNumber = c == null ? null : c.serialNumber;
+                r.custodian = c == null ? null : c.custodian;
+                r.dept = c == null ? null : c.dept;
+                r.status = "EXTRA";
+                r.scannedAt = s.scannedAt;
+                r.rssi = s.rssi;
+                out.add(r);
+            }
+        }
+        return out;
     }
 
     /** 恢复: PAUSED -> IN_PROGRESS，并设为当前任务让 PDA 接着扫。 */

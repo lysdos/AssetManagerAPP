@@ -18,13 +18,14 @@ import static org.junit.Assert.assertTrue;
 public class ClearCompletedKeepsAssetsTest {
 
     @Test
-    public void clearCompleted_releasesAssetsToPool_notDelete() throws Exception {
+    public void clearCompleted_deletesSnapshot_notAssets() throws Exception {
         String text = readFile("src/main/java/com/huaxia/inventory/service/TaskService.java");
         String body = extractMethodBody(text, "public void clearCompleted()");
         assertTrue("clearCompleted body not found. Source:\n" + text, body.length() > 0);
-        assertTrue("clearCompleted must release assets back to the pool (口径与 deleteTask 一致). "
-                + "Body:\n" + body, body.contains("assetDao().releaseTaskToPool("));
-        assertFalse("clearCompleted must NOT delete the completed tasks' assets. Body:\n" + body,
+        // 2026-11 起: 资产在「完成任务」时就已经回库存池, clearCompleted 只清冻结快照与任务壳
+        assertTrue("clearCompleted must delete the frozen snapshot. Body:\n" + body,
+                body.contains("taskResultDao().deleteByTask("));
+        assertFalse("clearCompleted must NOT delete Asset rows. Body:\n" + body,
                 body.contains("assetDao().deleteByTask("));
     }
 

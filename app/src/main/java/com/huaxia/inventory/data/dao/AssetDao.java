@@ -170,6 +170,10 @@ public interface AssetDao {
            "ORDER BY excelRowIndex ASC")
     List<Asset> findFound(long taskId);
 
+    /** 任务下全部资产（按原表行序），供完成任务时写冻结快照。 */
+    @Query("SELECT * FROM Asset WHERE taskId = :taskId ORDER BY excelRowIndex ASC")
+    List<Asset> findAllByTask(long taskId);
+
     @Query("SELECT assetType as category, COUNT(*) as count FROM Asset " +
            "WHERE taskId = :taskId AND assetType IS NOT NULL " +
            "GROUP BY assetType ORDER BY count DESC")

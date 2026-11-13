@@ -104,7 +104,7 @@ public class TaskServiceTest {
     }
 
     @Test
-    public void completeTask_keepsEditedFieldsAndClearsSnapshot() {
+    public void completeTask_releasesAssetsAndFreezesEditedFieldsInSnapshot() {
         seedPool("1001", "行政部");
         long id = service.createTask("T", null, null);
 
@@ -114,9 +114,14 @@ public class TaskServiceTest {
 
         service.completeTask(id);
 
-        Asset kept = db.assetDao().findByEpc(id, "1001");
-        assertThat(kept.custodian).isEqualTo("李四");
-        assertThat(kept.origCustodian).isNull();
+        // 2026-11 新语义: 完成后资产回库存池, 编辑值冻结进快照
+        Asset released = db.assetDao().findByEpcGlobal("1001");
+        assertThat(released.taskId).isZero();
+
+        java.util.List<com.huaxia.inventory.data.entity.TaskResult> snapshot =
+                db.taskResultDao().findAll(id);
+        assertThat(snapshot).hasSize(1);
+        assertThat(snapshot.get(0).custodian).isEqualTo("李四");
         assertThat(db.inventoryTaskDao().findById(id).status).isEqualTo("COMPLETED");
     }
 
