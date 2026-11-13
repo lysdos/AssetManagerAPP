@@ -155,12 +155,17 @@ public class WebServer extends NanoHTTPD {
     }
 
     private static Response toNano(WebResponse res) {
+        // NanoHTTPD 2.3.1 的 Status 枚举没有 422 等码，lookup 返回 null 会让
+        // send() 抛 Error("Status can't be null.")，worker 线程被打死、连接直接断开
+        // （浏览器只看到 Failed to fetch，看不到我们的错误文案）。这里兜底到 500。
+        Response.IStatus status = Response.Status.lookup(res.status);
+        if (status == null) status = Response.Status.INTERNAL_ERROR;
         Response nano;
         if (res.bytes != null) {
-            nano = newFixedLengthResponse(Response.Status.lookup(res.status),
+            nano = newFixedLengthResponse(status,
                     res.mime, new java.io.ByteArrayInputStream(res.bytes), res.bytes.length);
         } else {
-            nano = newFixedLengthResponse(Response.Status.lookup(res.status),
+            nano = newFixedLengthResponse(status,
                     res.mime, res.stream, res.length);
         }
         for (Map.Entry<String, String> e : res.headers.entrySet()) {

@@ -16,6 +16,8 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 @RunWith(RobolectricTestRunner.class)
 public class Migration1To2Test {
@@ -150,5 +152,46 @@ public class Migration1To2Test {
 
         assertThat(intOf("SELECT COUNT(*) FROM ScanRecord WHERE taskId = 1")).isZero();
         assertThat(intOf("SELECT COUNT(*) FROM ExtraClaim")).isZero();
+    }
+
+    /**
+     * 关键守卫：迁移建出来的表必须和 Room 按实体生成的 schema 完全一致。
+     *
+     * <p>Room 在迁移后会跑 {@code onValidateSchema} 逐列比对（含 NOT NULL）。
+     * 之前这里写的是 {@code epc TEXT NOT NULL}，而实体未加 {@code @NonNull}、
+     * Room 期望可空 —— 结果所有 v1 用户升级后首次启动直接抛
+     * {@code Migration didn't properly handle: TaskResult} 崩溃。
+     * 裸 SQL 断言抓不到这类问题，必须拿 Room 自己的 schema 来比。</p>
+     */
+    @Test
+    public void migratedTableMatchesRoomSchema() {
+        migrate();
+        List<String> actual = columnsOf(raw);
+
+        androidx.room.RoomDatabase room = androidx.room.Room.inMemoryDatabaseBuilder(
+                        RuntimeEnvironment.getApplication(), AppDatabase.class)
+                .allowMainThreadQueries().build();
+        try {
+            List<String> expected = new ArrayList<>();
+            try (android.database.Cursor c = room.getOpenHelper().getWritableDatabase()
+                    .query("PRAGMA table_info(`TaskResult`)")) {
+                while (c.moveToNext()) {
+                    expected.add(c.getString(1) + ":" + c.getInt(3));
+                }
+            }
+            assertThat(actual).isEqualTo(expected);
+        } finally {
+            room.close();
+        }
+    }
+
+    private static List<String> columnsOf(SQLiteDatabase db) {
+        List<String> out = new ArrayList<>();
+        try (Cursor c = db.rawQuery("PRAGMA table_info(`TaskResult`)", null)) {
+            while (c.moveToNext()) {
+                out.add(c.getString(1) + ":" + c.getInt(3));
+            }
+        }
+        return out;
     }
 }

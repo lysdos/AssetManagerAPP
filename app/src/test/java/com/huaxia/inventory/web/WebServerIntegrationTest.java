@@ -239,4 +239,24 @@ public class WebServerIntegrationTest {
         String body = readAll(results.getInputStream());
         assertThat(body).contains("\"inventoryTime\":1234567");
     }
+
+    /**
+     * 回归：NanoHTTPD 2.3.1 的 Status 枚举没有 422，lookup 返回 null 会让
+     * send() 抛 Error、连接直接断开（浏览器只看到 Failed to fetch）。
+     * 上传一个非 xlsx 文件必须拿到带 IMPORT_PARSE_FAILED 的 JSON 错误体。
+     */
+    @Test
+    public void importWithBadBody_returnsJsonError() throws Exception {
+        HttpURLConnection c = open("POST", "/api/import?filename=bad.xlsx");
+        c.setDoOutput(true);
+        c.setRequestProperty("Content-Type", "application/octet-stream");
+        byte[] body = "not an excel file".getBytes(StandardCharsets.UTF_8);
+        c.setFixedLengthStreamingMode(body.length);
+        try (OutputStream os = c.getOutputStream()) {
+            os.write(body);
+        }
+        int code = c.getResponseCode();
+        assertThat(code).isNotEqualTo(422);
+        assertThat(readAll(c.getErrorStream())).contains("IMPORT_PARSE_FAILED");
+    }
 }

@@ -182,7 +182,7 @@ public class TaskService {
             // 该方法是幂等的（只填 inventory_time IS NULL 的行）。
             db.assetDao().backfillFoundInventoryTime(taskId);
 
-            db.taskResultDao().insertAll(buildSnapshot(taskId));
+            insertSnapshot(taskId);
 
             db.assetDao().clearInventoryTimeForTask(taskId);
             db.assetDao().clearSnapshotForTask(taskId);
@@ -200,36 +200,55 @@ public class TaskService {
         }
     }
 
-    /** 把任务当前结果冻结成快照行。调用方必须在事务内、且在清理之前调用。 */
-    private List<TaskResult> buildSnapshot(long taskId) {
-        List<TaskResult> out = new ArrayList<>();
+    /** 快照分批写入的页大小 —— 与导出流式分页一致，避免整任务物化。 */
+    private static final int SNAPSHOT_BATCH = 500;
 
+    /**
+     * 把任务当前结果分批冻结成快照。调用方必须在事务内、且在清理之前调用。
+     *
+     * <p><b>必须分批</b>：30w 资产的盘点任务若一次性 {@code findAllByTask} + 一次性
+     * {@code insertAll}，光 Asset 行（含 rawRowJson ~0.5-1KB）就要 150-300MB，
+     * PDA 上直接 OOM。导出侧早就为同样的量级做了 500 行分页，这里对齐。</p>
+     */
+    private void insertSnapshot(long taskId) {
         Set<Long> foundIds = new HashSet<>(db.assetDao().findFoundIds(taskId));
-        for (Asset a : db.assetDao().findAllByTask(taskId)) {
-            TaskResult r = new TaskResult();
-            r.taskId = taskId;
-            r.rowIndex = a.excelRowIndex;
-            r.assetId = a.id;
-            r.epc = a.epc;
-            r.assetType = a.assetType;
-            r.assetModel = a.assetModel;
-            r.serialNumber = a.serialNumber;
-            r.custodian = a.custodian;
-            r.dept = a.dept;
-            r.status = foundIds.contains(a.id) ? "FOUND" : "MISSING";
-            r.inventoryTime = a.inventoryTime;
-            r.rawRowJson = a.rawRowJson;
-            out.add(r);
+
+        int offset = 0;
+        while (true) {
+            List<Asset> page = db.assetDao().pageAll(taskId, SNAPSHOT_BATCH, offset);
+            if (page.isEmpty()) break;
+            List<TaskResult> rows = new ArrayList<>(page.size());
+            for (Asset a : page) {
+                TaskResult r = new TaskResult();
+                r.taskId = taskId;
+                r.rowIndex = a.excelRowIndex;
+                r.assetId = a.id;
+                r.epc = a.epc;
+                r.assetType = a.assetType;
+                r.assetModel = a.assetModel;
+                r.serialNumber = a.serialNumber;
+                r.custodian = a.custodian;
+                r.dept = a.dept;
+                r.status = foundIds.contains(a.id) ? "FOUND" : "MISSING";
+                r.inventoryTime = a.inventoryTime;
+                r.rawRowJson = a.rawRowJson;
+                rows.add(r);
+            }
+            db.taskResultDao().insertAll(rows);
+            offset += page.size();
         }
 
-        List<ScanRecord> extras = db.scanRecordDao().findExtras(taskId);
-        if (!extras.isEmpty()) {
+        offset = 0;
+        while (true) {
+            List<ScanRecord> extras = db.scanRecordDao().pageExtra(taskId, SNAPSHOT_BATCH, offset);
+            if (extras.isEmpty()) break;
             List<Long> ids = new ArrayList<>(extras.size());
             for (ScanRecord s : extras) ids.add(s.id);
             Map<Long, ExtraClaim> claims = new HashMap<>();
             for (ExtraClaim c : db.extraClaimDao().findByScanRecordIds(ids)) {
                 claims.put(c.scanRecordId, c);
             }
+            List<TaskResult> rows = new ArrayList<>(extras.size());
             for (ScanRecord s : extras) {
                 ExtraClaim c = claims.get(s.id);
                 TaskResult r = new TaskResult();
@@ -246,10 +265,11 @@ public class TaskService {
                 r.scannedAt = s.scannedAt;
                 r.rssi = s.rssi;
                 r.tid = s.tid;
-                out.add(r);
+                rows.add(r);
             }
+            db.taskResultDao().insertAll(rows);
+            offset += extras.size();
         }
-        return out;
     }
 
     /** 恢复: PAUSED -> IN_PROGRESS，并设为当前任务让 PDA 接着扫。 */
