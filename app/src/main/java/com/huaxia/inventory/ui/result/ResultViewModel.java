@@ -174,6 +174,12 @@ public class ResultViewModel extends AndroidViewModel {
     private static List<Asset> toAssets(List<ResultRepository.ResultRow> rows) {
         List<Asset> out = new ArrayList<>(rows.size());
         for (ResultRepository.ResultRow r : rows) {
+            // 进行中任务直接返回原始 Asset —— 详情弹窗保存是整行 @Update，
+            // 手工拼的对象会把 taskId 写成 0（资产被踢出任务）并清空 orig_* 快照列。
+            if (r.asset != null) {
+                out.add(r.asset);
+                continue;
+            }
             Asset a = new Asset();
             a.id = r.id;
             a.epc = r.epc;
@@ -199,6 +205,7 @@ public class ResultViewModel extends AndroidViewModel {
         List<ExtraWithClaim> out = new ArrayList<>(rows.size());
         for (ResultRepository.ResultRow r : rows) {
             ScanRecord s = new ScanRecord();
+            s.id = r.id;   // 补全弹窗用 scan.id 作为 scanRecordId 落库
             s.epc = r.epc;
             s.scannedAt = r.scannedAt == null ? 0L : r.scannedAt;
             s.rssi = r.rssi;

@@ -127,6 +127,37 @@ public class ResultRepositoryTest {
                 .extracting(r -> r.epc).containsExactly("X9");
     }
 
+    /**
+     * 回归：进行中任务的行必须携带原始 Asset。
+     *
+     * <p>详情弹窗保存走整行 {@code @Update}；若 UI 拿到的是手工拼的 Asset，
+     * taskId 会变成 0 —— 资产被踢出当前任务，导出里也就没有了。</p>
+     */
+    @Test
+    public void inProgress_rowsCarryOriginalAsset() {
+        seedInProgress();
+
+        List<ResultRepository.ResultRow> rows =
+                repo.page(taskId, "IN_PROGRESS", ResultRepository.Tab.ALL, 10, 0);
+
+        assertThat(rows).isNotEmpty();
+        assertThat(rows.get(0).asset).isNotNull();
+        assertThat(rows.get(0).asset.taskId).isEqualTo(taskId);
+        assertThat(rows.get(0).asset.id).isEqualTo(rows.get(0).id);
+    }
+
+    /** 回归：盘盈行的 id 必须是 ScanRecord.id —— 补全弹窗用它落库。 */
+    @Test
+    public void inProgress_extraRowsCarryScanRecordId() {
+        seedInProgress();
+
+        List<ResultRepository.ResultRow> extras =
+                repo.page(taskId, "IN_PROGRESS", ResultRepository.Tab.EXTRA, 10, 0);
+
+        assertThat(extras).hasSize(1);
+        assertThat(extras.get(0).id).isPositive();
+    }
+
     private TaskResult snapshotRow(String epc, int rowIndex, String status) {
         TaskResult r = new TaskResult();
         r.taskId = taskId;

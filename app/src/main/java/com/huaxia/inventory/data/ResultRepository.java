@@ -66,6 +66,16 @@ public class ResultRepository {
         @Nullable public String rssi;
         @Nullable public String tid;
         @Nullable public String rawRowJson;
+
+        /**
+         * 进行中任务下这一行对应的原始 {@code Asset}（含 taskId / createdAt / 7 个
+         * {@code orig_*} 快照列）。已完成任务为 null。
+         *
+         * <p><b>UI 层必须优先用它</b>：详情弹窗保存走整行 {@code @Update}，若拿一个
+         * 手工拼的 Asset，taskId 会变成 0 —— 资产被踢出当前任务、导出里也就没了，
+         * {@code orig_*} 快照列同样会被清空。</p>
+         */
+        @Nullable public Asset asset;
     }
 
     private final AppDatabase db;
@@ -174,6 +184,8 @@ public class ResultRepository {
         for (ScanRecord s : records) {
             ExtraClaim c = claims.get(s.id);
             ResultRow row = new ResultRow();
+            // 盘盈行的 id 必须是 ScanRecord.id —— 补全弹窗用它做 scanRecordId 落库
+            row.id = s.id;
             row.epc = c != null && c.epc != null ? c.epc : s.epc;
             row.assetType = c == null ? null : c.assetType;
             row.assetModel = c == null ? null : c.assetModel;
@@ -191,6 +203,7 @@ public class ResultRepository {
 
     private static ResultRow fromAsset(Asset a) {
         ResultRow row = new ResultRow();
+        row.asset = a;
         row.id = a.id;
         row.rowIndex = a.excelRowIndex;
         row.epc = a.epc;
