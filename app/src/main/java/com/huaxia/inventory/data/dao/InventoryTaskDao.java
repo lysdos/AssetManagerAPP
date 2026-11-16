@@ -30,6 +30,10 @@ public interface InventoryTaskDao {
     @Query("SELECT * FROM InventoryTask WHERE status = 'COMPLETED' ORDER BY importedAt DESC")
     List<InventoryTask> findAllCompleted();
 
+    /** 已完成任务 id，供批量清理（避免循环内逐条 DAO）。 */
+    @Query("SELECT id FROM InventoryTask WHERE status = 'COMPLETED'")
+    List<Long> findAllCompletedIds();
+
     /**
      * 重算"已盘数"= 成功匹配到 Asset 的去重资产数。
      * 旧版本用 COUNT(*) FROM ScanRecord, 把盘盈 (matchedAssetId IS NULL) 也算进去,

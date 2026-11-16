@@ -24,7 +24,7 @@ public class ClearCompletedKeepsAssetsTest {
         assertTrue("clearCompleted body not found. Source:\n" + text, body.length() > 0);
         // 2026-11 起: 资产在「完成任务」时就已经回库存池, clearCompleted 只清冻结快照与任务壳
         assertTrue("clearCompleted must delete the frozen snapshot. Body:\n" + body,
-                body.contains("taskResultDao().deleteByTask("));
+                body.contains("taskResultDao().deleteByTasks("));
         assertFalse("clearCompleted must NOT delete Asset rows. Body:\n" + body,
                 body.contains("assetDao().deleteByTask("));
     }

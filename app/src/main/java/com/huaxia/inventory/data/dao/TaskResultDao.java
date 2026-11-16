@@ -50,4 +50,7 @@ public interface TaskResultDao {
 
     @Query("DELETE FROM TaskResult WHERE taskId = :taskId")
     int deleteByTask(long taskId);
+
+    @Query("DELETE FROM TaskResult WHERE taskId IN (:taskIds)")
+    int deleteByTasks(java.util.List<Long> taskIds);
 }

@@ -124,10 +124,14 @@ public class TaskService {
      */
     public void clearCompleted() {
         db.runInTransaction(() -> {
-            for (InventoryTask t : db.inventoryTaskDao().findAllCompleted()) {
-                db.taskResultDao().deleteByTask(t.id);
-                db.extraClaimDao().deleteByTask(t.id);
-                db.scanRecordDao().deleteByTask(t.id);
+            // 批量删除，不再在循环里逐任务调 DAO（CLAUDE.md：循环内禁止调用数据库）。
+            // SQLite 的 IN 子句按 500 一批，避免超过绑定上限。
+            List<Long> ids = db.inventoryTaskDao().findAllCompletedIds();
+            for (int i = 0; i < ids.size(); i += SNAPSHOT_BATCH) {
+                List<Long> chunk = ids.subList(i, Math.min(i + SNAPSHOT_BATCH, ids.size()));
+                db.taskResultDao().deleteByTasks(chunk);
+                db.extraClaimDao().deleteByTasks(chunk);
+                db.scanRecordDao().deleteByTasks(chunk);
             }
             db.inventoryTaskDao().deleteAllCompleted();
         });

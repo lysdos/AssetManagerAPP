@@ -370,8 +370,10 @@ public class ResultFragment extends Fragment {
                     pendingSave.inventoryTime = (firstScanAt != null && firstScanAt > 0)
                             ? firstScanAt
                             : System.currentTimeMillis();
-                    app.getDb().assetDao().update(pendingSave);
-                    successHolder[0] = true;
+                    // 受影响行数为 0 = 这行已经不存在（典型场景：结果页开着时，
+                    // 任务被 Web 端完成 —— 资产回池、快照冻结，本地持有的还是旧的
+                    // 合成 id）。此时不能报「已保存」，否则用户以为改成功了。
+                    successHolder[0] = app.getDb().assetDao().update(pendingSave) > 0;
                 });
             } catch (android.database.sqlite.SQLiteConstraintException e) {
                 // 兜底: 跨事务并发窗口下 epc 唯一索引触发 (TOCTOU).

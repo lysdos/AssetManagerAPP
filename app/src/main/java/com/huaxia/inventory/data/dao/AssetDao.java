@@ -55,7 +55,7 @@ public interface AssetDao {
     void insertAll(List<Asset> assets);
 
     @Update
-    void update(Asset asset);
+    int update(Asset asset);
 
     @Query("SELECT * FROM Asset WHERE taskId = :taskId AND epc = :epc LIMIT 1")
     Asset findByEpc(long taskId, String epc);

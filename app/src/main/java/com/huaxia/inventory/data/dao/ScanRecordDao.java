@@ -36,6 +36,9 @@ public interface ScanRecordDao {
            "ORDER BY scannedAt DESC LIMIT :limit")
     List<ScanRecord> pageRecent(long taskId, int limit);
 
+    @Query("DELETE FROM ScanRecord WHERE taskId IN (:taskIds)")
+    int deleteByTasks(java.util.List<Long> taskIds);
+
     @Query("DELETE FROM ScanRecord WHERE taskId = :taskId")
     int deleteByTask(long taskId);
 

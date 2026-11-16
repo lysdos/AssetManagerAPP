@@ -16,6 +16,10 @@ public interface ExtraClaimDao {
     @Query("SELECT * FROM ExtraClaim WHERE scanRecordId IN (:scanRecordIds)")
     List<ExtraClaim> findByScanRecordIds(List<Long> scanRecordIds);
 
+    @Query("DELETE FROM ExtraClaim WHERE scanRecordId IN ("
+            + "SELECT id FROM ScanRecord WHERE taskId IN (:taskIds))")
+    int deleteByTasks(java.util.List<Long> taskIds);
+
     @Query("DELETE FROM ExtraClaim WHERE scanRecordId = :scanRecordId")
     int deleteByScanRecordId(long scanRecordId);
 
