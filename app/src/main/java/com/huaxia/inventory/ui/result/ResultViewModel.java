@@ -76,11 +76,17 @@ public class ResultViewModel extends AndroidViewModel {
             if (!"COMPLETED".equals(status)) {
                 db.assetDao().backfillFoundInventoryTime(taskId);
             }
-            // 已盘 id 集合：进行中用真实 Asset.id，已完成用快照行的合成负 id
-            java.util.Set<Long> foundIds = new java.util.HashSet<>();
-            for (ResultRepository.ResultRow r : repo.page(taskId, status,
-                    ResultRepository.Tab.FOUND, Integer.MAX_VALUE, 0)) {
-                foundIds.add(r.id);
+            // 已盘 id 集合。进行中用 id-only 投影（findFoundIds），不要用 page() ——
+            // 后者会把整行 Asset（含 rawRowJson ~0.5-1KB）拉进内存，30w 任务约 150MB。
+            java.util.Set<Long> foundIds;
+            if ("COMPLETED".equals(status)) {
+                foundIds = new java.util.HashSet<>();
+                for (ResultRepository.ResultRow r : repo.page(taskId, status,
+                        ResultRepository.Tab.FOUND, Integer.MAX_VALUE, 0)) {
+                    foundIds.add(r.id);
+                }
+            } else {
+                foundIds = new java.util.HashSet<>(db.assetDao().findFoundIds(taskId));
             }
             matchedIds.postValue(foundIds);
             refresh();

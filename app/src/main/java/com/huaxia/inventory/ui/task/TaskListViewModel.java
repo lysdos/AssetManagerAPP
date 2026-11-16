@@ -131,10 +131,11 @@ public class TaskListViewModel extends AndroidViewModel {
         diskIO.execute(() -> {
             try {
                 taskService.pauseTask(taskId);
+                // 只在成功时回调 —— 事务回滚时若也回调，UI 会弹"操作成功"，
+                // 用户以为已提交，实际任务状态没变。
+                if (cb != null) cb.run();
             } catch (Exception e) {
                 Log.e(TAG, "pauseTask failed", e);
-            } finally {
-                if (cb != null) cb.run();
             }
         });
     }
@@ -149,10 +150,11 @@ public class TaskListViewModel extends AndroidViewModel {
         diskIO.execute(() -> {
             try {
                 taskService.completeTask(taskId);
+                // 只在成功时回调 —— 事务回滚时若也回调，UI 会弹"操作成功"，
+                // 用户以为已提交，实际任务状态没变。
+                if (cb != null) cb.run();
             } catch (Exception e) {
                 Log.e(TAG, "completeTask failed", e);
-            } finally {
-                if (cb != null) cb.run();
             }
         });
     }
@@ -164,10 +166,11 @@ public class TaskListViewModel extends AndroidViewModel {
         diskIO.execute(() -> {
             try {
                 taskService.resumeTask(taskId);
+                // 只在成功时回调 —— 事务回滚时若也回调，UI 会弹"操作成功"，
+                // 用户以为已提交，实际任务状态没变。
+                if (cb != null) cb.run();
             } catch (Exception e) {
                 Log.e(TAG, "resumeTask failed", e);
-            } finally {
-                if (cb != null) cb.run();
             }
         });
     }

@@ -80,6 +80,17 @@ public abstract class AppDatabase extends RoomDatabase {
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_TaskResult_taskId_rowIndex` "
                     + "ON `TaskResult` (`taskId`, `rowIndex`)");
 
+            // 0) 先把历史已完成任务的盘点时间补上。
+            // inventory_time 平时只在打开结果页时才回填，历史数据里大量 FOUND 行是
+            // NULL；而本迁移紧接着会删掉 ScanRecord —— 不先补就永久丢失。
+            db.execSQL("UPDATE Asset SET inventory_time = ("
+                    + "SELECT MIN(s.scannedAt) FROM ScanRecord s "
+                    + "WHERE s.taskId = Asset.taskId AND s.matchedAssetId = Asset.id) "
+                    + "WHERE inventory_time IS NULL "
+                    + "AND taskId IN (SELECT id FROM InventoryTask WHERE status = 'COMPLETED') "
+                    + "AND EXISTS (SELECT 1 FROM ScanRecord s2 "
+                    + "WHERE s2.taskId = Asset.taskId AND s2.matchedAssetId = Asset.id)");
+
             // 1) 已盘 / 盘亏
             db.execSQL("INSERT INTO TaskResult (taskId, rowIndex, assetId, epc, assetType, "
                     + "assetModel, serialNumber, custodian, dept, status, inventoryTime, rawRowJson) "

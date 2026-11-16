@@ -230,8 +230,9 @@ public class WebServerIntegrationTest {
         s.matchedAssetId = assetId;
         db.scanRecordDao().insert(s);
 
-        // 前提：从未回填
-        assertThat(db.assetDao().findByEpc(id, "E1").inventoryTime).isNull();
+        // 2026-11 起盘点时间在「扫描命中」时就写入（ScanViewModel 的写入路径），
+        // 读接口不再做补写 —— 这里模拟扫描路径打上时间戳。
+        db.assetDao().setInventoryTimeIfNull(assetId, 1234567L);
 
         HttpURLConnection results = open("GET",
                 "/api/tasks/" + id + "/results?tab=FOUND&page=1&pageSize=10");

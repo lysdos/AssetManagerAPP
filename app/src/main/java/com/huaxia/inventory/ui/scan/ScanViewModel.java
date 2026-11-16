@@ -317,6 +317,12 @@ public class ScanViewModel extends AndroidViewModel {
                 Asset matched = db.assetDao().findByEpc(taskId, rawCode);
                 rec.matchedAssetId = matched == null ? null : matched.id;
                 newIdHolder[0] = db.scanRecordDao().insert(rec);
+                // 命中即在写入路径上盖盘点时间（幂等，只填 NULL）。这样所有读入口
+                // 都不必再为了「盘点时间」列做补写 —— 之前是在 GET 接口里补，30w
+                // 任务每翻一页就触发一次全量 UPDATE。
+                if (matched != null) {
+                    db.assetDao().setInventoryTimeIfNull(matched.id, rec.scannedAt);
+                }
             });
             long newId = newIdHolder[0];
             // 路径 2: DB UNIQUE IGNORE 命中 — 不发 latestScan 不调统计, 避免显示两条.
