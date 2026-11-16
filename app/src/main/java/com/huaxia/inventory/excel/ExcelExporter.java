@@ -131,6 +131,33 @@ public final class ExcelExporter {
      * @param parentTmpDir {@link XlsxStreamWriter} 写入流式缓冲的临时目录,
      *                     Android 调用方应传 {@code context.getCacheDir()}.
      */
+    /**
+     * 从该任务首行的 {@code rawRowJson} 重建原始表头顺序，并丢弃「盘点日期」列
+     * （由「盘点时间」取代）。
+     *
+     * <p>App 端导出与 Web 端导出必须共用这一份实现 —— 之前两处各写一遍，且只有
+     * Web 侧有 {@code HeaderSpec.REQUIRED} 兜底，同一任务两种导出会得到不同的列。</p>
+     */
+    public static List<String> rebuildHeaders(ResultRepository repo, long taskId,
+                                              String taskStatus) {
+        List<String> headers = new ArrayList<>();
+        List<ResultRepository.ResultRow> firstPage = repo.page(taskId, taskStatus,
+                ResultRepository.Tab.ALL, 1, 0);
+        if (firstPage.isEmpty() || firstPage.get(0).rawRowJson == null) return headers;
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> raw = RAW_ROW_READER.readValue(firstPage.get(0).rawRowJson);
+            for (String k : raw.keySet()) {
+                if (!"盘点日期".equals(k)) headers.add(k);
+            }
+        } catch (Exception e) {
+            headers.clear();
+            headers.addAll(HeaderSpec.REQUIRED);
+            headers.remove("盘点日期");
+        }
+        return headers;
+    }
+
     public static void exportStreamed(
             OutputStream out,
             String taskName,

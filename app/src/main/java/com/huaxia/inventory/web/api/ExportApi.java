@@ -67,7 +67,8 @@ public class ExportApi {
             File out = newTempFile();
             try (OutputStream os = new FileOutputStream(out)) {
                 ExcelExporter.exportStreamed(os, task.sourceFileName, task.status,
-                        rebuildHeaders(taskId), new com.huaxia.inventory.data.ResultRepository(db),
+                        rebuildHeaders(taskId, task.status),
+                        new com.huaxia.inventory.data.ResultRepository(db),
                         taskId, ctx.getCacheDir());
             } catch (IOException e) {
                 deleteQuietly(out);
@@ -125,29 +126,9 @@ public class ExportApi {
      * 从该任务首个 asset 的 rawRowJson 重建原始表头顺序，并丢弃「盘点日期」列
      * （由「盘点时间」取代）。与 App 端 ResultFragment 的导出逻辑一致。
      */
-    private List<String> rebuildHeaders(long taskId) {
-        List<String> headers = new ArrayList<>();
-        com.huaxia.inventory.data.entity.InventoryTask task =
-                db.inventoryTaskDao().findById(taskId);
-        List<com.huaxia.inventory.data.ResultRepository.ResultRow> firstPage =
-                new com.huaxia.inventory.data.ResultRepository(db).page(taskId,
-                        task == null ? "IN_PROGRESS" : task.status,
-                        com.huaxia.inventory.data.ResultRepository.Tab.ALL, 1, 0);
-        if (firstPage.isEmpty() || firstPage.get(0).rawRowJson == null) return headers;
-        try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> raw = new ObjectMapper()
-                    .readValue(firstPage.get(0).rawRowJson, Map.class);
-            for (String k : raw.keySet()) {
-                if (!"盘点日期".equals(k)) headers.add(k);
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "rebuildHeaders failed, falling back to required headers", e);
-            headers.clear();
-            headers.addAll(HeaderSpec.REQUIRED);
-            headers.remove("盘点日期");
-        }
-        return headers;
+    private List<String> rebuildHeaders(long taskId, String taskStatus) {
+        return ExcelExporter.rebuildHeaders(
+                new com.huaxia.inventory.data.ResultRepository(db), taskId, taskStatus);
     }
 
     private WebResponse fileResponse(File file, String downloadName) throws ApiException {

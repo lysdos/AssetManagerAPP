@@ -86,9 +86,15 @@ public class WebServer extends NanoHTTPD {
             return serveStatic(uri);
         }
 
-        WebRequest req = toWebRequest(session);
-        if (req == null) {
+        WebRequest req;
+        try {
+            req = toWebRequest(session);
+        } catch (BodyTooLarge e) {
             return toNano(WebResponse.error(413, "PAYLOAD_TOO_LARGE", "请求体超过 20MB"));
+        } catch (IOException e) {
+            // 读取请求体失败 ≠ 体积超限。之前两者都映射成 413，排障时会误导。
+            Log.e(TAG, "read body failed", e);
+            return toNano(WebResponse.error(400, "BAD_REQUEST", "读取请求体失败"));
         }
         return toNano(router.dispatch(req));
     }
@@ -113,7 +119,10 @@ public class WebServer extends NanoHTTPD {
         }
     }
 
-    private WebRequest toWebRequest(IHTTPSession session) {
+    /** 请求体超过上限 —— 与 IO 读取失败区分开，避免都报成 413。 */
+    private static final class BodyTooLarge extends Exception {}
+
+    private WebRequest toWebRequest(IHTTPSession session) throws BodyTooLarge, IOException {
         Map<String, String> query = new HashMap<>();
         for (Map.Entry<String, List<String>> e : session.getParameters().entrySet()) {
             if (e.getValue() != null && !e.getValue().isEmpty()) {
@@ -128,14 +137,9 @@ public class WebServer extends NanoHTTPD {
         } catch (NumberFormatException e) {
             declared = 0L;
         }
-        if (declared > MAX_BODY) return null;
+        if (declared > MAX_BODY) throw new BodyTooLarge();
         if (declared > 0) {
-            try {
-                body = readBody(session.getInputStream(), (int) declared);
-            } catch (IOException e) {
-                Log.e(TAG, "read body failed", e);
-                return null;
-            }
+            body = readBody(session.getInputStream(), (int) declared);
         }
         return new WebRequest(session.getMethod().name(), session.getUri(),
                 query, session.getHeaders(), body);

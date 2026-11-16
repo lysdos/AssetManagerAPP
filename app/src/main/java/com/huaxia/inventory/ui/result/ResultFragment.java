@@ -302,22 +302,9 @@ public class ResultFragment extends Fragment {
             try {
                 InventoryTask task = app.getDb().inventoryTaskDao().findById(taskId);
 
-                List<String> originalHeaders = new ArrayList<>();
-                List<com.huaxia.inventory.data.ResultRepository.ResultRow> firstPage =
-                        new com.huaxia.inventory.data.ResultRepository(app.getDb())
-                                .page(taskId, task.status,
-                                        com.huaxia.inventory.data.ResultRepository.Tab.ALL, 1, 0);
-                if (!firstPage.isEmpty() && firstPage.get(0).rawRowJson != null) {
-                    com.fasterxml.jackson.databind.ObjectMapper mapper =
-                            new com.fasterxml.jackson.databind.ObjectMapper();
-                    @SuppressWarnings("unchecked")
-                    java.util.Map<String, Object> raw = mapper.readValue(
-                            firstPage.get(0).rawRowJson, java.util.Map.class);
-                    // 源里的"盘点日期"是空占位列, 导出时由"盘点时间"取代, 这里过滤掉避免重复.
-                    for (String k : raw.keySet()) {
-                        if (!"盘点日期".equals(k)) originalHeaders.add(k);
-                    }
-                }
+                List<String> originalHeaders = ExcelExporter.rebuildHeaders(
+                        new com.huaxia.inventory.data.ResultRepository(app.getDb()),
+                        taskId, task.status);
 
                 try (java.io.OutputStream out = resolver.openOutputStream(uri)) {
                     ExcelExporter.exportStreamed(out, task.sourceFileName, task.status,

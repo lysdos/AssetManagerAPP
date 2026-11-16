@@ -6,7 +6,6 @@ import com.huaxia.inventory.data.AppDatabase;
 import com.huaxia.inventory.data.ResultRepository;
 import com.huaxia.inventory.data.dao.CategoryCount;
 import com.huaxia.inventory.data.entity.Asset;
-import com.huaxia.inventory.data.entity.ScanRecord;
 import com.huaxia.inventory.util.EpcNormalizer;
 import com.huaxia.inventory.util.SqlLikeEscaper;
 import com.huaxia.inventory.web.ApiException;
@@ -132,14 +131,6 @@ public class AssetApi {
         return m;
     }
 
-    private static Map<String, Object> extraDto(ScanRecord s) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id", s.id);
-        m.put("epc", displayEpc(s.epc));
-        m.put("scannedAt", s.scannedAt);
-        m.put("rssi", s.rssi);
-        return m;
-    }
 
     private static List<Map<String, Object>> groups(List<CategoryCount> src, String blankLabel) {
         List<Map<String, Object>> out = new ArrayList<>(src.size());
