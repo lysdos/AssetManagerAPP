@@ -12,3 +12,13 @@ app/release/
 
 # brainstorming 可视化草稿（不随仓库交付）
 .superpowers/
+
+# 签名证书与本地配置，禁止入库（含明文口令）
+local.properties
+app/keystore/
+*.jks
+*.keystore
+.claude/settings.local.json
+
+# 厂商 SDK，按需从厂商获取（28MB）
+SDK_ReleaseforAndroid-master/
